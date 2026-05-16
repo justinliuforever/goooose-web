@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+**/.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Build output
+.next/
+dist/
+build/
+out/
+
+# Cache
+.turbo/
+.cache/
+.eslintcache
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Trigger.dev
+.trigger/
+
+# Vercel
+.vercel/
+
+# Drizzle
+drizzle/meta/_journal.json
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Next.js auto-generated
+next-env.d.ts
+
+# Python sidecar build artifacts
+*.egg-info/
+.pytest_cache/
