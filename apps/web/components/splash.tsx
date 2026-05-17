@@ -20,7 +20,41 @@ export function Splash({ redirectTo, duration = 1500 }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-12">
+      {/* Hand-drawn cloud — top-left */}
+      <svg
+        className="pointer-events-none absolute top-12 left-12 opacity-10"
+        width="100"
+        height="60"
+        viewBox="0 0 100 60"
+        fill="none"
+        aria-hidden
+      >
+        <path
+          d="M10 40C10 30 20 20 35 20C40 10 60 10 70 20C85 20 95 30 95 45C95 55 85 60 75 60H25C15 60 10 50 10 40Z"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeDasharray="4 2"
+        />
+      </svg>
+
+      {/* Hand-drawn cloud — bottom-right (mirrored) */}
+      <svg
+        className="pointer-events-none absolute right-12 bottom-12 scale-x-[-1] opacity-10"
+        width="120"
+        height="70"
+        viewBox="0 0 100 60"
+        fill="none"
+        aria-hidden
+      >
+        <path
+          d="M10 40C10 30 20 20 35 20C40 10 60 10 70 20C85 20 95 30 95 45C95 55 85 60 75 60H25C15 60 10 50 10 40Z"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeDasharray="3 3"
+        />
+      </svg>
+
+      <div className="relative flex flex-col items-center gap-12">
         <h1 className="font-display text-7xl leading-none select-none sm:text-8xl">
           Singularity.
         </h1>
