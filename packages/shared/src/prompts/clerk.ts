@@ -87,7 +87,13 @@ Return ONLY valid JSON. No markdown code fences.
 `;
 
   const composed = preamble + body;
-  return language === "zh" ? CHINESE_WRAPPER(composed) : composed;
+  if (language !== "zh") return composed;
+  // For the analyzer JSON specifically, JSON KEYS must remain English (the
+  // parser keys off them); only VALUES go to Chinese.
+  return (
+    CHINESE_WRAPPER(composed) +
+    "\n\nIMPORTANT: JSON keys must remain in English (thumbnail_description, opening_hook, framework, …). Only the VALUES (the strings on the right side) should be in Simplified Chinese."
+  );
 }
 
 type SopArgs = {
@@ -126,7 +132,7 @@ Format as clean markdown.
 }
 
 export function buildAiSopReferencePrompt(args: SopArgs): string {
-  return `You are creating an AI-optimized reference document for an automated scriptwriting agent. Based on the analysis of "${args.channelName}", create a structured reference.
+  const inner = `You are creating an AI-optimized reference document for an automated scriptwriting agent. Based on the analysis of "${args.channelName}", create a structured reference.
 
 ## Analyzed Videos Data
 ${args.videosData}
@@ -142,6 +148,13 @@ Create a structured reference with sections: CONTENT_FORMULA, THEMES, THUMBNAIL_
 
 Return ONLY the document content.
 `;
+  // Section names (CONTENT_FORMULA, HOOK_TEMPLATES, ...) stay English as
+  // structural anchors; descriptive content + examples follow the language
+  // wrapper.
+  return args.language === "zh"
+    ? CHINESE_WRAPPER(inner) +
+        "\n\nIMPORTANT: 章节标识（CONTENT_FORMULA / HOOK_TEMPLATES 等）保留英文作为结构锚点，但所有描述、说明、例子、模板内容必须用简体中文。"
+    : inner;
 }
 
 type HottestArgs = {
