@@ -16,3 +16,13 @@ export const deleteChannelInput = z.object({
 });
 
 export type DeleteChannelInput = z.infer<typeof deleteChannelInput>;
+
+export const updateChannelInput = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1, "Required").max(80),
+  platform: platformSchema,
+  platformUrl: z.string().url("Must be a valid URL"),
+  description: z.string().max(500).nullable().optional(),
+});
+
+export type UpdateChannelInput = z.infer<typeof updateChannelInput>;

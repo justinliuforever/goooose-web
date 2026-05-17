@@ -1,12 +1,14 @@
 import "server-only";
 
 import { and, desc, eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 
 import { channels } from "@singularity/db";
 
 import { db } from "@/lib/db";
 import { protectedProcedure, router } from "./init";
-import { createChannelInput, deleteChannelInput } from "./schemas/channels";
+import { createChannelInput, deleteChannelInput, updateChannelInput } from "./schemas/channels";
 
 function slugify(name: string): string {
   return name
@@ -43,6 +45,17 @@ export const appRouter = router({
         .orderBy(desc(channels.createdAt));
     }),
 
+    bySlug: protectedProcedure
+      .input(z.object({ slug: z.string().min(1) }))
+      .query(async ({ ctx, input }) => {
+        const [channel] = await db
+          .select()
+          .from(channels)
+          .where(and(eq(channels.userId, ctx.user.id), eq(channels.slug, input.slug)))
+          .limit(1);
+        return channel ?? null;
+      }),
+
     create: protectedProcedure
       .input(createChannelInput)
       .mutation(async ({ ctx, input }) => {
@@ -59,6 +72,25 @@ export const appRouter = router({
           })
           .returning();
         return created!;
+      }),
+
+    update: protectedProcedure
+      .input(updateChannelInput)
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...patch } = input;
+        const [updated] = await db
+          .update(channels)
+          .set({
+            name: patch.name,
+            platform: patch.platform,
+            platformUrl: patch.platformUrl,
+            description: patch.description ?? null,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(channels.id, id), eq(channels.userId, ctx.user.id)))
+          .returning();
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+        return updated;
       }),
 
     delete: protectedProcedure

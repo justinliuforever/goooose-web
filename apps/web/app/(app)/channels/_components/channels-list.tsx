@@ -68,7 +68,14 @@ export function ChannelsList() {
         <TableBody>
           {data.map((channel) => (
             <TableRow key={channel.id}>
-              <TableCell className="font-medium">{channel.name}</TableCell>
+              <TableCell className="font-medium">
+                <Link
+                  href={`/channels/${encodeURIComponent(channel.slug)}`}
+                  className="hover:text-foreground hover:underline"
+                >
+                  {channel.name}
+                </Link>
+              </TableCell>
               <TableCell>
                 <Badge variant="secondary" className="font-mono text-[10px] uppercase">
                   {channel.platform}
