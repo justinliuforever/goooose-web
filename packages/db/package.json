@@ -19,6 +19,7 @@
     "groq-asr-smoke": "tsx scripts/groq-asr-smoke.ts",
     "asr-fallback-smoke": "tsx scripts/asr-fallback-smoke.ts",
     "asr-branch-smoke": "tsx scripts/asr-branch-smoke.ts",
+    "muse-services-smoke": "tsx scripts/muse-services-smoke.ts",
     "test-clerk-pipeline": "tsx scripts/test-clerk-pipeline.ts"
   },
   "dependencies": {
