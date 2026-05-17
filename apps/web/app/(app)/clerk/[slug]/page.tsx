@@ -18,6 +18,8 @@ import {
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
+import { ClerkRunButton } from "./_components/clerk-run-button";
+
 type Props = { params: Promise<{ slug: string }> };
 
 function formatViews(views: number | null): string {
@@ -69,12 +71,15 @@ export default async function ClerkChannelPage({ params }: Props) {
         Clerk
       </Button>
 
-      <header className="flex items-center gap-3">
-        <span className="size-2 rounded-full bg-clerk" />
-        <h1 className="text-2xl font-semibold tracking-tight">{channel.name}</h1>
-        <Badge variant="secondary" className="font-mono text-[10px] uppercase">
-          {videos.length} videos
-        </Badge>
+      <header className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="size-2 rounded-full bg-clerk" />
+          <h1 className="text-2xl font-semibold tracking-tight">{channel.name}</h1>
+          <Badge variant="secondary" className="font-mono text-[10px] uppercase">
+            {videos.length} videos
+          </Badge>
+        </div>
+        <ClerkRunButton channelId={channel.id} channelName={channel.name} />
       </header>
 
       <Table>

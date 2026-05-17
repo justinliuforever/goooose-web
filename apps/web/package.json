@@ -14,6 +14,7 @@
     "@base-ui/react": "^1.4.1",
     "@logto/next": "^4.2.10",
     "@singularity/db": "workspace:*",
+    "@singularity/shared": "workspace:*",
     "@tanstack/react-query": "^5.100.10",
     "@trigger.dev/react-hooks": "^4.4.6",
     "@trigger.dev/sdk": "^4.4.6",

@@ -2,5 +2,23 @@
   "name": "@singularity/shared",
   "version": "0.0.0",
   "private": true,
-  "description": "Shared Zod schemas, prompt templates (core IP), and TS types."
+  "type": "module",
+  "description": "Shared prompt templates and Zod schemas (core IP, 1:1 archive port).",
+  "exports": {
+    "./prompts/clerk": "./src/prompts/clerk.ts",
+    "./schemas/clerk": "./src/schemas/clerk.ts",
+    "./clients/llm": "./src/clients/llm.ts",
+    "./clients/tikhub": "./src/clients/tikhub.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/deepseek": "^2.0.35",
+    "ai": "^6.0.184",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
 }

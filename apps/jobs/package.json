@@ -12,8 +12,11 @@
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.35",
     "@singularity/db": "workspace:*",
+    "@singularity/shared": "workspace:*",
     "@trigger.dev/sdk": "^4.4.4",
-    "ai": "^6.0.184"
+    "ai": "^6.0.184",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.9"
   },
   "devDependencies": {
     "trigger.dev": "^4.4.4",

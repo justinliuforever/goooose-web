@@ -23,12 +23,21 @@ importers:
       '@singularity/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@singularity/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@trigger.dev/sdk':
         specifier: ^4.4.4
         version: 4.4.6(ai@6.0.184(zod@4.4.3))(zod@4.4.3)
       ai:
         specifier: ^6.0.184
         version: 6.0.184(zod@4.4.3)
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@opentelemetry/api@1.9.0)(postgres@3.4.9)
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
     devDependencies:
       trigger.dev:
         specifier: ^4.4.4
@@ -51,6 +60,9 @@ importers:
       '@singularity/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@singularity/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@tanstack/react-query':
         specifier: ^5.100.10
         version: 5.100.10(react@19.2.4)
@@ -171,7 +183,21 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
-  packages/shared: {}
+  packages/shared:
+    dependencies:
+      '@ai-sdk/deepseek':
+        specifier: ^2.0.35
+        version: 2.0.35(zod@4.4.3)
+      ai:
+        specifier: ^6.0.184
+        version: 6.0.184(zod@4.4.3)
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
 
   packages/ui: {}
 
