@@ -203,3 +203,51 @@
 .splash-dot-3 {
   animation-delay: 0.36s;
 }
+
+/* Markdown rendering for Clerk SOPs (no @tailwindcss/typography). */
+.prose-clerk h1 {
+  @apply mt-6 mb-3 text-xl font-semibold tracking-tight;
+}
+.prose-clerk h2 {
+  @apply mt-6 mb-2 text-lg font-semibold tracking-tight;
+}
+.prose-clerk h3 {
+  @apply mt-5 mb-2 text-base font-medium;
+}
+.prose-clerk h4 {
+  @apply mt-4 mb-2 text-sm font-medium uppercase tracking-wide text-muted-foreground;
+}
+.prose-clerk p {
+  @apply my-3;
+}
+.prose-clerk ul {
+  @apply my-3 ml-5 list-disc space-y-1;
+}
+.prose-clerk ol {
+  @apply my-3 ml-5 list-decimal space-y-1;
+}
+.prose-clerk li {
+  @apply leading-relaxed;
+}
+.prose-clerk strong {
+  @apply font-semibold;
+}
+.prose-clerk em {
+  @apply italic;
+}
+.prose-clerk code {
+  @apply rounded bg-muted px-1.5 py-0.5 font-mono text-xs;
+}
+.prose-clerk hr {
+  @apply my-6 border-border;
+}
+.prose-clerk table {
+  @apply my-4 border-collapse text-xs;
+}
+.prose-clerk th,
+.prose-clerk td {
+  @apply border border-border px-3 py-2 align-top;
+}
+.prose-clerk blockquote {
+  @apply my-3 border-l-2 border-muted-foreground/50 pl-4 italic text-muted-foreground;
+}

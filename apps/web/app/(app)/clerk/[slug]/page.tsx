@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
-import { channels, clerkVideos } from "@singularity/db";
+import { channels, clerkSops, clerkVideos } from "@singularity/db";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,11 +53,28 @@ export default async function ClerkChannelPage({ params }: Props) {
     notFound();
   }
 
-  const videos = await db
-    .select()
-    .from(clerkVideos)
-    .where(eq(clerkVideos.channelId, channel.id))
-    .orderBy(desc(clerkVideos.views));
+  const [videos, sops] = await Promise.all([
+    db
+      .select()
+      .from(clerkVideos)
+      .where(eq(clerkVideos.channelId, channel.id))
+      .orderBy(desc(clerkVideos.views)),
+    db
+      .select()
+      .from(clerkSops)
+      .where(eq(clerkSops.channelId, channel.id))
+      .orderBy(desc(clerkSops.generatedAt)),
+  ]);
+
+  const sopOrder: Record<string, number> = {
+    human: 0,
+    ai_reference: 1,
+    hottest: 2,
+    single_video: 3,
+  };
+  const sortedSops = [...sops].sort(
+    (a, b) => (sopOrder[a.sopType] ?? 99) - (sopOrder[b.sopType] ?? 99),
+  );
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-8">
@@ -119,6 +136,49 @@ export default async function ClerkChannelPage({ params }: Props) {
           ))}
         </TableBody>
       </Table>
+
+      {sortedSops.length > 0 ? (
+        <section className="flex flex-col gap-4">
+          <h2 className="text-sm font-medium text-muted-foreground">SOPs</h2>
+          <div className="flex flex-col gap-4">
+            {sortedSops.map((sop) => (
+              <SopCard key={sop.id} sop={sop} />
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
+  );
+}
+
+function SopCard({ sop }: { sop: typeof clerkSops.$inferSelect }) {
+  return (
+    <details className="flex flex-col gap-3 rounded-lg border bg-card p-5">
+      <summary className="flex cursor-pointer items-center justify-between gap-3 list-none [&::-webkit-details-marker]:hidden">
+        <div className="flex items-center gap-3">
+          <Badge variant="secondary" className="font-mono text-[10px] uppercase">
+            {sop.sopType.replace(/_/g, " ")}
+          </Badge>
+          <span className="font-mono text-xs text-muted-foreground uppercase">{sop.language}</span>
+          <span className="font-mono text-xs text-muted-foreground">
+            {(sop.contentMd?.length ?? 0).toLocaleString("en-US")} chars
+          </span>
+        </div>
+        <span className="font-mono text-xs text-muted-foreground">
+          {sop.generatedAt.toLocaleDateString("zh-CN")}
+        </span>
+      </summary>
+      <SopContent text={sop.contentMd} />
+    </details>
+  );
+}
+
+async function SopContent({ text }: { text: string }) {
+  const { default: ReactMarkdown } = await import("react-markdown");
+  const { default: remarkGfm } = await import("remark-gfm");
+  return (
+    <article className="prose-clerk max-w-none border-t pt-4 text-sm leading-relaxed">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+    </article>
   );
 }
