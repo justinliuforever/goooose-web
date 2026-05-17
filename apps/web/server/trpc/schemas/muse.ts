@@ -1,0 +1,17 @@
+import { z } from "zod";
+
+export const startMonitorInput = z.object({
+  channelId: z.string().uuid(),
+  maxVideosPerCompetitor: z.number().int().min(1).max(50).default(10),
+  numIdeasPerVideo: z.number().int().min(1).max(10).default(5),
+  language: z.enum(["en", "zh"]).default("zh"),
+});
+
+export type StartMonitorInput = z.infer<typeof startMonitorInput>;
+
+export const approveIdeaInput = z.object({
+  ideaId: z.string().uuid(),
+  approved: z.boolean(),
+});
+
+export type ApproveIdeaInput = z.infer<typeof approveIdeaInput>;
