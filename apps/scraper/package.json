@@ -1,6 +1,0 @@
-{
-  "name": "@singularity/scraper",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Python FastAPI sidecar (yt-dlp + XHS / TikHub). Implemented Week 2+."
-}

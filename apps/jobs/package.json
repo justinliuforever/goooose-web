@@ -10,8 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/deepseek": "^2.0.35",
+    "@singularity/db": "workspace:*",
     "@trigger.dev/sdk": "^4.4.4",
-    "@singularity/db": "workspace:*"
+    "ai": "^6.0.184"
   },
   "devDependencies": {
     "trigger.dev": "^4.4.4",

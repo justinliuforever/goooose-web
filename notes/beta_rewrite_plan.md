@@ -177,6 +177,10 @@ singularity-web/
 - [x] **D2 续**：Agent 浏览 UI（`/clerk` 三级 + `/muse` 二级 + `/poet` 三级 + topic detail + 7 个 loading skeleton）
 - [x] **D2 续**：sanity-check + tikhub-smoke + groq-asr-smoke 三个测试脚本
 - ~~D3 Python sidecar~~ → ✗ 不做（D5=A）
+- [x] **D6**：Vercel 锁定（D5=A 后 Render 优势消失）
+- [x] **Trigger.dev 配置**：apps/jobs scaffold + worker 连云（proj_lfwtogxhtvfemlfqeooh，build 20260517.1）
+- [x] **LLM 栈**：Vercel AI SDK + `@ai-sdk/deepseek`，flash/pro 双 tier via `apps/web/lib/llm.ts`
+- [x] **apps/scraper 清理**（D5=A 后整目录删除）
 - [ ] **下一步**：W3 Clerk pipeline（见下）
 
 ### Week 3: Clerk 管线（分析器 + SOP 生成）
@@ -296,7 +300,7 @@ singularity-web/
 | **D3** | 1 人还是 2 人开发？时间表是否需根据人力调整 | — | **✓ 2026-05-16 锁定：1 人 8 周节奏** | ✓ |
 | **D4** | 是否提前启动 ICP / 微信开放平台申请流程     | A) 立刻启动（M3 上线 WeChat） B) 等 beta 反馈再说                           | **A** — 备案 3-6 月，启动越早越好；不然 WeChat 上线时间持续后延 | Week 2 |
 | **D5** | 生产 XHS / YouTube 数据层 | A) TikHub-only B) 混合 C) Spider_XHS | **✓ 2026-05-17 锁 A**（11 endpoint smoke test 全过 + Groq Whisper ASR fallback 端到端验证）。`apps/scraper/` 子树整体不建。详见 §10 第 26 项 | ✓ |
-| **D6** | Deploy host | A) Vercel（800s 函数限制） B) Render（与 sidecar 统一管理） | **W1 末定**（取决于 D5：若 D5=A 则 Render 跟 sidecar 统一的优势降低） | Week 1 |
+| **D6** | Deploy host | A) Vercel B) Render | **✓ 2026-05-17 锁 Vercel**（D5=A 后 Render 单管理优势消失；Vercel 800s + Trigger.dev 长任务组合就是最优解）| ✓ |
 
 ---
 
@@ -419,6 +423,27 @@ End-of-day 1 交付：访问 `*.vercel.app` 域名能看到 Next.js 默认页 + 
 ---
 
 ### 2026-05-17
+
+28. **D6 final — Vercel 锁定**：D5=A 后 Render 跟 sidecar 统一管理的优势消失；Vercel Pro 800s 函数 + Trigger.dev 长任务组合就是最优解。生产部署目标：vercel.com，custom domain TBD（W7-W8）
+
+29. **Trigger.dev 分阶段策略**（避免未来 vendor lock 的退出条件）：
+    - **阶段 A — MVP → beta（现在 → 6 个月）**：用 Trigger.dev 托管。MVP 500 任务/月在 5K 免费层内，$0/月。`useRealtimeRun` hook 让进度 UI 5 行落地，省 W3-W6 大约 6-8 天实施时间。
+    - **阶段 B — Growth 拐点（12-18 月后，5K+ paying user）**：当 Trigger.dev 月费 > $200 时，迁移到自托管 Trigger.dev v3（开源 MIT 许可，跑在 Render Pro Worker $25-50/月 + Supabase Postgres 状态）。代码 SDK 保留，只切运行平台
+    - **阶段 C — 真大规模**：评估 Inngest / Hatchet / 完全自建。3+ 年后的问题
+    - 退出条件量化：trigger.dev 月费 > $200 触发评估迁移
+    - 迁移代价：~1-2 天/agent（Clerk / Muse / Poet 共 3-6 天）
+    - 代码层面 hedge：所有进度上报包在 `reportProgress(current, total)` thin wrapper 后面，切 vendor 时只改这一个文件
+
+30. **LLM 栈简化 — DeepSeek-only 双 tier**（替换原 plan 的 Claude / Gemini / DeepSeek 三源策略）：
+    - **`deepseek-v4-flash`**：简单 / 快任务（分类、gating、短 critique、idea 生成、drift detection scoring）
+    - **`deepseek-v4-pro`**（thinking enabled）：复杂任务（视频 analyzer / SOP 生成 / 长稿 outline + section expand / Bible 生成）
+    - 两个模型都是 reasoning-enabled，response 自动带 `reasoning_content` 内部思考
+    - Vercel AI SDK + `@ai-sdk/deepseek` 包装，unified API（streamText / streamObject / generateObject）
+    - 单一 vendor 简化运维 + 财务（vs 原 plan 5 个 LLM 服务）
+    - 成本估算 MVP：Pro $1.10/M tokens vs Claude Sonnet 4.6 ~$3/M tokens，**5K 批改/月省 ~$50-60**
+    - Quality 风险：DeepSeek V4-Pro 公开 benchmark 跟 GPT-4 / Claude Sonnet 接近。若中文创作场景质量不足，未来可在 `apps/web/lib/llm.ts` 加 Claude tier 作 Pro+ 选项
+    - **退路保留**：`llm.ts` 单一文件抽象，加任何新 provider 只改这一文件
+    - Groq Whisper 仍保留（ASR 无替代）
 
 26. **D5 final — A 锁定（TikHub-only，无 Python sidecar）**：
     - 11 endpoint smoke test 全过（YouTube + XHS 关键路径覆盖）
