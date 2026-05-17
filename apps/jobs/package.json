@@ -2,5 +2,19 @@
   "name": "@singularity/jobs",
   "version": "0.0.0",
   "private": true,
-  "description": "Trigger.dev v3 long-running task definitions (Class B). Implemented Week 3+."
+  "type": "module",
+  "description": "Trigger.dev v3 tasks — long-running pipelines (channel analysis, long-form scripts, etc.)",
+  "scripts": {
+    "dev": "trigger dev",
+    "deploy": "trigger deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trigger.dev/sdk": "^4.4.4",
+    "@singularity/db": "workspace:*"
+  },
+  "devDependencies": {
+    "trigger.dev": "^4.4.4",
+    "typescript": "^5.7.0"
+  }
 }
