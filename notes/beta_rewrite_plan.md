@@ -197,7 +197,7 @@ singularity-web/
 - [x] **D2 polish 3 — 细化进度**：每视频拆 4 个 sub-phase（fetch metadata / fetch transcript / running analyzer / writing），SOP 阶段标注预计时长（"约 1-2 分钟"）；UI 加进度条 + 百分比 + elapsed timer + 视频标题 detail
 - [x] **D2 polish 4 — 中文输出保证**：4 个 prompt builder 全接 `language` 参数 + 在 zh 模式下走 CHINESE_WRAPPER；analyzer 额外加 reinforcement "JSON keys 保留英文，VALUES 中文"；ai_reference 加 reinforcement "章节锚保留英文，描述内容中文"。tRPC default language flipped to "zh"。**Verified**：英文 transcript (Rick Astley) + language=zh → V4 Pro 27s 返回纯中文 JSON，4/4 字段全中文，4/4 keys 全英文（`packages/db/scripts/verify-chinese-output.ts`）
 - ~~D2 verbatim_facts 双字段~~ → 注：archive 2026-05 加的，**仅 Poet 用**，不在 Clerk
-- [ ] **D3 next**：ASR fallback —— captions 空的视频走 TikHub `streams_v2` + Groq Whisper（已端到端验证过）
+- [x] **D3 — ASR fallback**：无字幕（或字幕 base_url 返回空 XML）的视频自动走 TikHub `streams_v2` + Groq `whisper-large-v3`；新表列 `clerk_videos.transcript_source` ("caption" / "asr" / null)；UI 频道页加字幕来源 badge。Helper 永不抛出（无音频流 / 超 25 MB / 链接失效 / Groq 5xx 全部 graceful null）。**Verified**：Rick Astley caption 全空 → ASR 1.5KB 转写成功；3h 直播 → 因 duration > 60min 自动跳过；bogus ID → graceful null。`packages/db/scripts/asr-{fallback,branch}-smoke.ts` 3/3 绿。同时修复 caption 链路：`fetchTranscriptText` 加 `fmt=srv3`，`transcriptFromTracks` 改为按语言偏好顺序逐 track 尝试直到拿到非空文本
 - [ ] **D3 polish next**：单视频重跑 / 单 SOP 重跑 / 手动 transcript override / Imagination gate（< 3 transcripts 拒生 SOP，防 LLM 编造）
 - [x] **交付**：选频道 → 启动 Clerk 分析 → 流式进度 → SOP markdown 渲染（在 /clerk/[slug] 可见）
 
@@ -432,6 +432,19 @@ End-of-day 1 交付：访问 `*.vercel.app` 域名能看到 Next.js 默认页 + 
 ---
 
 ### 2026-05-17
+
+35. **W3 D3 完成 — ASR fallback 上线**：
+    - `packages/shared/src/clients/asr.ts` 新加 `transcribeYoutubeVideo(videoId, { onPhase, logger })`：选最小 audio stream → temp 文件 → Groq `whisper-large-v3` → 自动清理。**任何 recoverable 错误（无流 / 超 25MB / 失效 URL / Groq 5xx）一律 return null**，让调用方安全 continue
+    - **采坑**：第一版用 `pipe() + finished()`，AbortError 在 Readable 上被 emit 但没有 listener，触发 Node "Unhandled 'error' event" crash。改成 `pipeline()` 完美 propagate
+    - **采坑 2**：caption 链路本身有 bug —— YouTube `/api/timedtext` 不加 `fmt` 参数返回空 body；Rick Astley 6 个 caption tracks 全 0 字节。修了 `fetchTranscriptText` 加 `fmt=srv3` 并解析新旧两种 XML 格式（`<p>` / `<text>`），`transcriptFromTracks` 改成按偏好顺序逐 track 试到拿到非空文本
+    - **Pipeline branch logic**：`analyze-channel.ts` 在 caption 为 null 且视频 duration ≤ 60min 时 trigger ASR；duration > 60min 跳过（音频几乎必然超 25MB）；duration unknown 也跳过（保守）
+    - **DB**：新 `clerk_videos.transcript_source` 列（"caption" / "asr" / null）。migration `0002_clear_ezekiel_stane.sql`。`drizzle-kit push` 有 CHECK constraint introspection bug，绕道 `apply-pending-migration.ts` 直接执行 SQL
+    - **UI**：频道页 table 加 "字幕来源" 列 → `<TranscriptSourceBadge>`（"字幕" secondary / "AI 转写" outline / "无" muted-mono），不露 Whisper/Groq 名字。视频详情页头部也加同 badge，并把所有 English Section title 中文化
+    - **Smoke tests** 全部 3/3 绿（`pnpm --filter @singularity/db asr-{fallback,branch}-smoke`）：
+      - Rick Astley → 6 caption tracks 全空 → ASR fallthrough → 1.5KB 转写
+      - Lofi Girl 3h 直播 → duration unknown，ASR 跳过 → source=null
+      - 假 video id → TikHub 400 → graceful null
+    - **新 feedback 规则**：代码注释只保留 truly non-obvious why 行，无 multi-paragraph docstrings。今天涉及的文件（asr.ts / analyze-channel.ts / smoke scripts）全 trim 过。`MEMORY.md` 加 `feedback_comments-minimal.md`
 
 31. **W3 D1 完成 — Clerk 分析管线端到端**：
     - **`packages/shared/`** 新 workspace：prompts（archive 1:1 port，6 个 prompts）+ Zod schemas + LLM/TikHub clients（shared between web 和 jobs，避免双 app 重复 import）
