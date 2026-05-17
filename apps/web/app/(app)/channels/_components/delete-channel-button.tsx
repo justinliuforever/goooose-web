@@ -27,7 +27,7 @@ export function DeleteChannelButton({ id, name }: Props) {
   const deleteMutation = trpc.channels.delete.useMutation({
     onSuccess: () => {
       utils.channels.list.invalidate();
-      toast.success(`Deleted ${name}`);
+      toast.success(`已删除「${name}」`);
     },
     onError: (err) => {
       toast.error(err.message);
@@ -42,7 +42,7 @@ export function DeleteChannelButton({ id, name }: Props) {
             variant="ghost"
             size="icon"
             className="size-8 text-muted-foreground hover:text-destructive"
-            aria-label={`Delete ${name}`}
+            aria-label={`删除 ${name}`}
           />
         }
       >
@@ -50,18 +50,18 @@ export function DeleteChannelButton({ id, name }: Props) {
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete channel?</AlertDialogTitle>
+          <AlertDialogTitle>确认删除频道？</AlertDialogTitle>
           <AlertDialogDescription>
-            <span className="font-mono">{name}</span> and all its analyses, ideas, scripts will be permanently removed.
+            <span className="font-mono">{name}</span> 及其所有分析记录、选题、脚本将被永久删除，无法恢复。
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>取消</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => deleteMutation.mutate({ id })}
             disabled={deleteMutation.isPending}
           >
-            Delete
+            删除
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

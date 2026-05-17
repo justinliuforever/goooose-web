@@ -51,22 +51,23 @@ export default async function MuseLandingPage() {
     <div className="flex flex-1 flex-col gap-6 p-8">
       <header className="flex items-center gap-3">
         <span className="size-2 rounded-full bg-muse" />
-        <h1 className="text-2xl font-semibold tracking-tight">Muse</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Muse · 选题官</h1>
+        <span className="text-sm text-muted-foreground">监控竞品 + 生成选题</span>
       </header>
 
       {ideaRows.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center py-16 text-sm text-muted-foreground">
-          No ideas generated yet.
+          还没有选题
         </div>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Channel</TableHead>
-              <TableHead className="w-24">Platform</TableHead>
-              <TableHead className="w-28">Monitored</TableHead>
-              <TableHead className="w-24">Ideas</TableHead>
-              <TableHead className="w-40">Last generated</TableHead>
+              <TableHead>频道</TableHead>
+              <TableHead className="w-24">平台</TableHead>
+              <TableHead className="w-28">已监控</TableHead>
+              <TableHead className="w-24">选题数</TableHead>
+              <TableHead className="w-40">最近生成</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

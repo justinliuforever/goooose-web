@@ -41,7 +41,7 @@ export function ChannelsList() {
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-16">
         <Button render={<Link href="/channels/new" />} size="lg">
           <Plus data-icon="inline-start" />
-          New channel
+          新建频道
         </Button>
       </div>
     );
@@ -52,16 +52,16 @@ export function ChannelsList() {
       <div className="flex items-center justify-end">
         <Button render={<Link href="/channels/new" />} size="sm">
           <Plus data-icon="inline-start" />
-          New channel
+          新建频道
         </Button>
       </div>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Platform</TableHead>
+            <TableHead>名称</TableHead>
+            <TableHead>平台</TableHead>
             <TableHead>URL</TableHead>
-            <TableHead>Created</TableHead>
+            <TableHead>创建时间</TableHead>
             <TableHead className="w-12" />
           </TableRow>
         </TableHeader>

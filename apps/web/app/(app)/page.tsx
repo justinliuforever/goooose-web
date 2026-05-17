@@ -23,7 +23,7 @@ export default async function DashboardPage() {
       <div className="flex flex-1 items-center justify-center p-8">
         <Button render={<Link href="/channels/new" />} size="lg">
           <Plus data-icon="inline-start" />
-          Create your first channel
+          创建第一个频道
         </Button>
       </div>
     );

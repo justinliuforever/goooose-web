@@ -114,30 +114,30 @@ export default async function ChannelDetailPage({ params }: Props) {
   const encodedSlug = encodeURIComponent(channel.slug);
   const stats = [
     {
-      label: "Clerk",
+      label: "Clerk · 分析师",
       href: `/clerk/${encodedSlug}`,
       hasData: (clerkVideoCount?.c ?? 0) > 0,
       lines: [
-        `${clerkVideoCount?.c ?? 0} videos`,
-        `${clerkSopCount?.c ?? 0} SOPs`,
+        `${clerkVideoCount?.c ?? 0} 个视频`,
+        `${clerkSopCount?.c ?? 0} 份 SOP`,
       ],
     },
     {
-      label: "Muse",
+      label: "Muse · 选题官",
       href: `/muse/${encodedSlug}`,
       hasData: (museIdeaCount?.c ?? 0) > 0 || (museVideoCount?.c ?? 0) > 0,
       lines: [
-        `${museVideoCount?.c ?? 0} monitored`,
-        `${museIdeaCount?.c ?? 0} ideas`,
+        `${museVideoCount?.c ?? 0} 个监控视频`,
+        `${museIdeaCount?.c ?? 0} 个选题`,
       ],
     },
     {
-      label: "Poet",
+      label: "Poet · 写手",
       href: `/poet/${encodedSlug}`,
       hasData: (poetBibleCount?.c ?? 0) > 0 || (poetTopicCount?.c ?? 0) > 0,
       lines: [
-        `${poetBibleCount?.c ?? 0} bibles`,
-        `${poetTopicCount?.c ?? 0} custom topics`,
+        `${poetBibleCount?.c ?? 0} 本圣经`,
+        `${poetTopicCount?.c ?? 0} 个自定义选题`,
       ],
     },
   ];
@@ -151,7 +151,7 @@ export default async function ChannelDetailPage({ params }: Props) {
         className="w-fit text-muted-foreground"
       >
         <ChevronLeft data-icon="inline-start" />
-        Channels
+        频道列表
       </Button>
 
       <header className="flex flex-col gap-3">

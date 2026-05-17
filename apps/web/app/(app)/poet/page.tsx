@@ -58,22 +58,23 @@ export default async function PoetLandingPage() {
     <div className="flex flex-1 flex-col gap-6 p-8">
       <header className="flex items-center gap-3">
         <span className="size-2 rounded-full bg-poet" />
-        <h1 className="text-2xl font-semibold tracking-tight">Poet</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Poet · 写手</h1>
+        <span className="text-sm text-muted-foreground">频道圣经 + 短/长脚本生成</span>
       </header>
 
       {rows.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center py-16 text-sm text-muted-foreground">
-          No bibles yet.
+          还没有频道圣经
         </div>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Channel</TableHead>
-              <TableHead className="w-24">Platform</TableHead>
-              <TableHead className="w-24">Bibles</TableHead>
-              <TableHead className="w-28">Custom topics</TableHead>
-              <TableHead className="w-40">Last updated</TableHead>
+              <TableHead>频道</TableHead>
+              <TableHead className="w-24">平台</TableHead>
+              <TableHead className="w-24">圣经</TableHead>
+              <TableHead className="w-28">自定义选题</TableHead>
+              <TableHead className="w-40">最近更新</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

@@ -18,7 +18,7 @@ export default function AppLayout({
         <header className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
           <SidebarTrigger className="md:hidden" />
           <span className="ml-auto font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
-            beta · q3 2026
+            内测 · 2026 Q3
           </span>
           <AuthChip />
         </header>

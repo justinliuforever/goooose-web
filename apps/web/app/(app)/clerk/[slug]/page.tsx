@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getActiveClerkRun } from "@/lib/clerk-run";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
@@ -53,7 +54,7 @@ export default async function ClerkChannelPage({ params }: Props) {
     notFound();
   }
 
-  const [videos, sops] = await Promise.all([
+  const [videos, sops, activeRun] = await Promise.all([
     db
       .select()
       .from(clerkVideos)
@@ -64,6 +65,7 @@ export default async function ClerkChannelPage({ params }: Props) {
       .from(clerkSops)
       .where(eq(clerkSops.channelId, channel.id))
       .orderBy(desc(clerkSops.generatedAt)),
+    getActiveClerkRun(channel.id, user.id),
   ]);
 
   const sopOrder: Record<string, number> = {
@@ -85,28 +87,32 @@ export default async function ClerkChannelPage({ params }: Props) {
         className="w-fit text-muted-foreground"
       >
         <ChevronLeft data-icon="inline-start" />
-        Clerk
+        Clerk · 分析师
       </Button>
 
       <header className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <span className="size-2 rounded-full bg-clerk" />
           <h1 className="text-2xl font-semibold tracking-tight">{channel.name}</h1>
-          <Badge variant="secondary" className="font-mono text-[10px] uppercase">
-            {videos.length} videos
+          <Badge variant="secondary" className="font-mono text-[10px]">
+            {videos.length} 个视频
           </Badge>
         </div>
-        <ClerkRunButton channelId={channel.id} channelName={channel.name} />
+        <ClerkRunButton
+          channelId={channel.id}
+          channelName={channel.name}
+          initialActive={activeRun}
+        />
       </header>
 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Title</TableHead>
-            <TableHead className="w-28">Hook</TableHead>
-            <TableHead className="w-20">Views</TableHead>
-            <TableHead className="w-20">Length</TableHead>
-            <TableHead className="w-28">Analyzed</TableHead>
+            <TableHead>标题</TableHead>
+            <TableHead className="w-28">开场钩子</TableHead>
+            <TableHead className="w-20">播放量</TableHead>
+            <TableHead className="w-20">时长</TableHead>
+            <TableHead className="w-28">分析时间</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -139,7 +145,7 @@ export default async function ClerkChannelPage({ params }: Props) {
 
       {sortedSops.length > 0 ? (
         <section className="flex flex-col gap-4">
-          <h2 className="text-sm font-medium text-muted-foreground">SOPs</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">脚本撰写 SOP</h2>
           <div className="flex flex-col gap-4">
             {sortedSops.map((sop) => (
               <SopCard key={sop.id} sop={sop} />

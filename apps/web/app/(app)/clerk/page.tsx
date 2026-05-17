@@ -39,21 +39,24 @@ export default async function ClerkLandingPage() {
     <div className="flex flex-1 flex-col gap-6 p-8">
       <header className="flex items-center gap-3">
         <span className="size-2 rounded-full bg-clerk" />
-        <h1 className="text-2xl font-semibold tracking-tight">Clerk</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Clerk · 分析师</h1>
+        <span className="text-sm text-muted-foreground">
+          分析视频结构、钩子、节奏，生成可复用的脚本撰写 SOP
+        </span>
       </header>
 
       {rows.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center py-16 text-sm text-muted-foreground">
-          No analyzed videos yet.
+          还没有分析过的视频 — 去频道页点 &quot;开始分析&quot; 启动 Clerk
         </div>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Channel</TableHead>
-              <TableHead className="w-24">Platform</TableHead>
-              <TableHead className="w-24">Videos</TableHead>
-              <TableHead className="w-40">Last analyzed</TableHead>
+              <TableHead>频道</TableHead>
+              <TableHead className="w-24">平台</TableHead>
+              <TableHead className="w-24">已分析视频</TableHead>
+              <TableHead className="w-40">最近分析</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

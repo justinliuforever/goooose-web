@@ -32,7 +32,7 @@ export function CreateChannelForm() {
   const createMutation = trpc.channels.create.useMutation({
     onSuccess: (channel) => {
       utils.channels.list.invalidate();
-      toast.success(`Created ${channel.name}`);
+      toast.success(`已创建「${channel.name}」`);
       router.push("/channels");
     },
     onError: (err) => {
@@ -61,19 +61,19 @@ export function CreateChannelForm() {
     <form onSubmit={handleSubmit} className="flex max-w-xl flex-col gap-6">
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor="name">Name</FieldLabel>
+          <FieldLabel htmlFor="name">频道名称</FieldLabel>
           <Input
             id="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="My channel"
+            placeholder="例：摄影老司机"
             required
             autoFocus
           />
         </Field>
 
         <Field>
-          <FieldLabel htmlFor="platform">Platform</FieldLabel>
+          <FieldLabel htmlFor="platform">平台</FieldLabel>
           <Select value={platform} onValueChange={(v) => setPlatform(v as "youtube" | "xhs")}>
             <SelectTrigger id="platform">
               <SelectValue />
@@ -88,7 +88,7 @@ export function CreateChannelForm() {
         </Field>
 
         <Field>
-          <FieldLabel htmlFor="platformUrl">URL</FieldLabel>
+          <FieldLabel htmlFor="platformUrl">主页链接</FieldLabel>
           <Input
             id="platformUrl"
             type="url"
@@ -104,12 +104,12 @@ export function CreateChannelForm() {
         </Field>
 
         <Field>
-          <FieldLabel htmlFor="description">Description</FieldLabel>
+          <FieldLabel htmlFor="description">描述</FieldLabel>
           <Textarea
             id="description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Optional"
+            placeholder="选填，频道定位、风格说明"
             rows={3}
           />
         </Field>
@@ -121,10 +121,10 @@ export function CreateChannelForm() {
 
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={createMutation.isPending}>
-          {createMutation.isPending ? "Creating..." : "Create channel"}
+          {createMutation.isPending ? "创建中…" : "创建频道"}
         </Button>
         <Button variant="ghost" type="button" onClick={() => router.back()}>
-          Cancel
+          取消
         </Button>
       </div>
     </form>

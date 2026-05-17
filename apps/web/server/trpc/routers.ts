@@ -1,8 +1,8 @@
 import "server-only";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { tasks } from "@trigger.dev/sdk";
+import { auth, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 
 import { channels, pipelineRuns } from "@singularity/db";
@@ -155,6 +155,49 @@ export const appRouter = router({
           runId: run.id,
           triggerRunId: handle.id,
           publicAccessToken: handle.publicAccessToken,
+        };
+      }),
+
+    /**
+     * On page mount, the frontend checks if there's an analysis already
+     * running for this channel. If yes, server reissues a scoped public
+     * access token so useRealtimeRun can attach. This recovers progress
+     * after a refresh.
+     */
+    activeRun: protectedProcedure
+      .input(z.object({ channelId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const [active] = await db
+          .select({
+            id: pipelineRuns.id,
+            configJson: pipelineRuns.configJson,
+          })
+          .from(pipelineRuns)
+          .innerJoin(channels, eq(channels.id, pipelineRuns.channelId))
+          .where(
+            and(
+              eq(pipelineRuns.channelId, input.channelId),
+              eq(channels.userId, ctx.user.id),
+              inArray(pipelineRuns.status, ["pending", "running"]),
+            ),
+          )
+          .orderBy(desc(pipelineRuns.startedAt))
+          .limit(1);
+
+        if (!active) return null;
+        const triggerRunId = (active.configJson as { triggerRunId?: string } | null)
+          ?.triggerRunId;
+        if (!triggerRunId) return null;
+
+        const token = await auth.createPublicToken({
+          scopes: { read: { runs: [triggerRunId] } },
+          expirationTime: "1h",
+        });
+
+        return {
+          runId: active.id,
+          triggerRunId,
+          publicAccessToken: token,
         };
       }),
 

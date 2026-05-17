@@ -17,14 +17,14 @@ import {
 } from "@/components/ui/sidebar";
 
 const GENERAL = [
-  { label: "Dashboard", href: "/", icon: Home, end: true },
-  { label: "Channels", href: "/channels", icon: Tv },
+  { label: "工作台", href: "/", icon: Home, end: true },
+  { label: "频道", href: "/channels", icon: Tv },
 ];
 
 const AGENTS = [
-  { label: "Clerk", href: "/clerk", dot: "bg-clerk" },
-  { label: "Muse", href: "/muse", dot: "bg-muse" },
-  { label: "Poet", href: "/poet", dot: "bg-poet" },
+  { label: "Clerk · 分析师", href: "/clerk", dot: "bg-clerk" },
+  { label: "Muse · 选题官", href: "/muse", dot: "bg-muse" },
+  { label: "Poet · 写手", href: "/poet", dot: "bg-poet" },
 ];
 
 export function AppSidebar() {
@@ -43,7 +43,7 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>General</SidebarGroupLabel>
+          <SidebarGroupLabel>常用</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {GENERAL.map((item) => (
@@ -62,7 +62,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Agents</SidebarGroupLabel>
+          <SidebarGroupLabel>智能体</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {AGENTS.map((item) => (

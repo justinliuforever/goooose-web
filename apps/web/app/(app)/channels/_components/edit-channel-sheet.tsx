@@ -50,7 +50,7 @@ export function EditChannelSheet({ channel }: Props) {
     onSuccess: (updated) => {
       utils.channels.list.invalidate();
       utils.channels.bySlug.invalidate({ slug: updated.slug });
-      toast.success(`Updated ${updated.name}`);
+      toast.success(`已更新「${updated.name}」`);
       setOpen(false);
       router.refresh();
     },
@@ -78,18 +78,18 @@ export function EditChannelSheet({ channel }: Props) {
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger render={<Button variant="outline" size="sm" />}>
         <Pencil data-icon="inline-start" />
-        Edit
+        编辑
       </SheetTrigger>
       <SheetContent className="flex w-full flex-col gap-0 sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>Edit channel</SheetTitle>
-          <SheetDescription>Slug stays the same — it&apos;s the URL identifier.</SheetDescription>
+          <SheetTitle>编辑频道</SheetTitle>
+          <SheetDescription>URL 路径（slug）保持不变。</SheetDescription>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="edit-name">Name</FieldLabel>
+              <FieldLabel htmlFor="edit-name">频道名称</FieldLabel>
               <Input
                 id="edit-name"
                 value={name}
@@ -99,7 +99,7 @@ export function EditChannelSheet({ channel }: Props) {
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="edit-platform">Platform</FieldLabel>
+              <FieldLabel htmlFor="edit-platform">平台</FieldLabel>
               <Select
                 value={platform}
                 onValueChange={(v) => setPlatform(v as "youtube" | "xhs")}
@@ -117,7 +117,7 @@ export function EditChannelSheet({ channel }: Props) {
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="edit-url">URL</FieldLabel>
+              <FieldLabel htmlFor="edit-url">主页链接</FieldLabel>
               <Input
                 id="edit-url"
                 type="url"
@@ -128,12 +128,12 @@ export function EditChannelSheet({ channel }: Props) {
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="edit-description">Description</FieldLabel>
+              <FieldLabel htmlFor="edit-description">描述</FieldLabel>
               <Textarea
                 id="edit-description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Optional"
+                placeholder="选填"
                 rows={4}
               />
             </Field>
@@ -144,7 +144,7 @@ export function EditChannelSheet({ channel }: Props) {
           <SheetFooter className="mt-auto px-0">
             <div className="flex items-center gap-3">
               <Button type="submit" disabled={updateMutation.isPending}>
-                {updateMutation.isPending ? "Saving..." : "Save changes"}
+                {updateMutation.isPending ? "保存中…" : "保存"}
               </Button>
               <Button
                 type="button"
@@ -152,7 +152,7 @@ export function EditChannelSheet({ channel }: Props) {
                 onClick={() => setOpen(false)}
                 disabled={updateMutation.isPending}
               >
-                Cancel
+                取消
               </Button>
             </div>
           </SheetFooter>
