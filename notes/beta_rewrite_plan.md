@@ -156,25 +156,27 @@ singularity-web/
 
 ## 5. 8-周 Beta 路线
 
-### Week 1: 地基（端到端 hello-world）
+### Week 1: 地基（端到端 hello-world） — **✓ 完成 2026-05-16**
 
-- [ ] Create monorepo: pnpm + Turborepo + Next.js 15 + Tailwind + shadcn
-- [ ] Setup Supabase project, Drizzle schema (users, channels, sessions)
-- [ ] Setup Logto Cloud, integrate Email OTP
-- [ ] Setup deploy host（Vercel vs Render — 2026-05-16 D6 待选；Render 利于跟 sidecar 统一管理，Vercel 函数 800s 限制对 Class A 任务影响小）
-- [ ] Setup Render project for scraper sidecar（若 D5 选 TikHub-only 可跳过此步）
-- [ ] Setup Trigger.dev project
-- [ ] **不**做 user-facing Settings UI：archive 让用户填 LLM / Whisper / YouTube / XHS keys 的 635 行页面整页删；keys 服务端托管（env vars，后续考虑 secrets manager）
-- [ ] **交付**：访问 web 域名 → 邮箱注册 → 登录后欢迎页
+- [x] Create monorepo: pnpm + Turborepo + Next.js 16 + Tailwind 4 + shadcn base-nova
+- [x] Setup Supabase project, Drizzle schema (11 张表 — users + channels + pipeline_runs + clerk×2 + muse×2 + poet×4)
+- [x] Setup Logto Cloud, integrate Email OTP（branded sign-in page，Caveat 字体 + Singularity logo + 浅色背景）
+- [ ] Setup deploy host（Vercel vs Render — D6 仍待定，W2 后期决；本地 dev 跑通即可）
+- [ ] Setup Render project for scraper sidecar（W2 D3+ 视 D5 而定）
+- [ ] Setup Trigger.dev project（W3 用到再设）
+- [x] **不**做 user-facing Settings UI：keys 服务端托管 `.env.local`
+- [x] **交付**：访问 localhost → 邮箱 OTP 登录 → splash 动画 → dashboard 空状态 CTA
 
-### Week 2: Channel CRUD + 抓取 sidecar
+### Week 2: Channel CRUD + 抓取 sidecar — **D1+D2 完成 2026-05-17**
 
 - [ ] **D5 决定 XHS 数据层**：(A) TikHub-only（79 endpoint、$0.01/call、10 req/s、托管 sign.js + cookie）；(B) 混合（yt-dlp Python sidecar + TikHub for XHS）；(C) Spider_XHS Python sidecar（archive 路线）。调研 TikHub 是否覆盖 YouTube transcript，对比 5K 批改/月成本
-- [ ] Channel schema + tRPC CRUD endpoints
-- [ ] Channel 列表 UI（shadcn DataTable）
-- [ ] Python sidecar: yt-dlp + bgutil-pot-provider Docker compose（若 D5=A 则整个 `apps/scraper` 不需要）
-- [ ] Sidecar API: `POST /youtube/fetch-channel`, `POST /youtube/transcript`（同上条件）
-- [ ] Next.js 通过内部 JWT 调 sidecar（同上条件）
+- [x] **D1**：Channel schema + tRPC v11 CRUD endpoints（list/create/delete，slug 自动生成 + 冲突检测）
+- [x] **D1**：Channel 列表 UI（shadcn Table + AlertDialog 删除确认 + Field/Input/Select/Textarea 创建表单）
+- [x] **D2**：xlsx archive 数据 import（`packages/db/scripts/import-archive.ts` — 10 channels + 218 clerk_videos + 31 sops + 10 muse_videos + 50 ideas + 7 bibles + 18 custom topics 全绑 justinliuforever@gmail.com）
+- [ ] **D2 续**：Channel detail/edit 页（`/channels/[slug]` — 平台 URL + description + competitors + 关联实体计数）
+- [ ] **D3**：Python sidecar yt-dlp + bgutil-pot-provider Docker compose（若 D5=A 则整个 `apps/scraper` 不需要）
+- [ ] **D3**：Sidecar API: `POST /youtube/fetch-channel`, `POST /youtube/transcript`（同上条件）
+- [ ] **D3**：Next.js 通过内部 JWT 调 sidecar（同上条件）
 - [ ] **交付**：UI 创建频道 → 触发抓取 → 数据落 Supabase
 
 ### Week 3: Clerk 管线（分析器 + SOP 生成）
@@ -416,5 +418,22 @@ End-of-day 1 交付：访问 `*.vercel.app` 域名能看到 Next.js 默认页 + 
 
 ---
 
-**Date locked**: 2026-05-15（原版）；revisions 2026-05-16 追加
-**Next review**: 完成 Week 1 后
+### 2026-05-17
+
+11. **W1 完成**：monorepo + Next.js 16.2.6 + 11 张表上 Supabase + Logto branded sign-in 端到端通；splash 动画 + dashboard 空状态 CTA 全 live tested
+12. **W2 D1 完成**：channel CRUD（list/create/delete）live tested
+13. **W2 D2 完成**：xlsx archive 数据 import 落库（10 channels + 218 + 31 + 10 + 50 + 7 + 18 行 全 user_id 绑定 justinliuforever@gmail.com）
+14. **新增 schema enum value**：`sop_type` 加 `single_video`（archive 实际用过，11 张表设计阶段漏了）
+15. **xlsx 导出丢损**：archive 的 xlsx 把所有长文本截到 ~301 字符（`poet_bible.content`, `clerk_sops.content_md`, `custom_topic.references_json`, 多数 clerk video 分析字段）。**TODO**：W3 Clerk + W5 Poet 实现后让用户重跑 pipeline 重建全文
+16. **跳过 import 的表**：`poet_scripts`（10 行）—— xlsx 没存 `script_text`（archive 用 `file_path` 引旧机本地文件），且行列结构有两种不一致 layout。W5 实现 Poet 后从 ideas / custom_topics 重新生成
+17. **运维发现 1**：Supabase ap-southeast-1 项目本地 IPv4 网络只能走 **Supavisor pooler `aws-1-ap-southeast-1.pooler.supabase.com:6543`**（不是 aws-0），直连 `db.{ref}.supabase.co` IPv6-only 跑不通。`postgres-js` 必须 `prepare: false`
+18. **运维发现 2**：Next.js 16 cookies 修改只能在 **Route Handler** 或 **Server Action**，不能在 Page Component。`/callback` 必须是 `route.ts`（调 `handleSignIn`）→ redirect 到 `/welcome`（page，渲染 splash）；不能合并为单一 page
+19. **运维发现 3**：Next.js 16 把 `middleware.ts` / `middleware()` 重命名为 `proxy.ts` / `proxy()`
+20. **运维发现 4**：pnpm 11 ERR_PNPM_IGNORED_BUILDS — 在 `pnpm-workspace.yaml` 用 `allowBuilds` 显式批准 `sharp`/`unrs-resolver`/`esbuild`，明确跳过 `msw`
+21. **运维发现 5**：base-nova shadcn 用 `render` prop 而非 `asChild`；`DropdownMenuLabel` 必须包在 `DropdownMenuGroup` 里（否则 `MenuGroupRootContext is missing` 报错）
+22. **运维发现 6**：16GB Mac 在 Turbopack 冷编译时可能 OS 级 crash，给 dev script 加 `NODE_OPTIONS=--max-old-space-size=4096` cap
+
+---
+
+**Date locked**: 2026-05-15（原版）；revisions 2026-05-16 + 2026-05-17 追加
+**Next review**: 完成 Week 2 D3（scraper sidecar）后

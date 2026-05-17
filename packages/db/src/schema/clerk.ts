@@ -58,7 +58,7 @@ export const clerkVideos = pgTable(
   })
 );
 
-export const sopTypeEnum = pgEnum("sop_type", ["human", "ai_reference", "hottest"]);
+export const sopTypeEnum = pgEnum("sop_type", ["human", "ai_reference", "hottest", "single_video"]);
 
 export const clerkSops = pgTable(
   "clerk_sops",

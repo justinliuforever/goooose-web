@@ -1,0 +1,1 @@
+ALTER TYPE "public"."sop_type" ADD VALUE 'single_video';
