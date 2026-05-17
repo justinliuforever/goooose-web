@@ -20,7 +20,9 @@
     "test-clerk-pipeline": "tsx scripts/test-clerk-pipeline.ts"
   },
   "dependencies": {
+    "@ai-sdk/deepseek": "^2.0.35",
     "@trigger.dev/sdk": "^4.4.6",
+    "ai": "^6.0.184",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "groq-sdk": "^1.2.0",
