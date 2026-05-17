@@ -6,7 +6,10 @@
   "description": "Shared prompt templates and Zod schemas (core IP, 1:1 archive port).",
   "exports": {
     "./prompts/clerk": "./src/prompts/clerk.ts",
+    "./prompts/muse": "./src/prompts/muse.ts",
     "./schemas/clerk": "./src/schemas/clerk.ts",
+    "./schemas/muse": "./src/schemas/muse.ts",
+    "./services/muse": "./src/services/muse.ts",
     "./clients/llm": "./src/clients/llm.ts",
     "./clients/tikhub": "./src/clients/tikhub.ts",
     "./clients/asr": "./src/clients/asr.ts"
