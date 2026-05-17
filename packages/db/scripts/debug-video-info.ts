@@ -41,11 +41,10 @@ async function inspect(id: string, endpoint = "/api/v1/youtube/web/get_video_inf
 }
 
 async function main() {
+  // MKBHD videos from latest test
   const cases: Array<[string, string]> = [
-    ["MmUjYrHpVG8", "/api/v1/youtube/web/get_video_info_v3"],
-    ["MmUjYrHpVG8", "/api/v1/youtube/web/get_video_info_v2"],
-    ["MmUjYrHpVG8", "/api/v1/youtube/web/get_video_info"],
-    ["MmUjYrHpVG8", "/api/v1/youtube/web_v2/get_video_info"],
+    ["eFeDpUVEy48", "/api/v1/youtube/web_v2/get_video_info"],
+    ["coX4duwUCpw", "/api/v1/youtube/web_v2/get_video_info"],
   ];
   for (const [id, ep] of cases) {
     console.log(`\n>>> ${ep}`);

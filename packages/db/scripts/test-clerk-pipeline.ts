@@ -30,8 +30,9 @@ import { channels, clerkVideos, pipelineRuns, users } from "../src/schema";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, "../../../.env.local") });
 
-const TEST_HANDLE_URL = "https://www.youtube.com/@LinusTechTips";
-const TEST_LIMIT = 2;
+const TEST_HANDLE_URL = process.env.TEST_HANDLE_URL ?? "https://www.youtube.com/@mkbhd";
+const TEST_LIMIT = Number(process.env.TEST_LIMIT ?? 2);
+const KEEP_CHANNEL = process.env.KEEP_CHANNEL === "1";
 const POLL_INTERVAL_MS = 5000;
 const TIMEOUT_MS = 600000;
 const TARGET_EMAIL = "justinliuforever@gmail.com";
@@ -156,8 +157,12 @@ async function main() {
       console.log(`  error: ${finalRun.errorMessage}`);
     }
   } finally {
-    console.log(`\nCleaning up: delete test channel ${channel.slug}…`);
-    await db.delete(channels).where(eq(channels.id, channel.id));
+    if (KEEP_CHANNEL) {
+      console.log(`\nKeeping test channel ${channel.slug} (KEEP_CHANNEL=1). Run delete manually later.`);
+    } else {
+      console.log(`\nCleaning up: delete test channel ${channel.slug}…`);
+      await db.delete(channels).where(eq(channels.id, channel.id));
+    }
     await client.end();
     console.log(`Done.`);
   }
