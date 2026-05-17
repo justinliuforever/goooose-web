@@ -203,11 +203,15 @@ singularity-web/
 
 ### Week 4: Muse 管线（监控 + idea 生成）
 
-- [ ] Port `classifier.py` + `viral_analyzer.py` + `idea_generator.py` → TS
-- [ ] Imagination gate 逻辑保留（字幕 < 200 字符跳过）
-- [ ] Approval workflow（tRPC mutation）
-- [ ] Trigger.dev task: `monitor-competitors`
-- [ ] UI: ideas table（shadcn）+ approve toggle
+- [x] **D1**：Port `muse_prompts.py` → `packages/shared/src/prompts/muse.ts`（3 个 prompt 1:1 移植 + language 参数 + CHINESE_WRAPPER）
+- [x] **D1**：Port `classifier.py` + `viral_analyzer.py` + `idea_generator.py` → `packages/shared/src/services/muse.ts`（同步原 temperatures 0.2/0.4/0.7 + token caps 512/2048/4096）
+- [x] **D1**：Imagination gate（`isRealTranscript` < 200 chars 或含 warning markers → false）
+- [x] **D1**：Trigger task `muse-monitor-competitors`（iterate channel.competitors → fetch videos → ASR fallback → classify → ideas）
+- [x] **D2**：tRPC `muse.{startMonitor, activeRun, approveIdea}` + 共享 `lib/agent-run.ts` `getActiveAgentRun(channelId, userId, agent)`
+- [x] **D2**：UI `/muse/[slug]`：开始巡视按钮（zh-CN 进度 + 刷新续断）+ 已巡视视频表 + 选题卡片 + IdeaApproveToggle + 空状态文案
+- [x] **D2**：Channels 编辑页加"对标频道" textarea（每行一 URL，xhs/youtube 自动识别）；启动 Muse 前没有 competitors 会被 tRPC PRECONDITION_FAILED 拦截
+- [x] **D2**：服务层 smoke test — `packages/db/scripts/muse-services-smoke.ts` 5/5 绿（classifier 中文分类正确、imagination gate 4/4、viral_trigger 353字纯中文、3 ideas 全中文且各异）
+- [ ] **D3 next**：端到端 live test —— 给一个 channel 配真实 competitors → 启动巡视 → 观察 Trigger.dev 运行 → 选题落 DB → UI 审批
 - [ ] **交付**：监控竞品 → 生成 ideas → 用户审批
 
 ### Week 5: Poet 管线（Bible + 短脚本）
@@ -432,6 +436,19 @@ End-of-day 1 交付：访问 `*.vercel.app` 域名能看到 Next.js 默认页 + 
 ---
 
 ### 2026-05-17
+
+36. **W4 D1-D2 完成 — Muse 管线骨架 + UI**：
+    - **3 prompts 1:1 移植**（`packages/shared/src/prompts/muse.ts`）：CLASSIFICATION / VIRAL_TRIGGER / IDEA_GENERATION。Builder 函数全接 `language`；zh 模式套 CHINESE_WRAPPER + 对 JSON 类提示加"keys English / values 中文"加固
+    - **3 services 移植**（`packages/shared/src/services/muse.ts`）：`classifyVideo` (flash, temp 0.2, 512 tok) / `analyzeViralTrigger` (pro, temp 0.4, 2048 tok) / `generateIdeas` (pro, temp 0.7, 4096 tok)，跟 archive 完全对齐
+    - **Imagination gate** (`packages/shared/src/schemas/muse.ts` `isRealTranscript`)：transcript null / 含 archive 的三种 WARNING marker / trim 后 < 200 字符 → 拒绝进 viral_trigger 阶段。归类阶段不挡，分类器可基于 title-only
+    - **Trigger task `muse-monitor-competitors`**（`apps/jobs/trigger/monitor-competitors.ts`）：iterate `channel.competitors[]` → 抓视频 → 跟 Clerk 一样的 caption→ASR fallback → classify 写 `muse_monitor_videos` → 对 relevant + isRealTranscript 的视频跑 viral_trigger + generateIdeas → 写 `muse_ideas`。Sub-phase 进度 metadata 全 zh-CN（"AI 分类中" / "分析爆款触发因素" / "生成选题中"）
+    - **tRPC muse router**：`startMonitor` / `activeRun` / `approveIdea`。`activeRun` 重用新抽出的 `lib/agent-run.ts` `getActiveAgentRun(channelId, userId, agent)`（替代 `clerk-run.ts`，未来 Poet 也复用）
+    - **UI `/muse/[slug]`** 改造：开始巡视按钮（competitorCount=0 时 disable + 提示）+ 进度卡片（沿用 Clerk 的进度 UI pattern，颜色换 bg-muse）+ 已巡视视频表中文化（标题/对标频道/时长/相关性/分类）+ 选题卡片中文化（事实与数据/为什么对标/爆款触发因素）+ IdeaApproveToggle（待审批 ↔ 已通过 ↔ 已写稿三态）
+    - **Competitors 管理**：channel 编辑表加"对标频道" textarea（每行一 URL），xiaohongshu URL 自动归类 xhs，其余归类 youtube；schema 加 `competitorRefSchema` + max 20。tRPC `channels.update` 接收 competitors 字段（undefined 时 Drizzle 自动跳过 SET）
+    - **PRECONDITION 拦截**：`muse.startMonitor` 检测 `competitors.length === 0` 直接抛 PRECONDITION_FAILED + 中文提示 "请先为该频道配置至少一个对标账号"
+    - **Service smoke test 5/5 绿**（`packages/db/scripts/muse-services-smoke.ts`）：classifier zh 案例返回 `relevant=true, topic="反直觉真相 / 认知偏见拆解"`；imagination gate 4 边界全对；viral_trigger 353字纯中文遵循 click/watch/share 模板；generateIdeas 3 条全中文、各异、含具体数据
+    - **Trigger.dev 自动 hot-reload**：dev worker 监测到 `monitor-competitors.ts` 新文件 + workspace deps 变更，rebuild 自动注册新 task
+    - **共享 sleep / asPositiveNumber / safeText / parseDurationToSec helpers** 仍是 inline 在两个 trigger task 里（Clerk + Muse）；W5 起前可以抽出 `apps/jobs/lib/`
 
 35. **W3 D3 完成 — ASR fallback 上线**：
     - `packages/shared/src/clients/asr.ts` 新加 `transcribeYoutubeVideo(videoId, { onPhase, logger })`：选最小 audio stream → temp 文件 → Groq `whisper-large-v3` → 自动清理。**任何 recoverable 错误（无流 / 超 25MB / 失效 URL / Groq 5xx）一律 return null**，让调用方安全 continue
