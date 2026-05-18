@@ -248,7 +248,7 @@ singularity-web/
   - **`writeScriptShort` 直接调用**仍工作，目标 600 字 → 实际 948-1100 字（min-90% 规则会冲过）
 - [ ] **D3 next**：脚本详情页（独立路由 + markdown 渲染 + 复制全文按钮 + 当时引用的 Bible/SOP 链接）
 - [ ] **W7 移交**：长稿 prompt 强制 VERBATIM PRESERVATION（archive 2026-05 加的；目前 SECTION_EXPAND 仅在 verbatim_facts 块要求字符级，没在主指令里强制不杜撰）
-- [ ] **W7 移交**：Custom Topic flow（跳过 Muse，URL/文本附件 → analyze → script，新表 `poet_custom_topics` 已存在）
+- [x] **W5+ 收尾 D1-D2**：Custom Topic flow — 跳过 Muse 直接给 Poet 喂主题 + 素材（YouTube / 小红书 / 粘贴文本，最多 10 条），Trigger task 抓素材 + 调 analyzeTopic 拆解，生成时复用 `poet-generate-script` 走 customTopicId 分支
 - [x] **交付**：30 分钟视频脚本一键生成，前端流式看进度
 
 ### Week 7: Upload Critique（核心 MVP 功能）
@@ -455,6 +455,26 @@ End-of-day 1 交付：访问 `*.vercel.app` 域名能看到 Next.js 默认页 + 
 ---
 
 ### 2026-05-17
+
+40. **W5+ 收尾 — Custom Topic flow + Reference fetcher（archive 移植 100% 完成）**：
+    - 用户核了一遍 archive 确认 Upload Critique 不是移植任务而是 greenfield，于是先完成 archive 收尾再开 W7
+    - **TOPIC_ANALYSIS_PROMPT 移植**：`packages/shared/src/prompts/poet.ts` 加 `buildTopicAnalysisPrompt`，zh 模式追加"四个叙事字段中文 + verbatim_facts 保持源语言"的中文强化
+    - **analyzeTopic 服务**：`packages/shared/src/services/poet/topicAnalyzer.ts`。V4 Pro temp 0.6 maxOutputTokens 6144（archive 原值），一次 retry on 不可解析 JSON。`toText()` helper 把 LLM 偶尔返回的 list 自动转换为 `- …` 行
+    - **Reference fetcher**：`packages/shared/src/clients/references.ts`。三种类型：text（粘贴文本，原样返回）/ youtube（reuse `getVideoWithTranscript` + ASR 兜底，与 Clerk 同一链）/ xhs（TikHub `web_v3/fetch_note_detail`，需要 24 位 hex note_id）。任何失败 graceful：不抛错，返回 `{content: "", error: "..."}`
+    - **URL 解析器**：`extractYoutubeVideoId` 处理 `/watch?v=`（含任意参数顺序）/ `youtu.be/` / `/shorts/` / `/embed/`；`extractXhsNoteId` 处理 `/explore/` 和 `/discovery/item/`，要求 16-32 位 hex（真实 XHS ID 是 24 位）。5+5 单元测试全过
+    - **新 Trigger task `poet-analyze-custom-topic`**：fetch refs（部分失败容忍）→ analyzeTopic → 把 fetched content 持久化回 `references.text` 字段（写稿任务复用，避免二次抓取）→ 状态 'analyzed'
+    - **`poet-generate-script` 任务双源支持**：payload 接 `ideaId` 或 `customTopicId`（XOR 校验）；customTopic 路径把 `verbatimFacts` 也传给 `writeScript()`；保存时设 `poet_scripts.customTopicId` + 把 `poet_custom_topics.status` 标为 'scripted'。原 ideaId 路径不变
+    - **tRPC**：5 个新 endpoint — listCustomTopics / createCustomTopic / updateCustomTopic / deleteCustomTopic / analyzeCustomTopic / generateScriptFromCustomTopic。两个 trigger mutation 都检查 active Bible 存在 + customTopic.status 必须是 analyzed/scripted。`activeRun` query 加 "analyze" kind
+    - **UI**：`/poet/[slug]` 加自定义选题段（在已生成脚本上方）。新建用 Sheet（选题描述 textarea + 素材列表，可动态加 youtube/xhs/text，最多 10 条）。每条选题状态 badge（草稿/已分析/已写稿）+ 操作按钮（草稿态显"分析"，已分析后显"写稿"DropdownMenu 4 种时长 + 删除）+ 折叠展开看 5 个分析字段
+    - **PoetRunProgress** 加 `analyze` kind：phase 翻译"fetching references" → "抓取外部素材"、"analyzing topic" → "AI 拆解选题"；完成 toast "选题已分析 · 抓取 N 个素材"
+    - **smoke `custom-topic-smoke` 7 项全过**：
+      - extractor 11 case：7 yt + 4 xhs（修了一处 test data 错误后）
+      - text ref instant return
+      - youtube ref 88s → ASR 1836 字 source=asr（Rick Astley caption 全空走 ASR）
+      - bogus yt/xhs URL：graceful error
+      - batch 3 refs：text 2 个 ok + youtube bogus 失败但 batch 不中断
+      - analyzeTopic 37s 端到端：4 个叙事字段全中文（story_angle / facts_and_data / why_similar / viral_trigger），verbatim_facts 保持英文源语言（带 `[src: ...]` 归属），且 LLM 正确从 reference 拉出真实事实（EN 3923:2019 / PU3000→PU1500 / R<2 → 60% 流失）
+    - **archive 迁移完成度**：现在 100%。未移植项仅 `local_scanner.py`（web 无本地 fs 概念，不需要）
 
 39. **W6 收尾 — token-budget 全栈冗余审计 + 修补**：
     源头是 W6 发现的 DeepSeek V4 Pro reasoning preamble 吃光短段 token 预算的问题。审了全栈 9 处 `generateText` 调用：
