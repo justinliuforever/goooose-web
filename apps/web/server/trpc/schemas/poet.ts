@@ -17,6 +17,7 @@ export const switchActiveBibleInput = z.object({
   bibleId: z.string().uuid(),
 });
 
+// Duration ≥ 10 min (≥ 2000 zh chars / ≥ 1500 en words) routes to long-form.
 export const generateScriptInput = z.object({
   channelId: z.string().uuid(),
   ideaId: z.string().uuid(),

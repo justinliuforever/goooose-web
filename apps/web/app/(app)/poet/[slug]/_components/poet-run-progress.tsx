@@ -38,11 +38,17 @@ function translatePhase(phase: string | undefined): string {
   const map: Record<string, string> = {
     "writing bible": "AI 生成圣经中",
     "loading context": "加载上下文",
-    "writing script": "AI 写稿中",
+    "writing script": "AI 写稿中（短稿）",
+    "writing outline": "AI 拆分长稿大纲",
     "humanizing script": "改写为真人口语",
     "saving script": "写入数据库",
   };
-  return map[phase] ?? phase;
+  if (phase in map) return map[phase]!;
+  const sectionMatch = phase.match(/^expanding section (\d+)\/(\d+)$/);
+  if (sectionMatch) {
+    return `AI 扩写长稿（第 ${sectionMatch[1]}/${sectionMatch[2]} 段）`;
+  }
+  return phase;
 }
 
 function runStatusLabel(status: string): string {
@@ -121,9 +127,15 @@ function ProgressCard({
         }
       } else {
         const out = run.output as
-          | { wordCount?: number; targetWordCount?: number; humanized?: boolean }
+          | {
+              wordCount?: number;
+              targetWordCount?: number;
+              path?: "short" | "long";
+              humanized?: boolean;
+            }
           | undefined;
         const bits: string[] = [];
+        if (out?.path) bits.push(out.path === "long" ? "长稿" : "短稿");
         if (out?.wordCount) bits.push(`${out.wordCount} 字`);
         if (out?.humanized) bits.push("已口语化");
         onSettled(true, bits.length > 0 ? `脚本已生成 · ${bits.join(" · ")}` : "脚本已生成");

@@ -6,6 +6,14 @@ import { PenLine, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { trpc } from "@/lib/trpc";
 
 type Props = {
@@ -15,6 +23,13 @@ type Props = {
   disabled?: boolean;
   disabledReason?: string;
 };
+
+const DURATIONS = [
+  { minutes: 5, label: "5 分钟 · 短稿", hint: "≈ 1000 字，单次写出" },
+  { minutes: 10, label: "10 分钟 · 长稿", hint: "≈ 2000 字，大纲→分段" },
+  { minutes: 20, label: "20 分钟 · 长稿", hint: "≈ 4000 字，大纲→分段" },
+  { minutes: 30, label: "30 分钟 · 长稿", hint: "≈ 6000 字，大纲→分段" },
+] as const;
 
 export function WriteScriptButton({
   channelId,
@@ -37,19 +52,40 @@ export function WriteScriptButton({
     onSettled: () => setPending(false),
   });
 
-  const handleClick = () => {
+  const handlePick = (minutes: number) => {
     if (disabled && disabledReason) {
       toast.error(disabledReason);
       return;
     }
     setPending(true);
-    mutation.mutate({ channelId, ideaId, durationMinutes: 5, language: "zh" });
+    mutation.mutate({ channelId, ideaId, durationMinutes: minutes, language: "zh" });
   };
 
   return (
-    <Button size="sm" variant="outline" disabled={disabled || pending} onClick={handleClick}>
-      {pending ? <Loader2 className="size-3 animate-spin" /> : <PenLine className="size-3" />}
-      写稿
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button size="sm" variant="outline" disabled={disabled || pending}>
+            {pending ? <Loader2 className="size-3 animate-spin" /> : <PenLine className="size-3" />}
+            写稿
+          </Button>
+        }
+      />
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>选择视频时长</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {DURATIONS.map((d) => (
+          <DropdownMenuItem
+            key={d.minutes}
+            onSelect={() => handlePick(d.minutes)}
+            disabled={disabled || pending}
+            className="flex flex-col items-start gap-0.5"
+          >
+            <span className="text-sm">{d.label}</span>
+            <span className="text-xs text-muted-foreground">{d.hint}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

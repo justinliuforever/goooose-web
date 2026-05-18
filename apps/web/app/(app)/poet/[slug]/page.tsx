@@ -129,8 +129,11 @@ export default async function PoetChannelPage({ params }: Props) {
           initialActive={
             activeRun
               ? {
-                  ...activeRun,
-                  kind: "bible",
+                  runId: activeRun.runId,
+                  triggerRunId: activeRun.triggerRunId,
+                  publicAccessToken: activeRun.publicAccessToken,
+                  kind:
+                    activeRun.command === "poet-generate-bible" ? "bible" : "script",
                 }
               : null
           }

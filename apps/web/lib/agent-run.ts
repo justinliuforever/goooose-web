@@ -11,6 +11,7 @@ export type ActiveAgentRun = {
   runId: string;
   triggerRunId: string;
   publicAccessToken: string;
+  command: string;
 };
 
 export async function getActiveAgentRun(
@@ -22,6 +23,7 @@ export async function getActiveAgentRun(
     .select({
       id: pipelineRuns.id,
       configJson: pipelineRuns.configJson,
+      command: pipelineRuns.command,
     })
     .from(pipelineRuns)
     .innerJoin(channels, eq(channels.id, pipelineRuns.channelId))
@@ -45,5 +47,10 @@ export async function getActiveAgentRun(
     expirationTime: "1h",
   });
 
-  return { runId: active.id, triggerRunId, publicAccessToken: token };
+  return {
+    runId: active.id,
+    triggerRunId,
+    publicAccessToken: token,
+    command: active.command,
+  };
 }

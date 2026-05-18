@@ -487,7 +487,7 @@ export const appRouter = router({
           .values({
             channelId: channel.id,
             agent: "poet",
-            command: "poet-generate-script-short",
+            command: "poet-generate-script",
             status: "pending",
             configJson: {
               kind: "script",
@@ -499,7 +499,7 @@ export const appRouter = router({
           .returning();
         if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-        const handle = await tasks.trigger("poet-generate-script-short", {
+        const handle = await tasks.trigger("poet-generate-script", {
           channelId: channel.id,
           runId: run.id,
           ideaId: input.ideaId,
@@ -561,7 +561,10 @@ export const appRouter = router({
           runId: active.id,
           triggerRunId,
           publicAccessToken: token,
-          kind: active.command === "poet-generate-bible" ? "bible" : "script",
+          kind:
+            active.command === "poet-generate-bible"
+              ? ("bible" as const)
+              : ("script" as const),
         };
       }),
   }),
