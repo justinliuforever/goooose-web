@@ -21,6 +21,7 @@
     "asr-branch-smoke": "tsx scripts/asr-branch-smoke.ts",
     "muse-services-smoke": "tsx scripts/muse-services-smoke.ts",
     "poet-services-smoke": "tsx scripts/poet-services-smoke.ts",
+    "poet-long-form-smoke": "tsx scripts/poet-long-form-smoke.ts",
     "test-clerk-pipeline": "tsx scripts/test-clerk-pipeline.ts"
   },
   "dependencies": {
