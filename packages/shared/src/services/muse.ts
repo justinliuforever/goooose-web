@@ -58,17 +58,23 @@ export async function classifyVideo(args: ClassifyArgs): Promise<Classification>
     transcriptPreview,
     language: args.language,
   });
-  const result = await generateText({
-    model: llm("flash"),
-    prompt,
-    temperature: 0.2,
-    maxOutputTokens: 512,
-    maxRetries: 2,
-  });
-  const parsed = parseLenientJson(result.text);
-  const valid = classificationSchema.safeParse(parsed);
-  if (valid.success) return valid.data;
-  // Defaulting to relevant matches the archive's anti-false-negative bias.
+  // 1500-token budget reserves headroom for DeepSeek's reasoning preamble;
+  // 512 was getting starved on some Chinese prompts.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await generateText({
+      model: llm("flash"),
+      prompt,
+      temperature: 0.2,
+      maxOutputTokens: 1500,
+      maxRetries: 2,
+    });
+    const parsed = parseLenientJson(result.text);
+    const valid = classificationSchema.safeParse(parsed);
+    if (valid.success) return valid.data;
+  }
+  // Final fallback matches the archive's anti-false-negative bias: an
+  // unparseable response is much more likely "model was sloppy" than
+  // "video is actually irrelevant", so let it through.
   return { relevant: true, topic_classification: "", rejection_reason: "" };
 }
 
@@ -84,14 +90,20 @@ export type ViralTriggerArgs = {
 
 export async function analyzeViralTrigger(args: ViralTriggerArgs): Promise<string> {
   const prompt = buildViralTriggerPrompt(args);
-  const result = await generateText({
-    model: llm("pro"),
-    prompt,
-    temperature: 0.4,
-    maxOutputTokens: 2048,
-    maxRetries: 2,
-  });
-  return result.text.trim();
+  // 4096-token budget reserves room for V4 Pro reasoning; 2048 was borderline
+  // when the reasoning chain ran long and starved the answer.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await generateText({
+      model: llm("pro"),
+      prompt,
+      temperature: 0.4,
+      maxOutputTokens: 4096,
+      maxRetries: 2,
+    });
+    const text = result.text.trim();
+    if (text.length > 0) return text;
+  }
+  return "";
 }
 
 export type GenerateIdeasArgs = {

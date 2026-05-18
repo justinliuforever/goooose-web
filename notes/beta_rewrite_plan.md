@@ -456,6 +456,16 @@ End-of-day 1 交付：访问 `*.vercel.app` 域名能看到 Next.js 默认页 + 
 
 ### 2026-05-17
 
+39. **W6 收尾 — token-budget 全栈冗余审计 + 修补**：
+    源头是 W6 发现的 DeepSeek V4 Pro reasoning preamble 吃光短段 token 预算的问题。审了全栈 9 处 `generateText` 调用：
+    - **Muse classifier**：flash + 512 token → bump 1500 + 一次 retry。原 512 在中文 prompt 上 reasoning 可能吃完，导致所有视频默认 relevant=true（archive anti-false-negative bias 兜底，但失去信号）
+    - **Muse viral_trigger**：pro + 2048 → 4096 + 一次 retry。原 2048 偶现 reasoning 占大半，返回短 trigger；提到 4096 后实测输出从 353 字升到 1017 字，质量明显更高
+    - **Muse monitor-competitors task**：若 viral_trigger 返回空字符串，跳过该视频的 ideas 生成（之前会拿空 trigger 跑 idea 提示词，质量不可控）
+    - **Bible 生成器**：内置一次 retry on empty content（之前空 content 只在 Trigger task 层抛 error，service 层无容错）
+    - 其他 6 处经审计 token 预算充足（Clerk analyzer 4096 / Clerk SOP 8192 / Bible 4096 / humanizer 8192 / writeScriptShort 8192 / outline 4096）
+    - **新规则**：所有用 V4 Pro 的 `generateText` 调用，maxOutputTokens 至少 = 期望输出 token × 2 + 1500（推理 preamble buffer）
+    - Re-run `muse-services-smoke` 5/5 green，无回归
+
 38. **W6 D1-D2 完成 — Poet 长稿管线 + 路由 + UI 时长选择**：
     - **2 prompts 移植**（`packages/shared/src/prompts/poet.ts`）：LONG_FORM_OUTLINE（JSON 输出 `{overall_arc, sections[]}` 各段含 marker/key_points/target_count/emotional_note；budget 提示 HOOK 8% / TEASE 5% / CTA 3% / CLIMAX 18% / CLOSE 6% / ITEMs 平分 60%）+ SECTION_EXPAND（"LENGTH IS NON-NEGOTIABLE" 规则、min = target × 0.85、不要写 marker 不要进入下一段）
     - **writeScriptLong()** 两阶段 — outline 用 V4 Pro temp 0.5 maxTokens 4096；section_expand 复用 prev_tail (400 chars 尾) 维持叙事流。max_tokens = `max(3000, min(target/charsPerToken × 2.0 + 500, 6144))`；3000 floor 是为 DeepSeek 推理 preamble 留空间，原 archive 公式（无 floor）短段（HOOK 160 字 / CTA 60 字 / CLOSE 120 字）经常被推理吃完 token，产 0 字文本

@@ -115,14 +115,21 @@ export async function generateChannelBible(args: GenerateBibleArgs): Promise<Bib
     channelDescription: args.channelDescription,
     language: args.language,
   });
-  const result = await generateText({
-    model: llm("pro"),
-    prompt,
-    temperature: 0.4,
-    maxOutputTokens: 4096,
-    maxRetries: 2,
-  });
-  const content = result.text;
+  // One retry if the LLM returns empty text (V4 Pro reasoning preamble can
+  // occasionally consume the full budget). After both attempts fail, caller
+  // throws — we don't want to save a blank Bible to the DB.
+  let content = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await generateText({
+      model: llm("pro"),
+      prompt,
+      temperature: 0.4,
+      maxOutputTokens: 4096,
+      maxRetries: 2,
+    });
+    content = result.text.trim();
+    if (content.length > 0) break;
+  }
   const topicClaimed = extractTopicLine(content);
   const driftWarning = checkDrift(
     `${args.ideaText}\n${args.channelDescription}`,
