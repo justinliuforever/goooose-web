@@ -13,3 +13,7 @@ export const runStatusInput = z.object({
 });
 
 export type RunStatusInput = z.infer<typeof runStatusInput>;
+
+export const deleteSopInput = z.object({
+  sopId: z.string().uuid(),
+});

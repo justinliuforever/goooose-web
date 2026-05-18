@@ -5,17 +5,27 @@ import { TRPCError } from "@trpc/server";
 import { auth, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 
-import { channels, museIdeas, pipelineRuns, poetBible, poetCustomTopics } from "@singularity/db";
+import {
+  channels,
+  clerkSops,
+  museIdeas,
+  pipelineRuns,
+  poetBible,
+  poetCustomTopics,
+  poetScripts,
+} from "@singularity/db";
 
 import { db } from "@/lib/db";
 import { protectedProcedure, router } from "./init";
 import { createChannelInput, deleteChannelInput, updateChannelInput } from "./schemas/channels";
-import { runStatusInput, startAnalysisInput } from "./schemas/clerk";
+import { deleteSopInput, runStatusInput, startAnalysisInput } from "./schemas/clerk";
 import { approveIdeaInput, startMonitorInput } from "./schemas/muse";
 import {
   analyzeCustomTopicInput,
   createCustomTopicInput,
+  deleteBibleInput,
   deleteCustomTopicInput,
+  deleteScriptInput,
   generateBibleInput,
   generateScriptFromCustomTopicInput,
   generateScriptInput,
@@ -123,7 +133,6 @@ export const appRouter = router({
     startAnalysis: protectedProcedure
       .input(startAnalysisInput)
       .mutation(async ({ ctx, input }) => {
-        // 1. Verify channel belongs to user
         const [channel] = await db
           .select()
           .from(channels)
@@ -131,7 +140,6 @@ export const appRouter = router({
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
 
-        // 2. Create pipeline_runs row
         const [run] = await db
           .insert(pipelineRuns)
           .values({
@@ -144,7 +152,6 @@ export const appRouter = router({
           .returning();
         if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-        // 3. Trigger the Trigger.dev task
         const handle = await tasks.trigger("clerk-analyze-channel", {
           channelId: channel.id,
           runId: run.id,
@@ -152,7 +159,6 @@ export const appRouter = router({
           language: input.language,
         });
 
-        // 4. Persist the trigger run id so we can recover it after refresh
         await db
           .update(pipelineRuns)
           .set({
@@ -171,12 +177,7 @@ export const appRouter = router({
         };
       }),
 
-    /**
-     * On page mount, the frontend checks if there's an analysis already
-     * running for this channel. If yes, server reissues a scoped public
-     * access token so useRealtimeRun can attach. This recovers progress
-     * after a refresh.
-     */
+    // Reissues a scoped token so the client can re-attach useRealtimeRun after a page refresh.
     activeRun: protectedProcedure
       .input(z.object({ channelId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
@@ -235,6 +236,27 @@ export const appRouter = router({
           .where(and(eq(pipelineRuns.id, input.runId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         return run ?? null;
+      }),
+
+    deleteSop: protectedProcedure
+      .input(deleteSopInput)
+      .mutation(async ({ ctx, input }) => {
+        const [deleted] = await db
+          .delete(clerkSops)
+          .where(
+            and(
+              eq(clerkSops.id, input.sopId),
+              inArray(
+                clerkSops.channelId,
+                db
+                  .select({ id: channels.id })
+                  .from(channels)
+                  .where(eq(channels.userId, ctx.user.id)),
+              ),
+            ),
+          )
+          .returning({ id: clerkSops.id });
+        return { id: deleted?.id ?? null };
       }),
   }),
 
@@ -732,6 +754,62 @@ export const appRouter = router({
           triggerRunId: handle.id,
           publicAccessToken: handle.publicAccessToken,
         };
+      }),
+
+    deleteBible: protectedProcedure
+      .input(deleteBibleInput)
+      .mutation(async ({ ctx, input }) => {
+        const [existing] = await db
+          .select({ id: poetBible.id, isActive: poetBible.isActive })
+          .from(poetBible)
+          .innerJoin(channels, eq(channels.id, poetBible.channelId))
+          .where(and(eq(poetBible.id, input.bibleId), eq(channels.userId, ctx.user.id)))
+          .limit(1);
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+        if (existing.isActive) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "无法删除生效中的圣经，请先激活另一份后再删",
+          });
+        }
+        const [deleted] = await db
+          .delete(poetBible)
+          .where(eq(poetBible.id, input.bibleId))
+          .returning({ id: poetBible.id });
+        return { id: deleted?.id ?? null };
+      }),
+
+    deleteScript: protectedProcedure
+      .input(deleteScriptInput)
+      .mutation(async ({ ctx, input }) => {
+        const [existing] = await db
+          .select({
+            id: poetScripts.id,
+            ideaId: poetScripts.ideaId,
+            customTopicId: poetScripts.customTopicId,
+          })
+          .from(poetScripts)
+          .innerJoin(channels, eq(channels.id, poetScripts.channelId))
+          .where(and(eq(poetScripts.id, input.scriptId), eq(channels.userId, ctx.user.id)))
+          .limit(1);
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+        await db.delete(poetScripts).where(eq(poetScripts.id, input.scriptId));
+
+        // Reset source status so the user can re-generate from the same idea / topic.
+        if (existing.ideaId) {
+          await db
+            .update(museIdeas)
+            .set({ scripted: false })
+            .where(eq(museIdeas.id, existing.ideaId));
+        }
+        if (existing.customTopicId) {
+          await db
+            .update(poetCustomTopics)
+            .set({ status: "analyzed", updatedAt: new Date() })
+            .where(eq(poetCustomTopics.id, existing.customTopicId));
+        }
+        return { id: existing.id };
       }),
 
     generateScriptFromCustomTopic: protectedProcedure

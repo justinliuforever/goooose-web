@@ -50,6 +50,14 @@ export const deleteCustomTopicInput = z.object({
   topicId: z.string().uuid(),
 });
 
+export const deleteBibleInput = z.object({
+  bibleId: z.string().uuid(),
+});
+
+export const deleteScriptInput = z.object({
+  scriptId: z.string().uuid(),
+});
+
 export const analyzeCustomTopicInput = z.object({
   channelId: z.string().uuid(),
   topicId: z.string().uuid(),
