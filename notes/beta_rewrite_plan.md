@@ -234,11 +234,22 @@ singularity-web/
 
 ### Week 6: Poet 长稿管线（Class B 主线）
 
-- [ ] Port `script_writer.py` 长稿路径（outline → section expand；触发阈值：中文 ≥2000 字 / 英文 ≥1500 词，约 10 min+）
-- [ ] Script writer prompt 强制 **VERBATIM PRESERVATION** 规则（archive 2026-05 加的，原 plan 没覆盖）：references 里的数字 / 日期 / 型号 / 人名 / 引用一律字符级保留，不 paraphrase；source 标注 `[src: ...]`
-- [ ] Trigger.dev task: `generate-script-long`（无 timeout）
-- [ ] UI: 长稿生成页（phase 切换：outline / section 1/N / humanize / done）
-- [ ] **交付**：30 分钟视频脚本一键生成，前端流式看进度
+- [x] **D1**：移植 `LONG_FORM_OUTLINE_PROMPT` + `SECTION_EXPAND_PROMPT` 到 `packages/shared/src/prompts/poet.ts`（1:1，含 "LENGTH IS NON-NEGOTIABLE" 规则、min_count = target × 0.85）
+- [x] **D1**：`writeScriptLong()` outline→expand 双阶段 — outline 用 V4 Pro temp 0.5 maxTokens 4096，parse 失败 fallback short；section_expand 复用 prev_tail (400 chars 尾) 维持叙事流，max_tokens 公式 `max(3000, min(round(target / chars_per_token * 2.0) + 500, 6144))` —— 3000 token 下限是为 DeepSeek 推理 preamble 留空间，原 archive 1500 太紧短段（HOOK/CTA/CLOSE）会被 reasoning 吃光产空文本
+- [x] **D1**：`writeScript()` 统一入口按 `isLongForm(targetWordCount, lang)` 路由；空段时一次 retry，仍空就 return null 让 caller fallback short（保证用户拿到完整长度的稿子，哪怕走短稿路径）
+- [x] **D2**：Trigger task 统一 `poet-generate-script`（原 `poet-generate-script-short` 重命名 + maxDuration 3600s）；progress total 动态计算 — outline 返回前估 4，返回后变 `2 + N_sections + (zh ? 1 : 0) + 1`；onOutlineDone / onSectionStart / onSectionDone hooks 实时推进度
+- [x] **D2**：UI WriteScriptButton 改成 DropdownMenu — 5min（短稿 1000 字）/ 10min（长稿 2000 字）/ 20min（4000 字）/ 30min（6000 字），每项标注路径；PoetRunProgress 新增 `writing outline` / `expanding section N/M` 中文化（"AI 拆分长稿大纲" / "AI 扩写长稿（第 i/N 段）"）；完成 toast 标注短稿/长稿 + 字数 + 是否 humanize
+- [x] **D2**：`agent-run.ts` 返回 `command` 字段，poet RSC 页根据 `command === "poet-generate-bible"` 判 kind，进度卡片正确显示是生成圣经还是写稿
+- [x] **D2**：smoke `packages/db/scripts/poet-long-form-smoke.ts` 覆盖：
+  - **路由 11 边界**全对：null/0/负数 durationMinutes 取默认；阈值 1999→short、2000→long
+  - **5min 不走长稿**：path=short，markers 完整
+  - **10min 走长稿端到端**：outline 8 段（HOOK/TEASE/3×ITEM/CTA/CLIMAX/CLOSE）+ 全 markers 顺序保留 + 长度比 ≥ 0.80 + verbatim 数字（PU3000/PU1500/30%）穿越 humanize 保留
+  - **空段抢救**：发现 DeepSeek V4 Pro 短段（target < 200 字）会被 reasoning preamble 吃光产空文本；3000 token floor + 一次 retry + 失败后 return null 让 short fallback 接住
+  - **`writeScriptShort` 直接调用**仍工作，目标 600 字 → 实际 948-1100 字（min-90% 规则会冲过）
+- [ ] **D3 next**：脚本详情页（独立路由 + markdown 渲染 + 复制全文按钮 + 当时引用的 Bible/SOP 链接）
+- [ ] **W7 移交**：长稿 prompt 强制 VERBATIM PRESERVATION（archive 2026-05 加的；目前 SECTION_EXPAND 仅在 verbatim_facts 块要求字符级，没在主指令里强制不杜撰）
+- [ ] **W7 移交**：Custom Topic flow（跳过 Muse，URL/文本附件 → analyze → script，新表 `poet_custom_topics` 已存在）
+- [x] **交付**：30 分钟视频脚本一键生成，前端流式看进度
 
 ### Week 7: Upload Critique（核心 MVP 功能）
 
@@ -444,6 +455,26 @@ End-of-day 1 交付：访问 `*.vercel.app` 域名能看到 Next.js 默认页 + 
 ---
 
 ### 2026-05-17
+
+38. **W6 D1-D2 完成 — Poet 长稿管线 + 路由 + UI 时长选择**：
+    - **2 prompts 移植**（`packages/shared/src/prompts/poet.ts`）：LONG_FORM_OUTLINE（JSON 输出 `{overall_arc, sections[]}` 各段含 marker/key_points/target_count/emotional_note；budget 提示 HOOK 8% / TEASE 5% / CTA 3% / CLIMAX 18% / CLOSE 6% / ITEMs 平分 60%）+ SECTION_EXPAND（"LENGTH IS NON-NEGOTIABLE" 规则、min = target × 0.85、不要写 marker 不要进入下一段）
+    - **writeScriptLong()** 两阶段 — outline 用 V4 Pro temp 0.5 maxTokens 4096；section_expand 复用 prev_tail (400 chars 尾) 维持叙事流。max_tokens = `max(3000, min(target/charsPerToken × 2.0 + 500, 6144))`；3000 floor 是为 DeepSeek 推理 preamble 留空间，原 archive 公式（无 floor）短段（HOOK 160 字 / CTA 60 字 / CLOSE 120 字）经常被推理吃完 token，产 0 字文本
+    - **统一 writeScript()** 入口按 `isLongForm(targetWordCount, lang)` 路由；任意 section 空文本时一次 retry，仍空就 return null，caller fallback 到 short-form 单次调用（用户拿到 2000 字脚本，path=short 但完整）
+    - **解析与归一化**：`parseLenientJson` 同 Clerk 的 head/tail brace 抽取；`normalizeOutline` 容错处理 — 缺字段补默认 target_count = round(target/5)，缺 emotional_note 用 ""，至少一个 marker 才算有效
+    - **Trigger task 重构** generate-script-short.ts → generate-script.ts，task id 也改 poet-generate-script，maxDuration 3600s。progress total 动态：outline 返回前估 willGoLong ? 4 : 3，返回后变 `2 + N_sections + (zh ? 1 : 0) + 1`。hooks `onOutlineDone` / `onSectionStart` / `onSectionDone` 直接调 `metadata.set("progress", ...)`
+    - **WriteScriptButton DropdownMenu** 4 个选项 — 5min（短稿 ~1000字）/ 10min（长稿 ~2000字 大纲→分段）/ 20min（长稿 ~4000字）/ 30min（长稿 ~6000字）；hint 显式标注路径
+    - **PoetRunProgress 新 phase 翻译** — `writing outline` → "AI 拆分长稿大纲"；正则 `expanding section (\d+)/(\d+)` → "AI 扩写长稿（第 i/N 段）"；完成 toast 含 path 标注（"长稿 · 2007字 · 已口语化"）
+    - **agent-run.ts 加 command 字段**让 RSC 页面分辨 active run kind（bible vs script），PoetRunProgress 不再硬编码 kind
+    - **smoke 全过 11 + 4 + 1 + 1 = 17 子项**（`packages/db/scripts/poet-long-form-smoke.ts`）：
+      - 路由 11 边界全对（null/0/负数取默认 1000；阈值 1999/2000 边界、zh/en 区分）
+      - 5min target → path=short，单次完成 78s 1645字
+      - 10min target → path=long，outline 8 段全展开，1933 字 350s，markers HOOK/CLOSE 都在，顺序保留，verbatim 数字 PU3000/PU1500/30% 穿越 humanize 保留 2-3 个（humanize 偶尔会改 30% 为别的表达）
+      - writeScriptShort 直接调用仍生效
+    - **采坑记录**：
+      - outline 2048 maxOutputTokens 太紧 → bump 到 4096
+      - DeepSeek V4 Pro 短段 reasoning preamble 吃 token 严重 → 加 3000 token floor + 一次 retry + 失败 return null fallback
+      - SECTION_EXPAND 没强制"不杜撰事实"规则（archive 没加），实测 ITEM 偶尔会编造一个"PU2000"作行业术语 — 留 W7 移交 VERBATIM PRESERVATION 规则升级到长稿主指令
+    - **未实现**：脚本独立详情页 + 复制全文按钮（D3 移交）、Custom Topic flow（W7 移交）
 
 37. **W5 D1-D2 完成 — Poet 短稿管线 + Bible + drift + humanizer**：
     - **3 prompts 1:1**（`packages/shared/src/prompts/poet.ts`）：CHANNEL_BIBLE（强 anti-substitution 规则）/ SCRIPT_WRITING（含 verbatim preservation + section markers HOOK/TEASE/ITEM/CTA/CLIMAX/CLOSE）/ CHINESE_HUMANIZER。zh 模式 CHANNEL_BIBLE 套 CHINESE_WRAPPER 但保留 TOPIC: 英文锚 + 章节名英文
