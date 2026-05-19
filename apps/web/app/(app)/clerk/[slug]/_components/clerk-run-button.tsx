@@ -1,13 +1,46 @@
 "use client";
 
-import { Play, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
-import { Button } from "@/components/ui/button";
+import { AgentTimeline, type Stage } from "@/components/agent-timeline";
 import { trpc } from "@/lib/trpc";
+
+import { ClerkStartSheet } from "./clerk-start-sheet";
+
+const CLERK_STAGES: Stage[] = [
+  {
+    label: "解析频道 / 视频",
+    matches: (p) =>
+      p === "resolving channel" || p === "resolving videos" || p === "fetching videos",
+  },
+  {
+    label: "抓取视频元数据",
+    matches: (p) =>
+      p === "fetching video metadata" ||
+      p === "fetching transcript" ||
+      p === "transcribing audio",
+  },
+  {
+    label: "AI 分析视频",
+    matches: (p) =>
+      p === "running analyzer" ||
+      p === "running analyzer (no caption)" ||
+      p === "analyzing thumbnail" ||
+      p === "writing analysis",
+  },
+  {
+    label: "生成 SOP",
+    matches: (p) =>
+      p === "compiling videos data" ||
+      p === "generating human SOP" ||
+      p === "generating AI reference SOP" ||
+      p === "generating hottest video deep dive",
+  },
+];
 
 type ActiveRun = {
   runId: string;
@@ -18,8 +51,7 @@ type ActiveRun = {
 type Props = {
   channelId: string;
   channelName: string;
-  /** Pre-populated when the page mounts with an in-flight run (refresh resilience). */
-  initialActive?: ActiveRun | null;
+  initialActive?: (ActiveRun & { startedAt?: Date | string }) | null;
 };
 
 export function ClerkRunButton({ channelId, channelName, initialActive }: Props) {
@@ -27,41 +59,40 @@ export function ClerkRunButton({ channelId, channelName, initialActive }: Props)
   const utils = trpc.useUtils();
   const [active, setActive] = useState<ActiveRun | null>(initialActive ?? null);
   const [startedAt, setStartedAt] = useState<number | null>(
-    initialActive ? Date.now() : null,
+    initialActive?.startedAt
+      ? new Date(initialActive.startedAt).getTime()
+      : initialActive
+        ? Date.now()
+        : null,
   );
-
-  const startMutation = trpc.clerk.startAnalysis.useMutation({
-    onSuccess: (data) => {
-      setActive(data);
-      setStartedAt(Date.now());
-      toast.info(`已开始分析「${channelName}」`);
-    },
-    onError: (err) => toast.error(`启动失败：${err.message}`),
-  });
-
-  const handleStart = () => {
-    startMutation.mutate({ channelId, limit: 3, language: "zh" });
-  };
 
   return (
     <div className="flex flex-col items-end gap-2">
-      <Button
-        onClick={handleStart}
-        disabled={startMutation.isPending || !!active}
-        size="sm"
-      >
-        {active ? (
-          <Loader2 data-icon="inline-start" className="animate-spin" />
-        ) : (
-          <Play data-icon="inline-start" />
-        )}
-        {active ? "分析中…" : "开始分析"}
-      </Button>
+      {active ? (
+        <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5 text-xs text-muted-foreground">
+          <Loader2 className="size-3 animate-spin" />
+          分析中…
+        </div>
+      ) : (
+        <ClerkStartSheet
+          channelId={channelId}
+          channelName={channelName}
+          disabled={!!active}
+          onStarted={(run) => {
+            setActive(run);
+            setStartedAt(Date.now());
+          }}
+        />
+      )}
       {active && startedAt ? (
         <ClerkRunProgress
           triggerRunId={active.triggerRunId}
           accessToken={active.publicAccessToken}
           startedAt={startedAt}
+          onProgressTick={() => {
+            utils.invalidate();
+            router.refresh();
+          }}
           onSettled={(ok, message) => {
             setActive(null);
             setStartedAt(null);
@@ -101,11 +132,13 @@ function ClerkRunProgress({
   accessToken,
   startedAt,
   onSettled,
+  onProgressTick,
 }: {
   triggerRunId: string;
   accessToken: string;
   startedAt: number;
   onSettled: (ok: boolean, message?: string) => void;
+  onProgressTick: (phase: string | undefined) => void;
 }) {
   const { run, error } = useRealtimeRun(triggerRunId, { accessToken });
   const [now, setNow] = useState(Date.now());
@@ -114,6 +147,19 @@ function ClerkRunProgress({
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // Fire onProgressTick ONLY when phase actually changes. Inline arrow callbacks
+  // create new references each render — depending on them causes a refresh loop.
+  const phase = (run?.metadata?.progress as ProgressPayload | undefined)?.phase;
+  const lastPhaseRef = useRef<string | undefined>(undefined);
+  const tickRef = useRef(onProgressTick);
+  tickRef.current = onProgressTick;
+  useEffect(() => {
+    if (phase && phase !== lastPhaseRef.current) {
+      lastPhaseRef.current = phase;
+      tickRef.current(phase);
+    }
+  }, [phase]);
 
   useEffect(() => {
     if (error) {
@@ -152,11 +198,16 @@ function ClerkRunProgress({
   const pct = total > 0 ? Math.round((current / total) * 100) : 0;
 
   return (
-    <div className="flex w-72 flex-col gap-2 rounded-lg border bg-card p-3">
+    <div className="flex w-72 flex-col gap-3 rounded-lg border bg-card p-3">
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium text-foreground">{phaseLabel}</span>
         <span className="font-mono text-muted-foreground">{elapsed}</span>
       </div>
+      <AgentTimeline
+        stages={CLERK_STAGES}
+        currentPhase={progress?.phase}
+        accentClass="text-clerk"
+      />
       {total > 0 ? (
         <div className="flex flex-col gap-1">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -172,11 +223,7 @@ function ClerkRunProgress({
             <span>{pct}%</span>
           </div>
         </div>
-      ) : (
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <div className="h-full w-1/3 animate-pulse bg-clerk" />
-        </div>
-      )}
+      ) : null}
       {detail ? (
         <span className="line-clamp-2 text-xs text-muted-foreground">{detail}</span>
       ) : null}
@@ -188,6 +235,7 @@ function translatePhase(phase: string | undefined): string | undefined {
   if (!phase) return undefined;
   const map: Record<string, string> = {
     "resolving channel": "正在解析频道 URL",
+    "resolving videos": "正在解析视频链接",
     "fetching channel info": "正在获取频道信息",
     "fetching videos": "正在抓取视频列表",
     "analyzing video": "正在分析视频",
@@ -196,6 +244,7 @@ function translatePhase(phase: string | undefined): string | undefined {
     "transcribing audio": "音频转写中",
     "running analyzer": "AI 分析中",
     "running analyzer (no caption)": "AI 分析中（无字幕）",
+    "analyzing thumbnail": "视觉识别封面图",
     "writing analysis": "写入数据库",
     "compiling videos data": "汇总分析数据",
     "generating human SOP": "生成 SOP · 人类可读版",

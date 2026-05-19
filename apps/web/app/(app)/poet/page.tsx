@@ -1,4 +1,4 @@
-import { count, desc, eq, max, sql } from "drizzle-orm";
+import { count, eq, max } from "drizzle-orm";
 import Link from "next/link";
 
 import { channels, poetBible, poetCustomTopics } from "@singularity/db";
@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
@@ -31,8 +32,7 @@ export default async function PoetLandingPage() {
     .from(channels)
     .leftJoin(poetBible, eq(poetBible.channelId, channels.id))
     .where(eq(channels.userId, user.id))
-    .groupBy(channels.id, channels.slug, channels.name, channels.platform)
-    .having(sql`count(${poetBible.id}) > 0`);
+    .groupBy(channels.id, channels.slug, channels.name, channels.platform);
 
   const topicRows = await db
     .select({
@@ -51,7 +51,8 @@ export default async function PoetLandingPage() {
     .sort((a, b) => {
       const at = a.lastUpdatedAt?.getTime() ?? 0;
       const bt = b.lastUpdatedAt?.getTime() ?? 0;
-      return bt - at;
+      if (bt !== at) return bt - at;
+      return a.channelName.localeCompare(b.channelName);
     });
 
   return (
@@ -63,8 +64,11 @@ export default async function PoetLandingPage() {
       </header>
 
       {rows.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center py-16 text-sm text-muted-foreground">
-          还没有频道圣经
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+          <span>还没有频道</span>
+          <Link href="/channels/new" className="text-xs hover:text-foreground hover:underline">
+            先创建一个频道
+          </Link>
         </div>
       ) : (
         <Table>
@@ -93,12 +97,14 @@ export default async function PoetLandingPage() {
                     {r.platform}
                   </Badge>
                 </TableCell>
-                <TableCell className="font-mono text-sm">{r.bibleCount}</TableCell>
-                <TableCell className="font-mono text-sm">{r.topicCount}</TableCell>
+                <TableCell className="font-mono text-sm">
+                  {r.bibleCount > 0 ? r.bibleCount : <span className="text-muted-foreground">—</span>}
+                </TableCell>
+                <TableCell className="font-mono text-sm">
+                  {r.topicCount > 0 ? r.topicCount : <span className="text-muted-foreground">—</span>}
+                </TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">
-                  {r.lastUpdatedAt
-                    ? r.lastUpdatedAt.toLocaleDateString("zh-CN")
-                    : "—"}
+                  {r.lastUpdatedAt ? formatDate(r.lastUpdatedAt) : "未生成"}
                 </TableCell>
               </TableRow>
             ))}

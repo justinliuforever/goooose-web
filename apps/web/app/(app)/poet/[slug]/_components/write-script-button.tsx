@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { trpc } from "@/lib/trpc";
@@ -72,19 +72,20 @@ export function WriteScriptButton({
         }
       />
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel>选择视频时长</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {DURATIONS.map((d) => (
-          <DropdownMenuItem
-            key={d.minutes}
-            onSelect={() => handlePick(d.minutes)}
-            disabled={disabled || pending}
-            className="flex flex-col items-start gap-0.5"
-          >
-            <span className="text-sm">{d.label}</span>
-            <span className="text-xs text-muted-foreground">{d.hint}</span>
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>选择视频时长</DropdownMenuLabel>
+          {DURATIONS.map((d) => (
+            <DropdownMenuItem
+              key={d.minutes}
+              onSelect={() => handlePick(d.minutes)}
+              disabled={disabled || pending}
+              className="flex flex-col items-start gap-0.5"
+            >
+              <span className="text-sm">{d.label}</span>
+              <span className="text-xs text-muted-foreground">{d.hint}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

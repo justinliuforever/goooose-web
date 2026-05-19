@@ -1,11 +1,32 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
+import { AgentTimeline, type Stage } from "@/components/agent-timeline";
 import { trpc } from "@/lib/trpc";
+
+const POET_BIBLE_STAGES: Stage[] = [
+  { label: "AI 生成圣经", matches: (p) => p === "writing bible" },
+];
+
+const POET_SCRIPT_STAGES: Stage[] = [
+  { label: "加载上下文", matches: (p) => p === "loading context" },
+  {
+    label: "AI 写稿 / 大纲",
+    matches: (p) => p === "writing script" || p === "writing outline",
+  },
+  { label: "扩写分段", matches: (p) => /^expanding section/.test(p) },
+  { label: "改写口语", matches: (p) => p === "humanizing script" },
+  { label: "保存", matches: (p) => p === "saving script" },
+];
+
+const POET_ANALYZE_STAGES: Stage[] = [
+  { label: "抓取外部素材", matches: (p) => p === "fetching references" },
+  { label: "AI 拆解选题", matches: (p) => p === "analyzing topic" },
+];
 
 type ActiveRun = {
   runId: string;
@@ -15,7 +36,7 @@ type ActiveRun = {
 };
 
 type Props = {
-  initialActive?: ActiveRun | null;
+  initialActive?: (ActiveRun & { startedAt?: Date | string }) | null;
 };
 
 type ProgressPayload = {
@@ -69,7 +90,13 @@ export function PoetRunProgress({ initialActive }: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
   const [active, setActive] = useState<ActiveRun | null>(initialActive ?? null);
-  const [startedAt, setStartedAt] = useState<number | null>(initialActive ? Date.now() : null);
+  const [startedAt, setStartedAt] = useState<number | null>(
+    initialActive?.startedAt
+      ? new Date(initialActive.startedAt).getTime()
+      : initialActive
+        ? Date.now()
+        : null,
+  );
 
   if (!active || !startedAt) return null;
 
@@ -77,6 +104,10 @@ export function PoetRunProgress({ initialActive }: Props) {
     <ProgressCard
       active={active}
       startedAt={startedAt}
+      onProgressTick={() => {
+        utils.invalidate();
+        router.refresh();
+      }}
       onSettled={(ok, message) => {
         setActive(null);
         setStartedAt(null);
@@ -96,10 +127,12 @@ function ProgressCard({
   active,
   startedAt,
   onSettled,
+  onProgressTick,
 }: {
   active: ActiveRun;
   startedAt: number;
   onSettled: (ok: boolean, message?: string) => void;
+  onProgressTick: (phase: string | undefined) => void;
 }) {
   const { run, error } = useRealtimeRun(active.triggerRunId, {
     accessToken: active.publicAccessToken,
@@ -110,6 +143,17 @@ function ProgressCard({
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  const phase = (run?.metadata?.progress as ProgressPayload | undefined)?.phase;
+  const lastPhaseRef = useRef<string | undefined>(undefined);
+  const tickRef = useRef(onProgressTick);
+  tickRef.current = onProgressTick;
+  useEffect(() => {
+    if (phase && phase !== lastPhaseRef.current) {
+      lastPhaseRef.current = phase;
+      tickRef.current(phase);
+    }
+  }, [phase]);
 
   useEffect(() => {
     if (error) {
@@ -171,15 +215,22 @@ function ProgressCard({
   const pct = total > 0 ? Math.round((current / total) * 100) : 0;
   const kindLabel =
     active.kind === "bible" ? "生成圣经" : active.kind === "analyze" ? "分析选题" : "写稿";
+  const stages =
+    active.kind === "bible"
+      ? POET_BIBLE_STAGES
+      : active.kind === "analyze"
+        ? POET_ANALYZE_STAGES
+        : POET_SCRIPT_STAGES;
 
   return (
-    <div className="flex w-80 flex-col gap-2 rounded-lg border bg-card p-3">
+    <div className="flex w-80 flex-col gap-3 rounded-lg border bg-card p-3">
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium text-foreground">
           {kindLabel} · {phaseLabel}
         </span>
         <span className="font-mono text-muted-foreground">{elapsed}</span>
       </div>
+      <AgentTimeline stages={stages} currentPhase={progress?.phase} accentClass="text-poet" />
       {total > 0 ? (
         <div className="flex flex-col gap-1">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">

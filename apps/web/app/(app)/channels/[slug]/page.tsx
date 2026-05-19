@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
@@ -277,7 +278,7 @@ export default async function ChannelDetailPage({ params }: Props) {
                     )}
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
-                    {b.generatedAt.toLocaleDateString("zh-CN")}
+                    {formatDateTime(b.generatedAt)}
                   </TableCell>
                 </TableRow>
               ))}
@@ -307,7 +308,7 @@ export default async function ChannelDetailPage({ params }: Props) {
                     </Badge>
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
-                    {t.updatedAt.toLocaleDateString("zh-CN")}
+                    {formatDateTime(t.updatedAt)}
                   </TableCell>
                 </TableRow>
               ))}

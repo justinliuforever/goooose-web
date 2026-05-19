@@ -9,6 +9,7 @@ import type { PoetBible } from "@singularity/db";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatDateTime } from "@/lib/datetime";
 import { trpc } from "@/lib/trpc";
 
 type Props = {
@@ -71,7 +72,7 @@ export function BibleHistory({ bibles }: Props) {
                 )}
               </div>
               <span className="font-mono text-[10px] text-muted-foreground">
-                {b.updatedAt.toLocaleDateString("zh-CN")} · {b.content.length.toLocaleString("en-US")} 字
+                {formatDateTime(b.updatedAt)} · {b.content.length.toLocaleString("en-US")} 字
               </span>
             </div>
             <div className="flex items-center gap-1">

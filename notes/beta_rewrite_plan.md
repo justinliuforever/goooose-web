@@ -1,657 +1,323 @@
-# Singularity Web — Beta
+# Singularity Web — 8-Week Beta Plan
 
-**Date**: 2026-05-15
-**Supersedes**: 2026-04-25 v3 架构决策中关于后端语言 + Auth provider 的部分（其他不变）
+**Initial**: 2026-05-15 · **Last revised**: 2026-05-18
 
 ---
 
 ## 0. TL;DR
 
-**Next.js 15 + Vercel AI SDK + Trigger.dev v3 + Supabase + Logto Cloud + Python yt-dlp sidecar**
+**TS-only 单语言栈**：Next.js 16 + Vercel AI SDK + Trigger.dev v3 + Supabase + Logto Cloud + TikHub。
 
-- 主代码 TypeScript / Node
-- Python 仅保留一个微服务（YouTube / XHS 抓取）
-- 预计 **8 周到 closed beta**
-- MVP 月度成本 **< $200**
-
----
-
-## 1.
-
-| 组件           | v3 (2026-04-25 锁定)            | v4 (当前)                                                   | 理由                                                                                                                             |
-| -------------- | ------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **后端主语言** | Python FastAPI（6K LOC 全保留） | **Node.js / Next.js 主体 + Python sidecar 只跑 yt-dlp/XHS** | (1) Vercel AI SDK 的 streaming UX 无 Python 等价；(2) 80% Python 代码（3,300/6,100 LOC）易移植；(3) 2 人团队单语言栈降低认知负担 |
-| **Auth**       | Casdoor 自部署                  | **Logto Cloud**（Day 1）                                    | (1) Logto Cloud 50K MAU 免费、$24/mo 无限；(2) 原生 WeChat web + native 连接器；(3) 2 人团队不便运维独立 auth server             |
-| **长任务编排** | 未明确（默认 BullMQ + Redis）   | **Trigger.dev v3**                                          | (1) MVP 免费层覆盖 50K execs/月；(2) `useRealtimeRun` hook 推进度到前端；(3) 无超时（支持 20-30 min 长稿生成）                   |
-
-其他保留：Supabase Pro / Cloudflare R2 / LLM 四源（Claude / Gemini / DeepSeek / Groq Whisper）/ China routing 三阶段策略。
+- 主代码 TypeScript（D5=A 锁定 TikHub-only，无 Python sidecar）
+- 8 周到 closed beta：**W1-W6 ✓ 完成**，W7 in progress
+- MVP 月度成本 < $150
 
 ---
 
-## 2. 最终技术栈
+## 1. 锁定的技术栈
 
-```
-┌─ Frontend ────────────────────────────────────┐
-│  Next.js 15 App Router (Vercel)               │
-│  Tailwind 4 + shadcn/ui + Radix               │
-│  tRPC v11（前后端类型契约）                    │
-│  tRPC 内置 React Query（按需补 Zustand）       │
-└────────────────────────────────────────────────┘
+| 层 | 选择 |
+|---|---|
+| 主语言 | TypeScript |
+| 前端 | Next.js 16 App Router (Vercel) |
+| UI | Tailwind 4 + shadcn/ui (base-nova) + Radix |
+| API | tRPC v11 |
+| AI 流式 | Vercel AI SDK v4+ |
+| 长任务 | Trigger.dev v3（`useRealtimeRun`） |
+| Auth | Logto Cloud（含 WeChat 连接器） |
+| DB | Supabase Pro (Postgres + Realtime) + Drizzle |
+| 大文件 | Cloudflare R2 |
+| Monorepo | pnpm + Turborepo |
 
-┌─ AI / 长任务 ─────────────────────────────────┐
-│  Vercel AI SDK v4+                            │
-│    ├─ streamText / useChat → Class A 短批改   │
-│    ├─ streamObject / useObject → JSON 流式    │
-│    └─ stopWhen: stepCountIs(N) → 多步 agent   │
-│                                                │
-│  Trigger.dev v3 → Class B 长任务              │
-│    └─ useRealtimeRun → 进度推送                │
-└────────────────────────────────────────────────┘
+**LLM / 数据 / ASR 栈**：
 
-┌─ Auth ─────────────────────────────────────────┐
-│  Logto Cloud                                   │
-│    Day 1: Email OTP + Apple + Google           │
-│    M3+: WeChat 扫码（ICP 备案后开启）          │
-└────────────────────────────────────────────────┘
-
-┌─ Data ─────────────────────────────────────────┐
-│  Supabase Pro (Postgres + Realtime + Storage)  │
-│  Drizzle ORM                                   │
-│  Cloudflare R2（音视频大文件）                  │
-└────────────────────────────────────────────────┘
-
-┌─ Python Sidecar ───────────────────────────────┐
-│  Render Singapore（小实例 $7-25/mo）           │
-│  FastAPI 薄壳                                  │
-│  yt-dlp + bgutil-pot-provider (Deno) + ffmpeg │
-│  XHS sign.js 执行器                            │
-│  约 500-800 LOC                                │
-└────────────────────────────────────────────────┘
-```
-
-> 状态管理说明：Next.js 15 Server Components + tRPC + React Query 已覆盖服务端数据缓存与乐观更新。本地 UI 状态用 `useState` + `Context` 即可。仅当出现需要跨页面共享的复杂客户端状态时再引入 Zustand。
+| 用途 | 服务 |
+|---|---|
+| Clerk / Muse / Poet 分析与生成 | DeepSeek V4 Pro + Flash（reasoning enabled，统一 `apps/web/lib/llm.ts`） |
+| Thumbnail vision + W7 Upload Critique | Claude Sonnet 4.6（`@ai-sdk/anthropic`） |
+| ASR 主链 | Deepgram Nova-3（`language=multi`，下载字节 POST） |
+| ASR 兜底 | Groq Whisper large-v3（< 25 MB） |
+| 视频元数据 | YouTube Data API v3（免费 10K/天） |
+| 频道列表 + audio streams + XHS 全套 | TikHub |
 
 ---
 
-## 3. Monorepo 仓库结构
+## 2. Monorepo 结构
 
 ```
 singularity-web/
 ├── apps/
-│   ├── web/                          # Next.js (Vercel)
+│   ├── web/                       # Next.js
 │   │   ├── app/
-│   │   │   ├── (marketing)/          # 营销页 (SSG, SEO)
-│   │   │   ├── (app)/                # 登录后产品页
-│   │   │   ├── api/trpc/[trpc]/      # tRPC 端点
-│   │   │   └── api/critique/         # 流式 LLM 端点
-│   │   ├── components/               # shadcn 实例化组件
-│   │   ├── lib/                      # 客户端工具
-│   │   └── server/                   # 服务端代码
-│   │       ├── trpc/                 # tRPC routers
-│   │       └── ai/                   # AI SDK 调用 + prompts 引用
-│   ├── scraper/                      # Python sidecar (Render)
-│   │   ├── app/
-│   │   │   ├── main.py
-│   │   │   ├── youtube.py            # yt-dlp wrapper
-│   │   │   ├── xhs.py                # XHS sign.js + fetch
-│   │   │   └── pot_provider.py       # PoToken 集成
-│   │   └── pyproject.toml
-│   └── jobs/                         # Trigger.dev 任务定义
-│       └── trigger/
-│           ├── long-form.ts          # Class B 长脚本生成
-│           ├── analyze-channel.ts    # Clerk 管线
-│           └── monitor-competitors.ts# Muse 管线
-├── packages/
-│   ├── db/                           # Drizzle schema + migrations
-│   │   └── schema/
-│   ├── shared/                       # Zod schemas, 类型, 常量
-│   │   └── prompts/                  # 全部 prompt 模板（核心 IP）
-│   └── ui/                           # shadcn 共用组件
-├── infra/
-│   ├── render.yaml                   # scraper sidecar 部署
-│   └── supabase/                     # migrations
-├── pnpm-workspace.yaml
-├── turbo.json
-└── package.json
+│   │   │   ├── (marketing)/
+│   │   │   ├── (app)/
+│   │   │   └── api/trpc/[trpc]/
+│   │   ├── components/
+│   │   ├── lib/
+│   │   └── server/trpc/           # tRPC routers
+│   └── jobs/trigger/              # Trigger.dev tasks (analyze-channel, monitor-competitors, generate-bible/script, analyze-custom-topic)
+└── packages/
+    ├── db/                        # Drizzle schema + migrations + smoke scripts
+    └── shared/                    # prompts / schemas / clients / services（核心 IP）
 ```
 
-**关键设计原则：**
-
-1. **`packages/shared/prompts/`** — 所有 prompt 模板集中在此，无论 Next.js 还是 Trigger.dev 都从这里 import。这是核心 IP 的统一仓库
-2. **`apps/jobs/`** — Trigger.dev 任务文件，部署到 Trigger.dev 云端，从 Next.js 触发
-3. **`packages/db/`** — Drizzle schema 是 single source of truth，migrations 走 git
-4. **`apps/scraper/`** — 唯一 Python 子目录，独立 deploy 到 Render SG
+**原则**：所有 prompt 集中 `packages/shared/prompts/`；所有 Trigger.dev 任务在 `apps/jobs/trigger/`；Drizzle schema 是 single source of truth。
 
 ---
 
-## 4. 现有代码迁移评估（基于 2026-05-15 audit）
+## 3. 8-周 Beta 路线
 
-| 分类        | LOC       | 处理                                                           |
-| ----------- | --------- | -------------------------------------------------------------- |
-| EASY        | 3,200     | 移植到 TS，5-7 天                                              |
-| MEDIUM      | 1,700     | 找 npm 等价包，5-7 天                                          |
-| HARD        | 1,100     | **重新设计**：`.docx` 改 HTML/PDF；XHS Spider 重写为 Node `vm` |
-| PROMPT-ONLY | 100       | 复制粘贴                                                       |
-| **总计**    | **6,100** | **5-7 person-weeks**                                           |
+### Week 1 — ✓ 2026-05-16
+Monorepo + Next.js 16 + Supabase 11 张表 + Logto branded sign-in + splash → dashboard 端到端通；不做 user-facing Settings UI（keys 服务端 `.env.local` 托管）。
 
-### 关键决策：放弃 `.docx` 输出，改用 HTML + PDF
+### Week 2 — ✓ 2026-05-17
+- D5 锁定 **TikHub-only**（11 endpoint smoke 全过，`apps/scraper/` 整目录不建）
+- D6 锁定 **Vercel**
+- 10 archive channels + 218+31+10+50+7+18 行 xlsx import
+- Channel CRUD + 3 agent landing pages（`/clerk` `/muse` `/poet`）+ 编辑抽屉
 
-理由：
+### Week 3 — ✓ 2026-05-18（含 polish）
+- 6 prompts 1:1 移植到 `packages/shared/prompts/clerk.ts`
+- Trigger task `clerk-analyze-channel` + tRPC `clerk.*` + `/clerk/[slug]` UI（含 ASR fallback / 进度卡 / 刷新续断 / 全栈中文化 / 供应商隐藏）
+- 3 种 SOP（human / ai_reference / hottest）+ Markdown 渲染 + 删除按钮
+- YouTube Data API v3 批量 metadata fetch（`fetchVideoMetadataBatch`）
+- **W3+ optional**：`channels.list` 频道量级 + `commentThreads.list` 评论分析，详见 §7 #43
 
-- `python-docx` → npm `docx` 功能差距明显
-- Web 用户场景下，HTML 预览 + PDF 下载比 `.docx` 更通用（移动端可读）
-- SOP 文档本质是结构化文本，HTML 表达力足够
-- 节省 5-7 天工作量
+### Week 4 — ✓ 2026-05-18
+- 3 prompts + 3 services（`classifyVideo` flash / `analyzeViralTrigger` pro / `generateIdeas` pro）
+- Imagination gate：transcript null / 含 WARNING marker / trim < 200 char → 拒
+- Trigger task `muse-monitor-competitors` + tRPC `muse.{startMonitor,activeRun,approveIdea}`
+- UI `/muse/[slug]` 含 IdeaApproveToggle 三态 + 对标频道 textarea + PRECONDITION 拦截
 
-### 核心 IP（必须 1:1 移植）
+### Week 5 — ✓ 2026-05-18
+- 3 prompts（CHANNEL_BIBLE / SCRIPT_WRITING / CHINESE_HUMANIZER），含 section markers HOOK/TEASE/ITEM/CTA/CLIMAX/CLOSE
+- Bible drift detection（BIAS_MARKERS 8 项 + STOPWORDS + bag-of-words tokenize `[\w一-鿿]+`）
+- 短稿默认 5min = 1000 zh / 750 en
+- Trigger tasks `generate-bible` + `generate-script` + tRPC `poet.*`
+- UI 含 active Bible 卡 + 编辑/重生成 sheet + drift 黄 banner + 历史版本 accordion
 
-- `prompts/poet_prompts.py` — SCRIPT_WRITING_PROMPT, LONG_FORM_OUTLINE_PROMPT, SECTION_EXPAND_PROMPT, CHANNEL_BIBLE_PROMPT
-- `prompts/muse_prompts.py` — VIRAL_TRIGGER_PROMPT, IDEA_GENERATION_PROMPT
-- `prompts/clerk_prompts.py` — analysis prompts
-- `services/humanizer.py` — humanize_chinese prompt
-- `services/bible_generator.py` 中的 drift detection 算法（lexical overlap + stopwords list）
-- `services/script_writer.py` 中的 long-form thresholds（中文 4000 字 / 英文 3000 词）
+### Week 6 — ✓ 2026-05-18
+- LONG_FORM_OUTLINE + SECTION_EXPAND 移植，`writeScriptLong` outline → expand 双阶段
+- 长稿阈值：中文 ≥2000 / 英文 ≥1500（archive `script_writer.py:_write_script_long_form()` 实际值）
+- WriteScriptButton DropdownMenu 4 时长（5/10/20/30 min）
+- Custom Topic flow：URL/文本附件 → fetch refs → `analyzeTopic` → 写稿（archive 移植 100% 完成）
+- 全栈 token-budget 审计（V4 Pro reasoning preamble 吃 token 问题，所有 `generateText` 调用 maxOutputTokens 至少 = 期望输出 × 2 + 1500）
 
----
-
-## 5. 8-周 Beta 路线
-
-### Week 1: 地基（端到端 hello-world） — **✓ 完成 2026-05-16**
-
-- [x] Create monorepo: pnpm + Turborepo + Next.js 16 + Tailwind 4 + shadcn base-nova
-- [x] Setup Supabase project, Drizzle schema (11 张表 — users + channels + pipeline_runs + clerk×2 + muse×2 + poet×4)
-- [x] Setup Logto Cloud, integrate Email OTP（branded sign-in page，Caveat 字体 + Singularity logo + 浅色背景）
-- [ ] Setup deploy host（Vercel vs Render — D6 仍待定，W2 后期决；本地 dev 跑通即可）
-- [ ] Setup Render project for scraper sidecar（W2 D3+ 视 D5 而定）
-- [ ] Setup Trigger.dev project（W3 用到再设）
-- [x] **不**做 user-facing Settings UI：keys 服务端托管 `.env.local`
-- [x] **交付**：访问 localhost → 邮箱 OTP 登录 → splash 动画 → dashboard 空状态 CTA
-
-### Week 2: Channel CRUD + 抓取 sidecar — **D1+D2 完成 2026-05-17**
-
-- [x] **D5 — A 锁定**：TikHub-only（79 XHS endpoint + 50 YouTube endpoint，$0.001-0.01/call，1 req/sec per route）；Python sidecar 整目录不建
-- [x] **D1**：Channel schema + tRPC v11 CRUD endpoints（list/create/delete，slug 自动生成 + 冲突检测）
-- [x] **D1**：Channel 列表 UI（shadcn Table + AlertDialog 删除确认 + Field/Input/Select/Textarea 创建表单）
-- [x] **D2**：xlsx archive 数据 import（`packages/db/scripts/import-archive.ts` — 10 channels + 218 clerk_videos + 31 sops + 10 muse_videos + 50 ideas + 7 bibles + 18 custom topics 全绑 justinliuforever@gmail.com）
-- [x] **D2 续**：Channel detail/edit 页（`/channels/[slug]` — Edit drawer + 3 stat cards 链跳 agent 视图）
-- [x] **D2 续**：Agent 浏览 UI（`/clerk` 三级 + `/muse` 二级 + `/poet` 三级 + topic detail + 7 个 loading skeleton）
-- [x] **D2 续**：sanity-check + tikhub-smoke + groq-asr-smoke 三个测试脚本
-- ~~D3 Python sidecar~~ → ✗ 不做（D5=A）
-- [x] **D6**：Vercel 锁定（D5=A 后 Render 优势消失）
-- [x] **Trigger.dev 配置**：apps/jobs scaffold + worker 连云（proj_lfwtogxhtvfemlfqeooh，build 20260517.1）
-- [x] **LLM 栈**：Vercel AI SDK + `@ai-sdk/deepseek`，flash/pro 双 tier via `apps/web/lib/llm.ts`
-- [x] **apps/scraper 清理**（D5=A 后整目录删除）
-- [ ] **下一步**：W3 Clerk pipeline（见下）
-
-### Week 3: Clerk 管线（分析器 + SOP 生成）
-
-- [x] **D1**：Port `prompts/clerk_prompts.py` → `packages/shared/prompts/clerk.ts`（6 个 prompts 1:1 移植，含 builder 函数 + Zod schema + clerkAnalysisToDbRow mapper）
-- [x] **D1**：Trigger.dev task `clerk-analyze-channel`（apps/jobs/trigger/analyze-channel.ts）— 端到端 live test 跑通 @MKBHD，DeepSeek V4 Pro 实分析落 DB
-- [x] **D1**：`apps/web/lib/{llm,tikhub}.ts` 经 `packages/shared/clients/` thin shared client（lazy-init 避开 Trigger.dev bundle-time throw）
-- [x] **D1**：tRPC `clerk.startAnalysis` + `clerk.runStatus` mutation/query；UI `/clerk/[slug]` Run analysis button + `useRealtimeRun` 进度显示
-- [x] **D1 诊断**：fixed 3 个 live test 暴露的 issue：(a) `generateObject` strict Zod 在 DeepSeek compatibility mode 易拒，换成 `generateText` + 软 JSON parse；(b) TikHub `/web_v2/get_video_info` 对最新视频 metadata 稀疏，fall back 到 channel-listing 字段；(c) DeepSeek 偶尔输出 NULL byte (U+0000)，postgres TEXT 拒，加 `safeText()` 全局过滤
-- [x] **D2**：SOP generator（port `services/sop_generator.py`）— 跑完分析后用 V4-Pro 生成 human / ai_reference / hottest 三种 SOP markdown 写 `clerk_sops`；@MKBHD 测试 generated 2 SOPs (15.6KB + 13.1KB)，hottest 因 transcript 空自动跳过
-- [x] **D2**：`/clerk/[slug]` 加 SOP 渲染（react-markdown + remark-gfm，最新 generation 自动顶起，旧 SOPs 跑前先 delete 清理）
-- [x] **D2 polish 1 — 中文化**：sidebar + Channels CRUD + Clerk page + Run button + 进度面板 + toast + SOPs 标签 + 删除/编辑对话框 + signed-out 页全 zh-CN；UI 不再露 "DeepSeek" / "TikHub" 等供应商名字
-- [x] **D2 polish 2 — 刷新续断**：`apps/web/lib/clerk-run.ts` `getActiveClerkRun()` 查 active pipeline_runs + `auth.createPublicToken()` 1h 颁发 → ClerkRunButton 的 `initialActive` prop → 自动重接 `useRealtimeRun`
-- [x] **D2 polish 3 — 细化进度**：每视频拆 4 个 sub-phase（fetch metadata / fetch transcript / running analyzer / writing），SOP 阶段标注预计时长（"约 1-2 分钟"）；UI 加进度条 + 百分比 + elapsed timer + 视频标题 detail
-- [x] **D2 polish 4 — 中文输出保证**：4 个 prompt builder 全接 `language` 参数 + 在 zh 模式下走 CHINESE_WRAPPER；analyzer 额外加 reinforcement "JSON keys 保留英文，VALUES 中文"；ai_reference 加 reinforcement "章节锚保留英文，描述内容中文"。tRPC default language flipped to "zh"。**Verified**：英文 transcript (Rick Astley) + language=zh → V4 Pro 27s 返回纯中文 JSON，4/4 字段全中文，4/4 keys 全英文（`packages/db/scripts/verify-chinese-output.ts`）
-- ~~D2 verbatim_facts 双字段~~ → 注：archive 2026-05 加的，**仅 Poet 用**，不在 Clerk
-- [x] **D3 — ASR fallback**：无字幕（或字幕 base_url 返回空 XML）的视频自动走 TikHub `streams_v2` + Groq `whisper-large-v3`；新表列 `clerk_videos.transcript_source` ("caption" / "asr" / null)；UI 频道页加字幕来源 badge。Helper 永不抛出（无音频流 / 超 25 MB / 链接失效 / Groq 5xx 全部 graceful null）。**Verified**：Rick Astley caption 全空 → ASR 1.5KB 转写成功；3h 直播 → 因 duration > 60min 自动跳过；bogus ID → graceful null。`packages/db/scripts/asr-{fallback,branch}-smoke.ts` 3/3 绿。同时修复 caption 链路：`fetchTranscriptText` 加 `fmt=srv3`，`transcriptFromTracks` 改为按语言偏好顺序逐 track 尝试直到拿到非空文本
-- [ ] **D3 polish next**：单视频重跑 / 单 SOP 重跑 / 手动 transcript override / Imagination gate（< 3 transcripts 拒生 SOP，防 LLM 编造）
-- [x] **交付**：选频道 → 启动 Clerk 分析 → 流式进度 → SOP markdown 渲染（在 /clerk/[slug] 可见）
-
-### Week 4: Muse 管线（监控 + idea 生成）
-
-- [x] **D1**：Port `muse_prompts.py` → `packages/shared/src/prompts/muse.ts`（3 个 prompt 1:1 移植 + language 参数 + CHINESE_WRAPPER）
-- [x] **D1**：Port `classifier.py` + `viral_analyzer.py` + `idea_generator.py` → `packages/shared/src/services/muse.ts`（同步原 temperatures 0.2/0.4/0.7 + token caps 512/2048/4096）
-- [x] **D1**：Imagination gate（`isRealTranscript` < 200 chars 或含 warning markers → false）
-- [x] **D1**：Trigger task `muse-monitor-competitors`（iterate channel.competitors → fetch videos → ASR fallback → classify → ideas）
-- [x] **D2**：tRPC `muse.{startMonitor, activeRun, approveIdea}` + 共享 `lib/agent-run.ts` `getActiveAgentRun(channelId, userId, agent)`
-- [x] **D2**：UI `/muse/[slug]`：开始巡视按钮（zh-CN 进度 + 刷新续断）+ 已巡视视频表 + 选题卡片 + IdeaApproveToggle + 空状态文案
-- [x] **D2**：Channels 编辑页加"对标频道" textarea（每行一 URL，xhs/youtube 自动识别）；启动 Muse 前没有 competitors 会被 tRPC PRECONDITION_FAILED 拦截
-- [x] **D2**：服务层 smoke test — `packages/db/scripts/muse-services-smoke.ts` 5/5 绿（classifier 中文分类正确、imagination gate 4/4、viral_trigger 353字纯中文、3 ideas 全中文且各异）
-- [ ] **D3 next**：端到端 live test —— 给一个 channel 配真实 competitors → 启动巡视 → 观察 Trigger.dev 运行 → 选题落 DB → UI 审批
-- [ ] **交付**：监控竞品 → 生成 ideas → 用户审批
-
-### Week 5: Poet 管线（Bible + 短脚本）
-
-- [x] **D1**：3 个 prompt 移植到 `packages/shared/src/prompts/poet.ts`：CHANNEL_BIBLE / SCRIPT_WRITING / CHINESE_HUMANIZER（长稿 OUTLINE/EXPAND + Custom Topic 的 TOPIC_ANALYSIS 移到 W6）
-- [x] **D1**：`packages/shared/src/services/poet/bible.ts` — Bible 生成 + drift detection（archive 移植 BIAS_MARKERS + STOPWORDS + tokenize + checkDrift，≥3 marker hits 触发 ai_markers，token 集合不重合触发 no_overlap）
-- [x] **D1**：`packages/shared/src/services/poet/scriptWriter.ts` — 短稿路径（target 默认 5min = 1000 zh chars / 750 en words；formatReferencesBlock + formatVerbatimFacts；temp 0.5 max_tokens 8192）
-- [x] **D1**：`packages/shared/src/services/poet/humanizer.ts` — 仅中文，温度 0.6，失败时返回原文不抛错
-- [x] **D2**：Trigger.dev tasks — `apps/jobs/trigger/generate-bible.ts`（自动 inactive 老 Bible + drift 时存为 inactive + 写 drift event）与 `generate-script-short.ts`（idea → context loading → write → humanize 中文 → save + mark idea.scripted）
-- [x] **D2**：tRPC `poet.{generateBible, updateBible, activateBible, generateScript, activeRun}` + 复用 `getActiveAgentRun("poet")` 刷新续断 token
-- [x] **D2**：UI `/poet/[slug]`：active Bible 卡片（含编辑 sheet）+ 重新生成 / 生成 sheet（textarea 提示"越具体越好"）+ drift 黄色 banner（reason 中文化）+ 待写选题列表（per-idea「写稿」按钮，无 active Bible 时 disable）+ 已生成脚本列表（collapsible `<details>` + 字数 + 时长 + 全文 pre-wrap）+ PoetRunProgress（统一进度卡片，识别 bible / script kind）
-- [x] **D2**：智能引用 — 短稿任务自动用 `museMonitorVideos.transcript` 作 reference；若空则 fallback 到 channel 顶部 2 个 `clerk_videos.transcript`
-- [x] **D2**：smoke test `packages/db/scripts/poet-services-smoke.ts` 5/5 绿 — drift heuristics 离线四案例全对、Bible 生成 2136 字（具体品牌/食材正确：博朗 MQ535、小皮 Little Freddie、秋田满满）、短稿 42s 1195 字含完整 6 个 markers + verbatim 数字（12mg vs 2.6mg, 2023 guideline）、humanizer 44s markers + numbers 全保留 + 口语化转换正确（"我啥也没干"/"我去，这什么概念"）
-- [x] **D2 已知行为**：drift `no_overlap` 在中文上偏 false-positive — 算法用 bag-of-words 比对，中文文段无 word boundary 时 tokenize 出长 run（如 "0-3岁宝宝快手营养辅食" 是一个 token），与用户的描述 token 不交。匹配 archive 原行为，UI 给"重新生成"出口；保守地认为这种 false-positive 比漏掉真 drift 安全。未来可上 jieba 分词
-- [ ] **D3 next**：端到端 live test —— 用户实测 UI；先生成圣经→Muse 通过一个 idea→点写稿→看脚本
-- [ ] **D3 polish next**：scripts 单独详情页（含 markdown 渲染 + 复制全文按钮 + 当时引用的 Bible/SOP）
-- [ ] **W6 移交**：长稿 outline → section expand 管线（中文 ≥2000 字触发）
-- [ ] **W6 移交**：Poet Custom Topic flow（跳过 Muse，URL/文本附件 → analyze → script，新表已存在）
-- [ ] **交付**：选 idea + bible → 生成短脚本 → markdown 预览；或用 Custom Topic 直接进入 Poet
-
-### Week 6: Poet 长稿管线（Class B 主线）
-
-- [x] **D1**：移植 `LONG_FORM_OUTLINE_PROMPT` + `SECTION_EXPAND_PROMPT` 到 `packages/shared/src/prompts/poet.ts`（1:1，含 "LENGTH IS NON-NEGOTIABLE" 规则、min_count = target × 0.85）
-- [x] **D1**：`writeScriptLong()` outline→expand 双阶段 — outline 用 V4 Pro temp 0.5 maxTokens 4096，parse 失败 fallback short；section_expand 复用 prev_tail (400 chars 尾) 维持叙事流，max_tokens 公式 `max(3000, min(round(target / chars_per_token * 2.0) + 500, 6144))` —— 3000 token 下限是为 DeepSeek 推理 preamble 留空间，原 archive 1500 太紧短段（HOOK/CTA/CLOSE）会被 reasoning 吃光产空文本
-- [x] **D1**：`writeScript()` 统一入口按 `isLongForm(targetWordCount, lang)` 路由；空段时一次 retry，仍空就 return null 让 caller fallback short（保证用户拿到完整长度的稿子，哪怕走短稿路径）
-- [x] **D2**：Trigger task 统一 `poet-generate-script`（原 `poet-generate-script-short` 重命名 + maxDuration 3600s）；progress total 动态计算 — outline 返回前估 4，返回后变 `2 + N_sections + (zh ? 1 : 0) + 1`；onOutlineDone / onSectionStart / onSectionDone hooks 实时推进度
-- [x] **D2**：UI WriteScriptButton 改成 DropdownMenu — 5min（短稿 1000 字）/ 10min（长稿 2000 字）/ 20min（4000 字）/ 30min（6000 字），每项标注路径；PoetRunProgress 新增 `writing outline` / `expanding section N/M` 中文化（"AI 拆分长稿大纲" / "AI 扩写长稿（第 i/N 段）"）；完成 toast 标注短稿/长稿 + 字数 + 是否 humanize
-- [x] **D2**：`agent-run.ts` 返回 `command` 字段，poet RSC 页根据 `command === "poet-generate-bible"` 判 kind，进度卡片正确显示是生成圣经还是写稿
-- [x] **D2**：smoke `packages/db/scripts/poet-long-form-smoke.ts` 覆盖：
-  - **路由 11 边界**全对：null/0/负数 durationMinutes 取默认；阈值 1999→short、2000→long
-  - **5min 不走长稿**：path=short，markers 完整
-  - **10min 走长稿端到端**：outline 8 段（HOOK/TEASE/3×ITEM/CTA/CLIMAX/CLOSE）+ 全 markers 顺序保留 + 长度比 ≥ 0.80 + verbatim 数字（PU3000/PU1500/30%）穿越 humanize 保留
-  - **空段抢救**：发现 DeepSeek V4 Pro 短段（target < 200 字）会被 reasoning preamble 吃光产空文本；3000 token floor + 一次 retry + 失败后 return null 让 short fallback 接住
-  - **`writeScriptShort` 直接调用**仍工作，目标 600 字 → 实际 948-1100 字（min-90% 规则会冲过）
-- [ ] **D3 next**：脚本详情页（独立路由 + markdown 渲染 + 复制全文按钮 + 当时引用的 Bible/SOP 链接）
-- [ ] **W7 移交**：长稿 prompt 强制 VERBATIM PRESERVATION（archive 2026-05 加的；目前 SECTION_EXPAND 仅在 verbatim_facts 块要求字符级，没在主指令里强制不杜撰）
-- [x] **W5+ 收尾 D1-D2**：Custom Topic flow — 跳过 Muse 直接给 Poet 喂主题 + 素材（YouTube / 小红书 / 粘贴文本，最多 10 条），Trigger task 抓素材 + 调 analyzeTopic 拆解，生成时复用 `poet-generate-script` 走 customTopicId 分支
-- [x] **交付**：30 分钟视频脚本一键生成，前端流式看进度
-
-### Week 7: Upload Critique（核心 MVP 功能）
-
+### Week 7（in progress）— Upload Critique
 - [ ] Upload UI（文本 + 图 + 短视频）
 - [ ] AI SDK `streamText` 流式批改（Claude Sonnet 4.6）
-- [ ] Browse 模式（pre-generated AI 资讯 trends）从 Supabase 渲染
-- [ ] Link Analysis 模式（粘贴 URL → 调 sidecar 抓取 → LLM 分析）
-- [ ] **交付**：3 个核心模式全部可用
+- [ ] Browse 模式：Supabase 渲染 pre-generated trends
+- [ ] Link Analysis 模式：粘贴 URL → fetch（reuse `references.ts`）→ 分析
+- archive 无此功能，本周纯 greenfield
 
-### Week 8: Polish + Beta 上线
-
-- [ ] Onboarding flow（首次登录引导）
-- [ ] 用户 profile / quota 页（取代 archive 的 Settings.tsx；无 user-facing API key 配置）
-- [ ] Quota 系统（Free tier：3 video/mo + 5 images + 5 scripts，带水印）
+### Week 8 — Polish + Beta 上线
+- [ ] Onboarding flow + 用户 profile / quota 页
+- [ ] Quota 系统（Free 3 video + 5 images + 5 scripts / 月）
 - [ ] 计费骨架（预留 Stripe，不开收费）
-- [ ] Bug 修复 + 体验打磨
 - [ ] 邀请首批 50 用户 closed beta
-- [ ] **交付**：beta 上线，开始收集 feedback
 
 ---
 
-## 6. 风险登记
+## 4. 风险登记
 
-| #   | 风险                            | 概率 | 影响 | 缓解                                                                    |
-| --- | ------------------------------- | ---- | ---- | ----------------------------------------------------------------------- |
-| R1  | yt-dlp PoToken 持续维护负担     | 高   | 中   | 选用 `bgutil-ytdlp-pot-provider` 社区方案；备 `youtubei.js` 作 fallback |
-| R2  | XHS sign.js Node 实现需自行编写 | 高 → 待 D5 | 中 | **W2 评估 TikHub**（托管 sign.js + cookie + 79 endpoint，$0.01/call、10 req/s）；选用则风险降为低，Python sidecar 可能整体不需要。回退：Node `vm` 跑 archive 的 sign.js |
-| R3  | Trigger.dev v3 vendor lock      | 中   | 中   | 任务逻辑写在 `apps/jobs/`，可迁 Inngest/Hatchet；接口层抽象             |
-| R4  | Logto Cloud 价格未来上涨        | 低   | 低   | $24/mo 无限 MAU 已有竞争力；最坏迁 Casdoor 自部署                       |
-| R5  | Vercel 5TB 出口后成本明显上升   | 中   | 高   | 监控带宽；50K MAU 前迁 Cloudflare Pages                                 |
-| R6  | `.docx` 不支持，用户反馈        | 低   | 低   | Studio tier 时加付费 `.docx` 转换服务（headless LibreOffice）           |
-| R7  | WeChat 网站应用审批被拒         | 中   | 中   | Day 1 不依赖；M3+ 通过 Logto 加；备选合作伙伴 WFOE 代申请               |
-| R8  | 8 周时间表偏紧                  | 中   | 高   | Week 5-6 是关键路径；如延期，Upload Critique 视频形态后置，先做文本     |
+| # | 风险 | 概率 | 影响 | 缓解 |
+|---|---|---|---|---|
+| R3 | Trigger.dev v3 vendor lock | 中 | 中 | 任务逻辑在 `apps/jobs/`，可迁 Inngest/Hatchet；月费 > $200 时切自部署 v3（开源 MIT），代价 ~1-2 天/agent |
+| R4 | Logto Cloud 价格上涨 | 低 | 低 | 最坏迁 Casdoor 自部署 |
+| R5 | Vercel 5TB 出口后成本明显上升 | 中 | 高 | 监控带宽；50K MAU 前迁 Cloudflare Pages |
+| R7 | WeChat 网站应用审批被拒 | 中 | 中 | Day 1 不依赖；M3+ 通过 Logto 加 |
+| R8 | 8 周时间表偏紧 | 已松（W1-W6 done） | — | W7 起灵活，必要时 Upload Critique 视频形态后置先做文本 |
+| R9 | YouTube CDN 对生产 IP 限速 | 中 → 高（用户多了） | 高（ASR 阻塞） | 不预先做；监控 HTTP 403/429 + 单视频 >20min；触发后接 BrightData/Smartproxy 残留 IP 代理（`asr.ts downloadToTemp()` 加 HTTP agent + `PROXY_URL` env）。详见 §7 #42 |
 
----
-
-## 7. 月度成本预估
-
-### MVP (1K MAU, ~5K 批改/月)
-
-| 项                           | 价           |
-| ---------------------------- | ------------ |
-| Vercel Pro                   | $20          |
-| Supabase Pro                 | $25          |
-| Render scraper (Starter)     | $7           |
-| Logto Cloud (free 50K MAU)   | $0           |
-| Trigger.dev (free 50K execs) | $0           |
-| Cloudflare R2                | $1           |
-| BrightData PAYG              | $15          |
-| Claude 主批改                | $75          |
-| Gemini 2.5 Flash 视频帧      | $30          |
-| DeepSeek 分类                | $5           |
-| Groq Whisper                 | $5           |
-| **合计**                     | **~$183/mo** |
-
-### Growth (50K MAU, ~250K 批改/月)
-
-| 项                           | 价             |
-| ---------------------------- | -------------- |
-| Vercel Pro + 带宽            | ~$770          |
-| Supabase Team                | $599           |
-| Render scraper (Standard ×2) | $50            |
-| Logto Cloud Pro              | $24            |
-| Trigger.dev Pro              | $50            |
-| Cloudflare R2                | $75            |
-| BrightData                   | $300           |
-| LLM 四源                     | ~$3,500        |
-| **合计**                     | **~$5,368/mo** |
-
-与 2026-04-25 v3 成本模型基本一致（$224 / $5,329）。
+R1（yt-dlp）/ R2（XHS sign.js）— D5=A 后 TikHub 托管掉了，不再相关。
 
 ---
 
-## 8. 仍待 Justin 决定的 4 个事项
+## 5. 月度成本预估
 
-| #      | 决策                                        | 选项                                                                        | 我的建议                                                        | 截止   |
-| ------ | ------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------- | ------ |
-| **D1** | Electron 旧版处理                           | A) 立即停止维护，专心 web B) 双轨并行到 M3                                  | **A** — 旧版无真实用户，绑定本地数据，维护成本高                | Week 1 |
-| **D2** | 现有 ~6K Python LOC 命运                    | A) `git rm -r`，仅保留 prompts + sidecar 必要部分 B) 移到 `archive/` 作参考 | **B** — 便于查 prompt 历史和 LLM 调用经验                       | Week 1 |
-| **D3** | 1 人还是 2 人开发？时间表是否需根据人力调整 | — | **✓ 2026-05-16 锁定：1 人 8 周节奏** | ✓ |
-| **D4** | 是否提前启动 ICP / 微信开放平台申请流程     | A) 立刻启动（M3 上线 WeChat） B) 等 beta 反馈再说                           | **A** — 备案 3-6 月，启动越早越好；不然 WeChat 上线时间持续后延 | Week 2 |
-| **D5** | 生产 XHS / YouTube 数据层 | A) TikHub-only B) 混合 C) Spider_XHS | **✓ 2026-05-17 锁 A**（11 endpoint smoke test 全过 + Groq Whisper ASR fallback 端到端验证）。`apps/scraper/` 子树整体不建。详见 §10 第 26 项 | ✓ |
-| **D6** | Deploy host | A) Vercel B) Render | **✓ 2026-05-17 锁 Vercel**（D5=A 后 Render 单管理优势消失；Vercel 800s + Trigger.dev 长任务组合就是最优解）| ✓ |
+| 项 | MVP (1K MAU, ~5K 批改/月) | Growth (50K MAU, ~250K 批改/月) |
+|---|---|---|
+| Vercel | $20 (Pro) | $770 (Pro + 带宽) |
+| Supabase | $25 (Pro) | $599 (Team) |
+| Logto Cloud | $0 (50K MAU free) | $24 (Pro) |
+| Trigger.dev | $0 (50K execs free) | $50 (Pro) |
+| Cloudflare R2 | $1 | $75 |
+| TikHub | $10 | $300 |
+| YouTube Data API | $0 (10K/day free) | $0 |
+| DeepSeek（Clerk/Muse/Poet） | $20 | $800 |
+| Claude（vision + W7 critique） | $50 | $2,000 |
+| Deepgram + Groq Whisper | $5 | $200 |
+| **合计** | **~$131/mo** | **~$4,818/mo** |
 
----
-
-## 9. 第一天具体行动（Week 1 Day 1）
-
-```bash
-# 1. 新建仓库
-mkdir singularity-web && cd singularity-web
-git init
-pnpm init
-
-# 2. 装 Turborepo + 基础结构
-pnpm dlx create-turbo@latest .
-
-# 3. 创建 apps/web (Next.js 15)
-cd apps && pnpm dlx create-next-app@latest web \
-  --typescript --tailwind --app --src-dir=false
-
-# 4. 装 shadcn
-cd web && pnpm dlx shadcn@latest init
-
-# 5. 创建 packages/db + Drizzle
-cd ../../packages && mkdir db && cd db
-pnpm init -y && pnpm add drizzle-orm postgres
-
-# 6. 注册云服务（仅注册，先不配）
-#   - Vercel (link to GitHub repo)
-#   - Supabase (create project, note connection string)
-#   - Logto Cloud (create tenant)
-#   - Trigger.dev (create project)
-#   - Render (Week 2 用)
-
-# 7. 部署 hello-world 到 Vercel
-git add . && git commit -m "init"
-gh repo create singularity-web --private --source=. --remote=origin --push
-# Vercel 自动 deploy
-```
-
-End-of-day 1 交付：访问 `*.vercel.app` 域名能看到 Next.js 默认页 + Tailwind 工作。
+W7 上线后实测真实流量再校准。
 
 ---
 
-## 附录 A — Python 包到 npm 包映射
+## 6. 待决定
 
-| Python                            | npm                                 | 难度     |
-| --------------------------------- | ----------------------------------- | -------- |
-| fastapi → next.js api routes      | (built-in)                          | 易       |
-| aiosqlite → drizzle + postgres-js | `drizzle-orm`, `postgres`           | 易       |
-| openai (Python) → openai (Node)   | `openai`                            | 易       |
-| youtube-transcript-api            | `youtube-transcript-api` (npm port) | 易       |
-| pydantic                          | `zod`                               | 易       |
-| loguru                            | `pino`                              | 易       |
-| requests                          | `fetch` (built-in)                  | 易       |
-| python-docx                       | `docx`（功能弱）→ **改用 HTML/PDF** | **避开** |
-| websockets                        | `ws` (via Next.js)                  | 易       |
-| groq                              | `groq-sdk`                          | 易       |
-| yt-dlp                            | **保留 Python sidecar**             | 不移植   |
-| PyExecJS                          | `vm` (Node built-in)                | 易       |
-| openpyxl                          | `exceljs`                           | 易       |
+| # | 决策 | 状态 |
+|---|---|---|
+| D1+D2 | Electron 处理 + Python LOC 命运 | ✓ 2026-05-15（停 Electron，archive 留参考） |
+| D3 | 1 vs 2 人开发 | ✓ 2026-05-16（1 人 8 周） |
+| D4 | ICP 备案 + WeChat 开放平台启动 | ⏳ 仍待 Justin；备案 3-6 月，启动越晚 WeChat 上线越晚 |
+| D5 | XHS / YouTube 数据层 | ✓ 2026-05-17（TikHub-only） |
+| D6 | Deploy host | ✓ 2026-05-17（Vercel） |
 
 ---
 
-## 附录 B — 关键技术决策的研究证据
+## 7. 决策日志（按时间倒序）
 
-### B.1 yt-dlp 在 2026 的真实状态
+### 2026-05-18
 
-- PoToken/SABR 改动要求 yt-dlp + Deno + `bgutil-ytdlp-pot-provider` 容器
-- Node-native YouTube 库：`ytdl-core` abandoned；`@distube/ytdl-core` archived；`@ybd-project/ytdl-core` 被 GitHub 标 spam；唯一仍维护的是 `youtubei.js` (LuanRT, v17.0.1 / 2026-03)
-- 结论：Python sidecar 包含 yt-dlp + PoToken 容器；可备 `youtubei.js` 作 fallback
+**#43 — YouTube Data API 可选扩展（不做但记下来）**
 
-### B.2 Vercel Function 超时限制（2026-02 Fluid Compute）
+oEmbed 移除 + 切到批量 `videos.list`（10 视频 run 从 10 次 HTTP 降为 1 次）后，还有两项 TikHub 没法做的能力：
 
-- Hobby: 300s
-- Pro: **800s（13 min）**
-- Enterprise: 800s（可定制）
-- → Class B 长任务（20-30 min）必须走 Trigger.dev / Inngest / Hatchet
+- **`channels.list`** — 拿精确订阅数 / 累积总播放 / 视频总数 / topic categories 塞进 SOP prompt。1 unit / run，投入 ~1h。落点：`youtube-data.ts` 新增 `fetchChannelInfo` + `analyze-channel.ts` SOP 阶段前调 + `clerk.ts` 两个 SOP builder 加 channel-stats 字段
+- **`commentThreads.list`** — 每视频 top 20 评论喂 Clerk analyzer / Muse viral_trigger。1 unit / 视频，投入 ~2-3h。**风险**：评论含 spam / 引战要 prefilter 或 top-by-likes 截断；多语言要 prompt 容忍
 
-### B.3 Trigger.dev v3 vs Inngest 对比
+两者都改 SOP 输出，W7 用户感受当前 SOP 质量后再回头决定优先级。
 
-|               | Trigger.dev v3           | Inngest              |
-| ------------- | ------------------------ | -------------------- |
-| 免费层        | 50K execs/mo, 20 并发    | 50K execs/mo, 5 并发 |
-| Pro 起步      | $10/mo Hobby, $50/mo Pro | $75/mo               |
-| Realtime hook | 内置 `useRealtimeRun`    | 需 +Inngest Realtime |
-| TS DX         | 最佳                     | 良好                 |
+**#42 — YouTube CDN 限速根因 + Deepgram ASR 改造（R9 预防）**
 
-→ MVP 阶段 Trigger.dev 优势明显
+YouTube CDN 对非浏览器 origin 限速 **~12 KB/s**，4.64MB 音频下载需 6.5min，原 `DOWNLOAD_TIMEOUT_MS=180s` 不够。改造：
 
-### B.4 Auth.js v5 内置 WeChat（备选项）
+- **Deepgram Nova-3 主链**（`packages/shared/src/clients/asr.ts`）：URL 不传，下载字节 POST；`language=multi` 中英混合（避免 `detect_language` 把英文打散为 "T er ry"）。$200 免费额度
+- **Groq Whisper 降为 fallback**（< 25MB 时）
+- **下载 timeout 180s → 900s**
+- ASR 返回 `provider` 字段（"deepgram" / "groq"）便于追踪
+- 实测 crypto 视频：Deepgram 7205 中文字、准确度 0.966、转写本身 2.5s
 
-- 路径：`packages/core/src/providers/wechat.ts`
-- 社区扩展：`@next-auth-oauth/wechat` 支持 OfficialAccount + WebsiteApp
-- 仍需自管 session 持久化、用户表 — Logto Cloud 在运维成本上更优
+**R9 关键认知**：本地 `trigger dev` 跑住宅 IP，6.5min 是 best case。上线后 Trigger.dev cloud worker 是数据中心 IP，YouTube 限速通常更狠（10-20min 甚至 403）。**触发信号**：HTTP 403/429、持续 < 5 KB/s、用户报「卡在音频转写中」、单视频 >20min。**应对**：① HTTP Range 并行（YT 按 IP 限速则无效）；② BrightData/Smartproxy 残留 IP 代理（治本，~$0.01-0.05/视频）；③ 不上 yt-dlp Python sidecar（违反 no-Python 决策）。
 
-### B.5 ICP 备案 2026 现状
+**#41 — Pre-launch P0：删除入口 + 脚本详情页 + 注释清理**
 
-- 外资实体不能直接 ICP 备案，需 WFOE / JV / 中国合作方
-- 端到端成本：US$5K-15K，timeline 3-6 个月
-- 关键发现：如果不用 `.cn` 域名 + 不在中国大陆托管，WeChat web 登录可绕过 ICP（只需 ¥300 网站应用审核）；但 Mini Program 后端 callback 域名仍需 ICP
+- 3 个 delete mutation：`clerk.deleteSop` / `poet.deleteBible`（active 拦截）/ `poet.deleteScript`（同时重置 `museIdeas.scripted=false` 或 `poetCustomTopics.status='analyzed'`）
+- Bible 历史 accordion（非 active 版本）+ `/poet/[slug]/scripts/[scriptId]` 独立详情页（3 列上下文卡 + 复制全文 + 删除）
+- 全栈注释清理：删多行 docstring + WHAT-style 评论，只留真正非 obvious 的 WHY 行（MEMORY.md `feedback_comments-minimal.md`）
 
----
+**#40 — Custom Topic flow（archive 移植 100% 完成）**
 
-## 10. Plan revisions
-
-### 2026-05-16
-
-下列条目来自 archive 的 2026-05 更新（原 2026-05-15 plan 没覆盖）或本日新决策：
-
-1. **W3**：analyzer 输出 `verbatim_facts`（字符级保留 + `[src: ...]` 来源）
-2. **W5**：Poet **Custom Topic flow**（跳过 Muse 的第三种 Poet 入口；archive ~614 LOC）
-3. **W5**：Bible drift detection 落地（`is_active=false` + `_DRIFTED` 后缀 + UI banner）
-4. **W6**：Script writer **VERBATIM PRESERVATION** 规则
-5. **W1 / W8**：取消 user-facing Settings UI（archive `Settings.tsx` 635 行）；keys 服务端托管；W8 用户页改 profile / quota
-6. **D3 resolved**：1 人 8 周节奏
-7. **新 D5**：XHS 数据层（TikHub-only vs 混合 vs Spider_XHS）—— W2 决
-8. **新 D6**：Deploy host（Vercel vs Render）—— W1 末定，与 D5 联动
-9. **栈实操数字**：Next.js 15 → **16.2.6**（App Router 不变；`@latest` 拿到 16）；pnpm 11 的 `allowBuilds` 显式批准 `sharp` + `unrs-resolver`，跳过 `msw`
-10. **长稿阈值修正**：中文 ≥**2000** 字 / 英文 ≥**1500** 词（CLAUDE.md 之前写 4000/3000 是误记，archive `script_writer.py:_write_script_long_form()` 实际值）
-
----
+- `buildTopicAnalysisPrompt` + `analyzeTopic` service（V4 Pro temp 0.6 maxTokens 6144 + 1 retry）
+- `packages/shared/src/clients/references.ts`：text / youtube（reuse `getVideoWithTranscript` + ASR）/ xhs（`web_v3/fetch_note_detail`，24 位 hex note_id）。任何失败 graceful return `{content: "", error: ...}`
+- URL extractors：`extractYoutubeVideoId`（处理 watch / youtu.be / shorts / embed 全部）+ `extractXhsNoteId`（16-32 位 hex）
+- 新 Trigger task `poet-analyze-custom-topic` + `poet-generate-script` 双源（`ideaId` XOR `customTopicId`）
+- 5 个新 tRPC endpoint + UI 自定义选题段（含 4 种时长 DropdownMenu）
 
 ### 2026-05-17
 
-41. **Pre-launch P0 — 删除按钮 + 脚本详情页 + 注释清理**：
-    - **3 个 delete mutation**：`clerk.deleteSop` / `poet.deleteBible`（active 拦截）/ `poet.deleteScript`（同时重置 `museIdeas.scripted=false` 或 `poetCustomTopics.status='analyzed'`，让用户可以重新生成）
-    - **UI 删除入口**：SOP 卡片头加垃圾桶；Bible 历史 accordion（只列非 active 版本）含「激活」+「删除」；脚本列表每项含删除按钮
-    - **Bible 历史 UI**：drift 触发后 inactive 版本不再丢失视野，用户可激活其中之一或全清；当前 active Bible 始终单独显示在主卡片
-    - **`/poet/[slug]/scripts/[scriptId]` 独立详情页**：3 列上下文卡（选题来源 / 引用圣经 / 引用 SOP）+ 全文 pre-wrap + 复制全文按钮（navigator.clipboard）+ 删除按钮（删完跳回 /poet/[slug]）；脚本列表项从 collapsible `<details>` 改成 Link 到详情页（性能更好、URL 可分享）
-    - **注释清理**：扫了整个 shared/jobs/web 包，把多行 docstring + WHAT-style 评论删光，只保留真正非 obvious 的 WHY 行（譬如 "3000-token floor: short sections returned empty when reasoning ate the budget"）
-    - **全栈 typecheck + smoke 重测全绿**：muse-services 5/5、asr-branch 3/3、custom-topic 7/7（包含 URL extractors 11 + analyze 5/5 + ref fetcher 2 graceful error case）
+**#39 — W6 token-budget 全栈审计**
 
-40. **W5+ 收尾 — Custom Topic flow + Reference fetcher（archive 移植 100% 完成）**：
-    - 用户核了一遍 archive 确认 Upload Critique 不是移植任务而是 greenfield，于是先完成 archive 收尾再开 W7
-    - **TOPIC_ANALYSIS_PROMPT 移植**：`packages/shared/src/prompts/poet.ts` 加 `buildTopicAnalysisPrompt`，zh 模式追加"四个叙事字段中文 + verbatim_facts 保持源语言"的中文强化
-    - **analyzeTopic 服务**：`packages/shared/src/services/poet/topicAnalyzer.ts`。V4 Pro temp 0.6 maxOutputTokens 6144（archive 原值），一次 retry on 不可解析 JSON。`toText()` helper 把 LLM 偶尔返回的 list 自动转换为 `- …` 行
-    - **Reference fetcher**：`packages/shared/src/clients/references.ts`。三种类型：text（粘贴文本，原样返回）/ youtube（reuse `getVideoWithTranscript` + ASR 兜底，与 Clerk 同一链）/ xhs（TikHub `web_v3/fetch_note_detail`，需要 24 位 hex note_id）。任何失败 graceful：不抛错，返回 `{content: "", error: "..."}`
-    - **URL 解析器**：`extractYoutubeVideoId` 处理 `/watch?v=`（含任意参数顺序）/ `youtu.be/` / `/shorts/` / `/embed/`；`extractXhsNoteId` 处理 `/explore/` 和 `/discovery/item/`，要求 16-32 位 hex（真实 XHS ID 是 24 位）。5+5 单元测试全过
-    - **新 Trigger task `poet-analyze-custom-topic`**：fetch refs（部分失败容忍）→ analyzeTopic → 把 fetched content 持久化回 `references.text` 字段（写稿任务复用，避免二次抓取）→ 状态 'analyzed'
-    - **`poet-generate-script` 任务双源支持**：payload 接 `ideaId` 或 `customTopicId`（XOR 校验）；customTopic 路径把 `verbatimFacts` 也传给 `writeScript()`；保存时设 `poet_scripts.customTopicId` + 把 `poet_custom_topics.status` 标为 'scripted'。原 ideaId 路径不变
-    - **tRPC**：5 个新 endpoint — listCustomTopics / createCustomTopic / updateCustomTopic / deleteCustomTopic / analyzeCustomTopic / generateScriptFromCustomTopic。两个 trigger mutation 都检查 active Bible 存在 + customTopic.status 必须是 analyzed/scripted。`activeRun` query 加 "analyze" kind
-    - **UI**：`/poet/[slug]` 加自定义选题段（在已生成脚本上方）。新建用 Sheet（选题描述 textarea + 素材列表，可动态加 youtube/xhs/text，最多 10 条）。每条选题状态 badge（草稿/已分析/已写稿）+ 操作按钮（草稿态显"分析"，已分析后显"写稿"DropdownMenu 4 种时长 + 删除）+ 折叠展开看 5 个分析字段
-    - **PoetRunProgress** 加 `analyze` kind：phase 翻译"fetching references" → "抓取外部素材"、"analyzing topic" → "AI 拆解选题"；完成 toast "选题已分析 · 抓取 N 个素材"
-    - **smoke `custom-topic-smoke` 7 项全过**：
-      - extractor 11 case：7 yt + 4 xhs（修了一处 test data 错误后）
-      - text ref instant return
-      - youtube ref 88s → ASR 1836 字 source=asr（Rick Astley caption 全空走 ASR）
-      - bogus yt/xhs URL：graceful error
-      - batch 3 refs：text 2 个 ok + youtube bogus 失败但 batch 不中断
-      - analyzeTopic 37s 端到端：4 个叙事字段全中文（story_angle / facts_and_data / why_similar / viral_trigger），verbatim_facts 保持英文源语言（带 `[src: ...]` 归属），且 LLM 正确从 reference 拉出真实事实（EN 3923:2019 / PU3000→PU1500 / R<2 → 60% 流失）
-    - **archive 迁移完成度**：现在 100%。未移植项仅 `local_scanner.py`（web 无本地 fs 概念，不需要）
+V4 Pro reasoning preamble 吃光短段 token 预算，全栈 9 处 `generateText` 扫一遍：
+- Muse classifier 512 → 1500 + 1 retry（不然中文 prompt 上 reasoning 吃完，默认 relevant=true）
+- Muse viral_trigger 2048 → 4096（输出 353 字升到 1017 字）
+- Bible generator 内置 1 retry on empty content
+- **新规则**：V4 Pro `maxOutputTokens` 至少 = 期望输出 × 2 + 1500
 
-39. **W6 收尾 — token-budget 全栈冗余审计 + 修补**：
-    源头是 W6 发现的 DeepSeek V4 Pro reasoning preamble 吃光短段 token 预算的问题。审了全栈 9 处 `generateText` 调用：
-    - **Muse classifier**：flash + 512 token → bump 1500 + 一次 retry。原 512 在中文 prompt 上 reasoning 可能吃完，导致所有视频默认 relevant=true（archive anti-false-negative bias 兜底，但失去信号）
-    - **Muse viral_trigger**：pro + 2048 → 4096 + 一次 retry。原 2048 偶现 reasoning 占大半，返回短 trigger；提到 4096 后实测输出从 353 字升到 1017 字，质量明显更高
-    - **Muse monitor-competitors task**：若 viral_trigger 返回空字符串，跳过该视频的 ideas 生成（之前会拿空 trigger 跑 idea 提示词，质量不可控）
-    - **Bible 生成器**：内置一次 retry on empty content（之前空 content 只在 Trigger task 层抛 error，service 层无容错）
-    - 其他 6 处经审计 token 预算充足（Clerk analyzer 4096 / Clerk SOP 8192 / Bible 4096 / humanizer 8192 / writeScriptShort 8192 / outline 4096）
-    - **新规则**：所有用 V4 Pro 的 `generateText` 调用，maxOutputTokens 至少 = 期望输出 token × 2 + 1500（推理 preamble buffer）
-    - Re-run `muse-services-smoke` 5/5 green，无回归
+**#38 — W6 长稿管线**
 
-38. **W6 D1-D2 完成 — Poet 长稿管线 + 路由 + UI 时长选择**：
-    - **2 prompts 移植**（`packages/shared/src/prompts/poet.ts`）：LONG_FORM_OUTLINE（JSON 输出 `{overall_arc, sections[]}` 各段含 marker/key_points/target_count/emotional_note；budget 提示 HOOK 8% / TEASE 5% / CTA 3% / CLIMAX 18% / CLOSE 6% / ITEMs 平分 60%）+ SECTION_EXPAND（"LENGTH IS NON-NEGOTIABLE" 规则、min = target × 0.85、不要写 marker 不要进入下一段）
-    - **writeScriptLong()** 两阶段 — outline 用 V4 Pro temp 0.5 maxTokens 4096；section_expand 复用 prev_tail (400 chars 尾) 维持叙事流。max_tokens = `max(3000, min(target/charsPerToken × 2.0 + 500, 6144))`；3000 floor 是为 DeepSeek 推理 preamble 留空间，原 archive 公式（无 floor）短段（HOOK 160 字 / CTA 60 字 / CLOSE 120 字）经常被推理吃完 token，产 0 字文本
-    - **统一 writeScript()** 入口按 `isLongForm(targetWordCount, lang)` 路由；任意 section 空文本时一次 retry，仍空就 return null，caller fallback 到 short-form 单次调用（用户拿到 2000 字脚本，path=short 但完整）
-    - **解析与归一化**：`parseLenientJson` 同 Clerk 的 head/tail brace 抽取；`normalizeOutline` 容错处理 — 缺字段补默认 target_count = round(target/5)，缺 emotional_note 用 ""，至少一个 marker 才算有效
-    - **Trigger task 重构** generate-script-short.ts → generate-script.ts，task id 也改 poet-generate-script，maxDuration 3600s。progress total 动态：outline 返回前估 willGoLong ? 4 : 3，返回后变 `2 + N_sections + (zh ? 1 : 0) + 1`。hooks `onOutlineDone` / `onSectionStart` / `onSectionDone` 直接调 `metadata.set("progress", ...)`
-    - **WriteScriptButton DropdownMenu** 4 个选项 — 5min（短稿 ~1000字）/ 10min（长稿 ~2000字 大纲→分段）/ 20min（长稿 ~4000字）/ 30min（长稿 ~6000字）；hint 显式标注路径
-    - **PoetRunProgress 新 phase 翻译** — `writing outline` → "AI 拆分长稿大纲"；正则 `expanding section (\d+)/(\d+)` → "AI 扩写长稿（第 i/N 段）"；完成 toast 含 path 标注（"长稿 · 2007字 · 已口语化"）
-    - **agent-run.ts 加 command 字段**让 RSC 页面分辨 active run kind（bible vs script），PoetRunProgress 不再硬编码 kind
-    - **smoke 全过 11 + 4 + 1 + 1 = 17 子项**（`packages/db/scripts/poet-long-form-smoke.ts`）：
-      - 路由 11 边界全对（null/0/负数取默认 1000；阈值 1999/2000 边界、zh/en 区分）
-      - 5min target → path=short，单次完成 78s 1645字
-      - 10min target → path=long，outline 8 段全展开，1933 字 350s，markers HOOK/CLOSE 都在，顺序保留，verbatim 数字 PU3000/PU1500/30% 穿越 humanize 保留 2-3 个（humanize 偶尔会改 30% 为别的表达）
-      - writeScriptShort 直接调用仍生效
-    - **采坑记录**：
-      - outline 2048 maxOutputTokens 太紧 → bump 到 4096
-      - DeepSeek V4 Pro 短段 reasoning preamble 吃 token 严重 → 加 3000 token floor + 一次 retry + 失败 return null fallback
-      - SECTION_EXPAND 没强制"不杜撰事实"规则（archive 没加），实测 ITEM 偶尔会编造一个"PU2000"作行业术语 — 留 W7 移交 VERBATIM PRESERVATION 规则升级到长稿主指令
-    - **未实现**：脚本独立详情页 + 复制全文按钮（D3 移交）、Custom Topic flow（W7 移交）
+- LONG_FORM_OUTLINE + SECTION_EXPAND 1:1，"LENGTH IS NON-NEGOTIABLE" 规则 + `min_count = target × 0.85`
+- `writeScriptLong` 两阶段；section max_tokens 公式 `max(3000, min(target/charsPerToken × 2.0 + 500, 6144))`。**3000 floor** 防 reasoning 吃光短段（HOOK 160 字 / CTA 60 字经常被 reasoning 吃完产 0 字文本）
+- `writeScript()` 按 `isLongForm` 路由；section 空文本 1 retry → 仍空 fallback short（保证用户拿到完整长度）
+- **采坑**：SECTION_EXPAND 没强制"不杜撰"（archive 也没），ITEM 偶尔编造行业术语（PU2000）→ 留 W7 移交 VERBATIM PRESERVATION 升级
 
-37. **W5 D1-D2 完成 — Poet 短稿管线 + Bible + drift + humanizer**：
-    - **3 prompts 1:1**（`packages/shared/src/prompts/poet.ts`）：CHANNEL_BIBLE（强 anti-substitution 规则）/ SCRIPT_WRITING（含 verbatim preservation + section markers HOOK/TEASE/ITEM/CTA/CLIMAX/CLOSE）/ CHINESE_HUMANIZER。zh 模式 CHANNEL_BIBLE 套 CHINESE_WRAPPER 但保留 TOPIC: 英文锚 + 章节名英文
-    - **Bible service** drift 双启发式从 archive 完整移植：BIAS_MARKERS (8 项 AI/LLM/ChatGPT/Midjourney/Runway/machine learning/人工智能/大模型) + STOPWORDS 完整 list；`tokenize(text)` 用 `[\w一-鿿]+` regex 与 archive 一致；checkDrift 返回 schema 用我们的 enum (`no_overlap` / `ai_markers` / `topic_substitution`) 而非 archive 的字符串
-    - **scriptWriter** 仅短稿（长稿延后 W6）。`formatReferencesBlock` cap 24K chars + "FETCH FAILED" 占位；`formatVerbatimFacts` 给"无 verbatim → 严守 References"提示。`computeTargetWordCount(durationMin, lang)` 默认 5min → 1000 zh / 750 en（短稿路径），≥2000 zh / ≥1500 en 触发长稿（W6 接）
-    - **humanizer** 中文 only（archive 1:1，英文 script 跳过 humanizer pass），失败时 return scriptText 原文
-    - **Trigger tasks** generate-bible：先 `UPDATE poet_bible SET is_active=false WHERE channel_id=X AND is_active=true` 再 insert；drift 命中时新 Bible insert with `is_active=false` + 写 `poet_drift_events`。generate-script-short：load active Bible + 最新 ai_reference SOP + idea + reference transcript (museMonitorVideos 优先，fallback 到 channel top-2 clerk_videos)。中文 script 走 humanizer 二次
-    - **tRPC `poet.*`**：generateBible / updateBible (inline edit) / activateBible (切多版本) / generateScript (检查 active Bible + idea approved 双 precondition + 中文错误) / activeRun (识别 bible/script kind + 颁发 1h token)
-    - **UI `/poet/[slug]`** 重构：active Bible 卡片（编辑 sheet + 重新生成 sheet）+ drift 黄色 banner + 待写选题列表（disabled 状态明确指出"先生成圣经"）+ 脚本 collapsible 列表（语言 badge + 字数 + 时长 + 全文 pre-wrap）+ 统一进度卡片 PoetRunProgress 自动识别 bible 还是 script
-    - **Service smoke 5/5 绿**：drift 离线四案例（tokenize / no_overlap / ai_markers / clean 全对）；Bible 88s 2136字（"0-3岁宝宝快手营养辅食"主题，具体品牌齐全：博朗 MQ535、小皮、秋田满满、伊威、BLW 排敏顺序）；短稿 42s 1195字含完整 [HOOK]/[TEASE]/[ITEM]/[CLOSE]markers + verbatim numbers 准确（"100克鸡肝 12 毫克 vs 100克牛肉 2.6 毫克"、"2023 年最新指南"）；humanizer 44s 后所有数字与 markers 全保留，口语化转换效果好（"我啥也没干，就在网上扒了"、"我去，这什么概念"）
-    - **已知行为**：中文 Bible 容易触发 `no_overlap` false-positive — algorithm 用 bag-of-words 比对，中文长 run 在 punctuation/space 之间被 tokenize 成单个 token（archive 同样有此问题，未上 jieba），结果 user idea 与 topic 的 token 集合不交即触发。UI 给"重新生成"出口；保守地认为这种 false-positive 比漏掉真 drift 安全。未来可上 jieba 中文分词
+**#37 — W5 短稿 + Bible + drift + humanizer**
 
-36. **W4 D1-D2 完成 — Muse 管线骨架 + UI**：
-    - **3 prompts 1:1 移植**（`packages/shared/src/prompts/muse.ts`）：CLASSIFICATION / VIRAL_TRIGGER / IDEA_GENERATION。Builder 函数全接 `language`；zh 模式套 CHINESE_WRAPPER + 对 JSON 类提示加"keys English / values 中文"加固
-    - **3 services 移植**（`packages/shared/src/services/muse.ts`）：`classifyVideo` (flash, temp 0.2, 512 tok) / `analyzeViralTrigger` (pro, temp 0.4, 2048 tok) / `generateIdeas` (pro, temp 0.7, 4096 tok)，跟 archive 完全对齐
-    - **Imagination gate** (`packages/shared/src/schemas/muse.ts` `isRealTranscript`)：transcript null / 含 archive 的三种 WARNING marker / trim 后 < 200 字符 → 拒绝进 viral_trigger 阶段。归类阶段不挡，分类器可基于 title-only
-    - **Trigger task `muse-monitor-competitors`**（`apps/jobs/trigger/monitor-competitors.ts`）：iterate `channel.competitors[]` → 抓视频 → 跟 Clerk 一样的 caption→ASR fallback → classify 写 `muse_monitor_videos` → 对 relevant + isRealTranscript 的视频跑 viral_trigger + generateIdeas → 写 `muse_ideas`。Sub-phase 进度 metadata 全 zh-CN（"AI 分类中" / "分析爆款触发因素" / "生成选题中"）
-    - **tRPC muse router**：`startMonitor` / `activeRun` / `approveIdea`。`activeRun` 重用新抽出的 `lib/agent-run.ts` `getActiveAgentRun(channelId, userId, agent)`（替代 `clerk-run.ts`，未来 Poet 也复用）
-    - **UI `/muse/[slug]`** 改造：开始巡视按钮（competitorCount=0 时 disable + 提示）+ 进度卡片（沿用 Clerk 的进度 UI pattern，颜色换 bg-muse）+ 已巡视视频表中文化（标题/对标频道/时长/相关性/分类）+ 选题卡片中文化（事实与数据/为什么对标/爆款触发因素）+ IdeaApproveToggle（待审批 ↔ 已通过 ↔ 已写稿三态）
-    - **Competitors 管理**：channel 编辑表加"对标频道" textarea（每行一 URL），xiaohongshu URL 自动归类 xhs，其余归类 youtube；schema 加 `competitorRefSchema` + max 20。tRPC `channels.update` 接收 competitors 字段（undefined 时 Drizzle 自动跳过 SET）
-    - **PRECONDITION 拦截**：`muse.startMonitor` 检测 `competitors.length === 0` 直接抛 PRECONDITION_FAILED + 中文提示 "请先为该频道配置至少一个对标账号"
-    - **Service smoke test 5/5 绿**（`packages/db/scripts/muse-services-smoke.ts`）：classifier zh 案例返回 `relevant=true, topic="反直觉真相 / 认知偏见拆解"`；imagination gate 4 边界全对；viral_trigger 353字纯中文遵循 click/watch/share 模板；generateIdeas 3 条全中文、各异、含具体数据
-    - **Trigger.dev 自动 hot-reload**：dev worker 监测到 `monitor-competitors.ts` 新文件 + workspace deps 变更，rebuild 自动注册新 task
-    - **共享 sleep / asPositiveNumber / safeText / parseDurationToSec helpers** 仍是 inline 在两个 trigger task 里（Clerk + Muse）；W5 起前可以抽出 `apps/jobs/lib/`
+- 3 prompts，CHANNEL_BIBLE 强 anti-substitution + SCRIPT_WRITING 含 verbatim preservation
+- drift 双启发式：BIAS_MARKERS (AI/LLM/ChatGPT/Midjourney/Runway/machine learning/人工智能/大模型) + bag-of-words tokenize
+- **已知行为**：中文 Bible `no_overlap` false-positive — bag-of-words 比对，中文长 run 在空格/标点间 tokenize 成单个 token，与 idea token 集合不交即触发。UI 给"重新生成"出口；未来上 jieba 分词
 
-35. **W3 D3 完成 — ASR fallback 上线**：
-    - `packages/shared/src/clients/asr.ts` 新加 `transcribeYoutubeVideo(videoId, { onPhase, logger })`：选最小 audio stream → temp 文件 → Groq `whisper-large-v3` → 自动清理。**任何 recoverable 错误（无流 / 超 25MB / 失效 URL / Groq 5xx）一律 return null**，让调用方安全 continue
-    - **采坑**：第一版用 `pipe() + finished()`，AbortError 在 Readable 上被 emit 但没有 listener，触发 Node "Unhandled 'error' event" crash。改成 `pipeline()` 完美 propagate
-    - **采坑 2**：caption 链路本身有 bug —— YouTube `/api/timedtext` 不加 `fmt` 参数返回空 body；Rick Astley 6 个 caption tracks 全 0 字节。修了 `fetchTranscriptText` 加 `fmt=srv3` 并解析新旧两种 XML 格式（`<p>` / `<text>`），`transcriptFromTracks` 改成按偏好顺序逐 track 试到拿到非空文本
-    - **Pipeline branch logic**：`analyze-channel.ts` 在 caption 为 null 且视频 duration ≤ 60min 时 trigger ASR；duration > 60min 跳过（音频几乎必然超 25MB）；duration unknown 也跳过（保守）
-    - **DB**：新 `clerk_videos.transcript_source` 列（"caption" / "asr" / null）。migration `0002_clear_ezekiel_stane.sql`。`drizzle-kit push` 有 CHECK constraint introspection bug，绕道 `apply-pending-migration.ts` 直接执行 SQL
-    - **UI**：频道页 table 加 "字幕来源" 列 → `<TranscriptSourceBadge>`（"字幕" secondary / "AI 转写" outline / "无" muted-mono），不露 Whisper/Groq 名字。视频详情页头部也加同 badge，并把所有 English Section title 中文化
-    - **Smoke tests** 全部 3/3 绿（`pnpm --filter @singularity/db asr-{fallback,branch}-smoke`）：
-      - Rick Astley → 6 caption tracks 全空 → ASR fallthrough → 1.5KB 转写
-      - Lofi Girl 3h 直播 → duration unknown，ASR 跳过 → source=null
-      - 假 video id → TikHub 400 → graceful null
-    - **新 feedback 规则**：代码注释只保留 truly non-obvious why 行，无 multi-paragraph docstrings。今天涉及的文件（asr.ts / analyze-channel.ts / smoke scripts）全 trim 过。`MEMORY.md` 加 `feedback_comments-minimal.md`
+**#36 — W4 Muse 管线骨架**
 
-31. **W3 D1 完成 — Clerk 分析管线端到端**：
-    - **`packages/shared/`** 新 workspace：prompts（archive 1:1 port，6 个 prompts）+ Zod schemas + LLM/TikHub clients（shared between web 和 jobs，避免双 app 重复 import）
-    - **Trigger.dev task `clerk-analyze-channel`**：拿 channel videos → 逐视频 metadata + captions + DeepSeek V4 Pro 分析 → 写 clerk_videos，metadata.set 推进度
-    - **tRPC `clerk.startAnalysis` + `clerk.runStatus`**：tRPC 验 ownership → 创 pipeline_run → 触发 task → return handle.id + publicAccessToken
-    - **UI `/clerk/[slug]` Run analysis button**：tRPC mutation → useRealtimeRun → 进度条 + 完成 toast
-    - **Live test 验证**：@MKBHD limit=1，1/1 analyzed，opening_hook_type = "Bold Claim with Teaser Stack"，framework = "Anticipation & Reveal Framework"
-    - **Diagnostic scripts**：`test-clerk-pipeline.ts`（创 temp channel → trigger → poll → verify）+ `debug-video-info.ts`（compare TikHub video_info* variants）
-    - **3 issues 暴露 + 修复**：(a) `generateObject` strict Zod 在 DeepSeek compatibility mode 易拒 → `generateText` + 软 JSON parse；(b) TikHub `/web_v2/get_video_info` 对新视频 metadata 稀疏 → fall back 到 channel-listing 字段；(c) DeepSeek 偶尔输出 NULL byte (U+0000) → `safeText()` 过滤
+- 3 prompts + 3 services（classifier flash temp 0.2 / viral_trigger pro temp 0.4 / ideas pro temp 0.7）
+- Imagination gate `isRealTranscript`：null / 含 WARNING marker / trim < 200 char → 拒
+- Trigger task `muse-monitor-competitors` + 共享 `lib/agent-run.ts getActiveAgentRun(channelId, userId, agent)`（Clerk/Muse/Poet 共用）
 
-34. **W3 D2 polish 全面打磨**（基于第一次 live test 后的 UX 反馈）：
-    - **全 UI 中文化**（客户是中国创作者）— sidebar、channels CRUD、clerk page、run button、进度面板、toast、SOPs 标签、删除/编辑对话框、signed-out 页全部 zh-CN；agent 名保留 Latin 加中文角色标签（"Clerk · 分析师" / "Muse · 选题官" / "Poet · 写手"）
-    - **供应商隐藏**（用户不应看到我们用的什么 LLM / 数据源）— 移除 UI 里的 "DeepSeek V4 Pro" / "TikHub" 等字眼，统一改成 "AI 分析中" / "抓取频道视频列表"。Notes 内部 / CLAUDE.md / git commit messages 仍保留具体供应商
-    - **刷新续断** — `getActiveClerkRun()` RSC 挂载时查 `pipeline_runs WHERE status IN ('pending','running') AND agent='clerk'`，用 `auth.createPublicToken({ scopes: { read: { runs: [triggerRunId] }}, expirationTime: "1h" })` 颁发 1 小时 token，传给 `<ClerkRunButton initialActive={...}>` 自动重接 `useRealtimeRun`。**Fix 之前的 UX bug**：刷新页面后进度条消失
-    - **细化进度** — 每视频拆 4 个 sub-phase（fetch metadata → fetch transcript → running analyzer → writing analysis），SOP 阶段标注预计时长（"AI 写作中（约 1-2 分钟）"）；UI 加 w-72 卡片 + 进度条 + 百分比 + 每秒更新的 elapsed timer + 视频标题 detail（line-clamp-2）
-    - **中文输出强制保证** — 4 个 prompt builders 全接 `language`，zh 模式过 `CHINESE_WRAPPER`；analyzer 额外 reinforcement "JSON keys 保留英文，VALUES 中文"；ai_reference 加 "章节锚保留英文，描述中文"；tRPC default language flipped en → zh
-    - **验证**：英文 transcript (Rick Astley) + `language=zh` 调 V4 Pro，27s 返回纯中文 JSON（"开篇以'我们并非爱情新手'建立共鸣..."），4/4 字段中文、4/4 keys 英文。`packages/db/scripts/verify-chinese-output.ts` 留作 prompt 改动后回归测
+**#35 — W3 D3 ASR fallback 上线**
 
-33. **W3 D2 完成 — SOP 生成 + UI 渲染**：
-    - Trigger task 在分析全部视频之后跑 SOP 阶段：human / ai_reference / hottest 三种，DeepSeek V4-Pro，temperature 0.4, maxOutputTokens 8192
-    - Old SOPs for the channel deleted before new pass — UI 始终展示最新
-    - Hottest SOP 仅在 top-viewed 视频有 transcript 时生成（archive anti-fabrication rule）
-    - `/clerk/[slug]` 加 SOPs section：collapsible cards (`<details>`) + react-markdown + remark-gfm + 自定义 `.prose-clerk` CSS（不引 @tailwindcss/typography 插件）
-    - @MKBHD limit=2 test：1/2 analyzed + 2 SOPs (15.6KB human + 13.1KB ai_reference)；hottest 自动 skip 因 transcript 空
-    - 实际生成的 markdown 格式跟 archive sop_generator.py 输出一致（含 7 sections Content Formula / Common Themes / Thumbnail Essentials / Hook Playbook / Script Blueprint / Storytelling / Retention）
+- `asr.ts transcribeYoutubeVideo`：选最小 audio stream → temp 文件 → ASR → 清理。任何 recoverable 错误 return null
+- 修了 caption 链路：`fetchTranscriptText` 加 `fmt=srv3`，`transcriptFromTracks` 改逐 track 试到拿到非空
+- **采坑**：第一版 `pipe()+finished()` AbortError 在 Readable 无 listener 触发 crash；改 `pipeline()` 完美 propagate
+- 新 DB 列 `clerk_videos.transcript_source`（caption/asr/null）
 
-32. **W3 D1 运维发现**：
-    - Trigger.dev 本地 dev worker 读 `.env` from cwd（apps/jobs/）—— 需要 symlink `apps/jobs/.env.local → ../../.env.local` 才能拿到 DATABASE_URL / DEEPSEEK_API_KEY / TIKHUB_API_KEY
-    - Workspace dep 修改（packages/shared/*.ts）**触发 hot-reload**（worker 重建到 .9 .10 .11 ... 版本递增）但需要 1-2s
-    - DeepSeek `responseFormat: JSON schema` 走 OpenAI compatibility — schema 当 system message 注入，模型偶尔输出不严格匹配的 JSON。已知 risk，用 `generateText` + 软 parse 解决
+### 2026-05-16
 
-28. **D6 final — Vercel 锁定**：D5=A 后 Render 跟 sidecar 统一管理的优势消失；Vercel Pro 800s 函数 + Trigger.dev 长任务组合就是最优解。生产部署目标：vercel.com，custom domain TBD（W7-W8）
+**#34 — W3 D2 UI polish**
 
-29. **Trigger.dev 分阶段策略**（避免未来 vendor lock 的退出条件）：
-    - **阶段 A — MVP → beta（现在 → 6 个月）**：用 Trigger.dev 托管。MVP 500 任务/月在 5K 免费层内，$0/月。`useRealtimeRun` hook 让进度 UI 5 行落地，省 W3-W6 大约 6-8 天实施时间。
-    - **阶段 B — Growth 拐点（12-18 月后，5K+ paying user）**：当 Trigger.dev 月费 > $200 时，迁移到自托管 Trigger.dev v3（开源 MIT 许可，跑在 Render Pro Worker $25-50/月 + Supabase Postgres 状态）。代码 SDK 保留，只切运行平台
-    - **阶段 C — 真大规模**：评估 Inngest / Hatchet / 完全自建。3+ 年后的问题
-    - 退出条件量化：trigger.dev 月费 > $200 触发评估迁移
-    - 迁移代价：~1-2 天/agent（Clerk / Muse / Poet 共 3-6 天）
-    - 代码层面 hedge：所有进度上报包在 `reportProgress(current, total)` thin wrapper 后面，切 vendor 时只改这一个文件
+- 全 UI 中文化 + 供应商隐藏（不露 DeepSeek/TikHub 名字）
+- **刷新续断**：`getActiveAgentRun()` RSC 挂载查 `pipeline_runs` 用 `auth.createPublicToken({ expirationTime: "1h" })` 颁发 token 自动重接 `useRealtimeRun`
+- 中文输出强制 — 4 prompt builders 接 `language`，zh 模式套 `CHINESE_WRAPPER` + "JSON keys 英文 values 中文" 加固
 
-30. **LLM 栈简化 — DeepSeek-only 双 tier**（替换原 plan 的 Claude / Gemini / DeepSeek 三源策略）：
-    - **`deepseek-v4-flash`**：简单 / 快任务（分类、gating、短 critique、idea 生成、drift detection scoring）
-    - **`deepseek-v4-pro`**（thinking enabled）：复杂任务（视频 analyzer / SOP 生成 / 长稿 outline + section expand / Bible 生成）
-    - 两个模型都是 reasoning-enabled，response 自动带 `reasoning_content` 内部思考
-    - Vercel AI SDK + `@ai-sdk/deepseek` 包装，unified API（streamText / streamObject / generateObject）
-    - 单一 vendor 简化运维 + 财务（vs 原 plan 5 个 LLM 服务）
-    - 成本估算 MVP：Pro $1.10/M tokens vs Claude Sonnet 4.6 ~$3/M tokens，**5K 批改/月省 ~$50-60**
-    - Quality 风险：DeepSeek V4-Pro 公开 benchmark 跟 GPT-4 / Claude Sonnet 接近。若中文创作场景质量不足，未来可在 `apps/web/lib/llm.ts` 加 Claude tier 作 Pro+ 选项
-    - **退路保留**：`llm.ts` 单一文件抽象，加任何新 provider 只改这一文件
-    - Groq Whisper 仍保留（ASR 无替代）
+**#33 — W3 D2 SOP 生成**
 
-26. **D5 final — A 锁定（TikHub-only，无 Python sidecar）**：
-    - 11 endpoint smoke test 全过（YouTube + XHS 关键路径覆盖）
-    - **YouTube transcript 文本路径已验证**：`/web_v2/get_video_captions_v2` ($0.001) → 拿 manifest base_url → 直 fetch YouTube timedtext signed URL（**免费**），3877 chars 真 transcript（Rick Astley 例）
-    - **ASR fallback 端到端通**：`/web_v2/get_video_streams_v2` ($0.003) → 4 个 audio-only 格式（最小 1.2MB opus webm）→ Groq Whisper large-v3 → 3.2s 完成 3.5min 音频 transcribe，输出完整歌词
-    - **Per-video 加权成本**：0.8×$0.002 + 0.2×$0.009 = **~$0.004/视频**
-    - **核心 endpoint 选型**（参数名最易踩坑）：
-      - `/youtube/web/get_channel_id_v2?channel_url=` （不是 url）
-      - `/youtube/web/get_channel_info?channel_id=`
-      - `/youtube/web/get_channel_videos_v3?channel_id=`
-      - `/youtube/web/get_video_info_v3?video_id=`
-      - `/youtube/web_v2/get_video_captions_v2?video_id=` → 直 fetch base_url 拿文本
-      - `/youtube/web_v2/get_video_streams_v2?video_id=` → ASR fallback
-      - `/youtube/web/search_video?search_query=` （不是 keyword）
-      - `/xiaohongshu/app_v2/search_notes?keyword=` （app_v2 用 keyword；web_v2 用 keywords 复数；web_v3 不稳）
-      - `/xiaohongshu/web_v2/fetch_hot_list` （无参）
-    - 已知 rate limit：**1 request/sec per route**（单 endpoint 1 秒只能调一次，需要批量时跨 endpoint 并发）
-    - 已知 caveat：YouTube CDN 对免费 IP 限速（Rick Astley 1.2MB audio 下载用了 82s）。Trigger.dev 在 server side 跑 audio download 应该快很多；或者 Vercel function 在 us-east 跑
+human / ai_reference / hottest 三种 V4 Pro temp 0.4 maxTokens 8192。Old SOPs 在新 pass 之前 delete。hottest 仅在 top-viewed video 有 transcript 时生成（anti-fabrication）。
 
-27. **ASR 选 Groq Whisper large-v3 锁定**：
-    - $0.111/h = $0.00185/min，SOTA 多语言 Whisper
-    - 100x realtime（5min 视频 ~3s 完成）
-    - TS SDK：`groq-sdk` npm
-    - MVP 1K ASR-required 视频/月 × 5min = **$9.25/月**
-    - 拒：OpenAI Whisper（$0.006/min，贵 3x），Cloudflare Workers AI（部署复杂度高），Deepgram/AssemblyAI（贵 2-3x 且无 quality 优势）
-    - Growth scale 切 turbo 或 Modal 自托管可降 60%，beta 阶段无需
+**#32 — W3 D1 运维 / 端到端 + 3 issue 修复**
 
-23. **D5 调研结果 — 建议 B（混合），但先 smoke test A**：
-    - **A: TikHub-only**：79+ XHS endpoint + 50+ YouTube endpoint，但 YouTube **transcript 在公开文档未确认**。定价 $0.001→$0.0005/call（不是 flat $0.01），MVP 估 $10/月，Growth $350/月。Alipay / USDT / PayPal 付款
-    - **B: 混合（推荐默认）**：TikHub 吃 XHS（避开 sign.js 战争），yt-dlp + bgutil-pot-provider v1.3.1 吃 YouTube。Render SG $7-25/月 + TikHub XHS 调用。MVP $12-30/月，Growth ~$200/月。**警告**：yt-dlp 2026 在 datacenter IP 上有 ban 风险（#15899 #16072），Render SG 的 geo 缓解，最坏切 residential proxy 或把 YouTube 也走 TikHub
-    - **C: Spider_XHS**：v4.0.0（2026-04 还在更），但 107 个 open issue + 每几周 sign.js 更新 + ICP 风控变化频繁。solo dev 8 周 ship 路径风险过高 — **拒**
-    - **行动**：W2 D3 前花 2h + $5 试 TikHub YouTube transcript 是否真有；有 → 切 A（删 `apps/scraper/`，省 1 周）；无 → 走 B
-    - 来源：tikhub.io/pricing, github.com/cv-cat/Spider_XHS, github.com/Brainicism/bgutil-ytdlp-pot-provider, yt-dlp issue #16607
+- `packages/shared/` workspace：6 prompts archive 1:1 + Zod schemas + LLM/TikHub clients lazy-init
+- 3 个 live test 暴露：
+  - `generateObject` strict Zod 在 DeepSeek compatibility mode 易拒 → `generateText` + 软 JSON parse
+  - TikHub `get_video_info` 对新视频 metadata 稀疏 → fall back channel-listing 字段
+  - DeepSeek 偶尔输出 NULL byte (U+0000) → `safeText()` 全局过滤
 
-24. **Sign-out 链压缩**：之前 4-hop（sign-out → / → proxy → /api/auth/sign-in → Logto）改为公共 `/signed-out` 页面落地（Logto Management API 注册 postLogoutRedirectUri）。用户登出后看到 "Signed out." + Sign in 按钮，不会被立刻再次踢回登录
-25. **Channel detail + edit 页**：`/channels/[slug]` RSC 渲染 stat cards（clerk/muse/poet 各表 count）+ top 5 预览（最高 views clerk 视频 / bibles / custom topics / muse ideas）；右上 Edit 抽屉 Sheet 改 name/platform/URL/description（slug 锁住不让改避免 URL 变更）
+**#30 — LLM 栈简化：DeepSeek 双 tier**
 
-11. **W1 完成**：monorepo + Next.js 16.2.6 + 11 张表上 Supabase + Logto branded sign-in 端到端通；splash 动画 + dashboard 空状态 CTA 全 live tested
-12. **W2 D1 完成**：channel CRUD（list/create/delete）live tested
-13. **W2 D2 完成**：xlsx archive 数据 import 落库（10 channels + 218 + 31 + 10 + 50 + 7 + 18 行 全 user_id 绑定 justinliuforever@gmail.com）
-14. **新增 schema enum value**：`sop_type` 加 `single_video`（archive 实际用过，11 张表设计阶段漏了）
-15. **xlsx 导出丢损**：archive 的 xlsx 把所有长文本截到 ~301 字符（`poet_bible.content`, `clerk_sops.content_md`, `custom_topic.references_json`, 多数 clerk video 分析字段）。**TODO**：W3 Clerk + W5 Poet 实现后让用户重跑 pipeline 重建全文
-16. **跳过 import 的表**：`poet_scripts`（10 行）—— xlsx 没存 `script_text`（archive 用 `file_path` 引旧机本地文件），且行列结构有两种不一致 layout。W5 实现 Poet 后从 ideas / custom_topics 重新生成
-17. **运维发现 1**：Supabase ap-southeast-1 项目本地 IPv4 网络只能走 **Supavisor pooler `aws-1-ap-southeast-1.pooler.supabase.com:6543`**（不是 aws-0），直连 `db.{ref}.supabase.co` IPv6-only 跑不通。`postgres-js` 必须 `prepare: false`
-18. **运维发现 2**：Next.js 16 cookies 修改只能在 **Route Handler** 或 **Server Action**，不能在 Page Component。`/callback` 必须是 `route.ts`（调 `handleSignIn`）→ redirect 到 `/welcome`（page，渲染 splash）；不能合并为单一 page
-19. **运维发现 3**：Next.js 16 把 `middleware.ts` / `middleware()` 重命名为 `proxy.ts` / `proxy()`
-20. **运维发现 4**：pnpm 11 ERR_PNPM_IGNORED_BUILDS — 在 `pnpm-workspace.yaml` 用 `allowBuilds` 显式批准 `sharp`/`unrs-resolver`/`esbuild`，明确跳过 `msw`
-21. **运维发现 5**：base-nova shadcn 用 `render` prop 而非 `asChild`；`DropdownMenuLabel` 必须包在 `DropdownMenuGroup` 里（否则 `MenuGroupRootContext is missing` 报错）
-22. **运维发现 6**：16GB Mac 在 Turbopack 冷编译时可能 OS 级 crash，给 dev script 加 `NODE_OPTIONS=--max-old-space-size=4096` cap
+替换原 plan 五源策略（Claude / Gemini / DeepSeek / Groq Whisper）：
+- `deepseek-v4-flash`：简单/快任务（分类、gating、短 critique、idea 生成、drift scoring）
+- `deepseek-v4-pro`（thinking）：复杂任务（视频 analyzer / SOP / 长稿 outline+expand / Bible）
+- 两个都 reasoning-enabled
+- 成本估算 MVP：Pro $1.10/M tokens vs Claude Sonnet ~$3/M tokens，5K 批改/月省 ~$50-60
+- **退路保留**：`apps/web/lib/llm.ts` 单一抽象，加任何 provider 只改这一文件
+
+### 2026-05-17（D5/D6 锁定）
+
+**#26 — D5 final = A（TikHub-only）**
+
+11 endpoint smoke 全过。Per-video 加权成本 ~$0.004。**rate limit 1 req/sec per route**（跨 endpoint 才能并发）。
+
+**踩坑参数**（最易错的）：
+- `/youtube/web/get_channel_id_v2?channel_url=`（不是 url）
+- `/youtube/web/get_channel_videos_v3?channel_id=`
+- `/youtube/web_v2/get_video_info`（用 v2；v3 返回 raw playerResponse 没 videoDetails 子键）
+- `/xiaohongshu/app_v2/search_notes?keyword=`（app_v2 用 keyword；web_v2 用 keywords 复数）
+
+**#29 — Trigger.dev 退出策略**
+
+MVP→beta 用云托管；月费 > $200 时迁自部署 v3（开源 MIT）。代码 SDK 保留，只切运行平台。迁移代价 ~1-2 天/agent。所有进度上报包在 `reportProgress(current, total)` thin wrapper 后面，切 vendor 只改一个文件。
+
+### 2026-05-15（plan 初版与 archive 同步）
+
+**#10** 长稿阈值修正：中文 ≥**2000** / 英文 ≥**1500**（CLAUDE.md 之前 4000/3000 是误记）  
+**#9** 栈实操数字：Next.js 15 → **16.2.6**（`@latest` 拿到 16，App Router 不变）  
+**#4** W6：Script writer **VERBATIM PRESERVATION** 规则（archive 2026-05 加的；W7 移交升级到长稿主指令）
 
 ---
 
-**Date locked**: 2026-05-15（原版）；revisions 2026-05-16 + 2026-05-17 追加
-**Next review**: 完成 Week 2 D3（scraper sidecar）后
+## 8. 运维注意事项 / Ops gotchas
+
+- **Supabase ap-southeast-1**：本地 IPv4 只能走 Supavisor pooler `aws-1-ap-southeast-1.pooler.supabase.com:6543`（不是 aws-0）；`postgres-js` 必须 `prepare: false`
+- **Next.js 16 cookies**：修改只能在 Route Handler 或 Server Action，不能 Page Component。`/callback` 必须 `route.ts` → redirect `/welcome`，不能合并为单一 page
+- **Next.js 16**：`middleware.ts` → `proxy.ts`
+- **pnpm 11** `pnpm-workspace.yaml`：`allowBuilds` 显式批准 `sharp`/`unrs-resolver`/`esbuild`，跳过 `msw`
+- **base-nova shadcn**：`DropdownMenuLabel` 必须包在 `DropdownMenuGroup`（否则 `MenuGroupRootContext is missing`）；用 `render` prop 而非 `asChild`
+- **16GB Mac**：Turbopack 冷编译可能 OS crash → `NODE_OPTIONS=--max-old-space-size=4096`
+- **Trigger.dev dev worker**：读 `apps/jobs/` cwd 的 `.env` → 必须 symlink `apps/jobs/.env.local → ../../.env.local`
+- **drizzle-kit push** 有 CHECK constraint introspection bug → 用 `apply-pending-migration.ts` 直接执行 SQL
+- **NULL run_id 的原子 swap**：旧 SOPs `run_id IS NULL`，用 `or(ne(runId, X), isNull(runId))` 而非 `ne` 单条件（NULL != X 是 NULL 不是 true）
+- **xlsx archive import 长文本截到 ~301 字符** → Bible / SOP / Custom Topic 大量字段被截。重跑 pipeline 即可重建全文
+
+---
+
+## 附录 — 关键决策证据
+
+**Vercel timeout**：Hobby 300s / Pro **800s (13min)** / Enterprise 800s。Class B 长任务（20-30 min）必须走 Trigger.dev。
+
+**Trigger.dev v3 vs Inngest**：免费层都 50K execs/月，但 Trigger.dev 20 并发（vs Inngest 5）+ 内置 `useRealtimeRun`，TS DX 更佳。MVP 阶段优势明显。
+
+**Auth.js v5 内置 WeChat**：备选项（`packages/core/src/providers/wechat.ts` + 社区 `@next-auth-oauth/wechat`），仍需自管 session 持久化 + 用户表，Logto Cloud 运维成本更优。
+
+**ICP 备案 2026**：外资实体不能直接备案，需 WFOE / JV / 中国合作方，端到端 US$5-15K + 3-6 个月。不用 `.cn` 域名 + 不在大陆托管，WeChat web 登录可绕过 ICP（¥300 网站应用审核）；但 Mini Program 后端 callback 域名仍需 ICP。
+
+---
+
+**Initial**: 2026-05-15 · **Last revised**: 2026-05-18 · **Next review**: W7 完成后

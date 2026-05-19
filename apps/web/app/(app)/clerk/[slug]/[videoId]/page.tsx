@@ -7,6 +7,7 @@ import { channels, clerkVideos } from "@singularity/db";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
@@ -105,7 +106,7 @@ export default async function ClerkVideoDetailPage({ params }: Props) {
           ) : null}
           {video.analyzedAt ? (
             <span className="font-mono text-xs">
-              {video.analyzedAt.toLocaleDateString("zh-CN")} 分析
+              {formatDateTime(video.analyzedAt)} 分析
             </span>
           ) : null}
         </div>

@@ -17,7 +17,12 @@ import {
 
 import { db } from "@/lib/db";
 import { protectedProcedure, router } from "./init";
-import { createChannelInput, deleteChannelInput, updateChannelInput } from "./schemas/channels";
+import {
+  createChannelInput,
+  deleteChannelInput,
+  regenerateSlugInput,
+  updateChannelInput,
+} from "./schemas/channels";
 import { deleteSopInput, runStatusInput, startAnalysisInput } from "./schemas/clerk";
 import { approveIdeaInput, startMonitorInput } from "./schemas/muse";
 import {
@@ -35,13 +40,37 @@ import {
 } from "./schemas/poet";
 
 function slugify(name: string): string {
-  return name
+  const ascii = name
     .toLowerCase()
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9-]/g, "")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
-    .slice(0, 48) || "channel";
+    .slice(0, 48);
+  if (ascii.length > 0) return ascii;
+  // ASCII-stripped result was empty (e.g. pure-Chinese name) — generate a short
+  // unique-ish slug instead of falling back to a colliding "channel".
+  return `ch-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function assertNoActiveRun(channelId: string, agent: "clerk" | "muse" | "poet") {
+  const [active] = await db
+    .select({ id: pipelineRuns.id })
+    .from(pipelineRuns)
+    .where(
+      and(
+        eq(pipelineRuns.channelId, channelId),
+        eq(pipelineRuns.agent, agent),
+        inArray(pipelineRuns.status, ["pending", "running"]),
+      ),
+    )
+    .limit(1);
+  if (active) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "该频道当前已有运行中的任务，请等其完成后再启动",
+    });
+  }
 }
 
 async function uniqueSlug(userId: string, base: string): Promise<string> {
@@ -127,6 +156,25 @@ export const appRouter = router({
           .returning({ id: channels.id });
         return { id: deleted?.id ?? null };
       }),
+
+    regenerateSlug: protectedProcedure
+      .input(regenerateSlugInput)
+      .mutation(async ({ ctx, input }) => {
+        const [existing] = await db
+          .select({ name: channels.name })
+          .from(channels)
+          .where(and(eq(channels.id, input.id), eq(channels.userId, ctx.user.id)))
+          .limit(1);
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+        const fresh = await uniqueSlug(ctx.user.id, slugify(existing.name));
+        const [updated] = await db
+          .update(channels)
+          .set({ slug: fresh, updatedAt: new Date() })
+          .where(and(eq(channels.id, input.id), eq(channels.userId, ctx.user.id)))
+          .returning();
+        if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        return updated;
+      }),
   }),
 
   clerk: router({
@@ -140,6 +188,8 @@ export const appRouter = router({
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
 
+        await assertNoActiveRun(channel.id, "clerk");
+
         const [run] = await db
           .insert(pipelineRuns)
           .values({
@@ -147,7 +197,13 @@ export const appRouter = router({
             agent: "clerk",
             command: "clerk-analyze-channel",
             status: "pending",
-            configJson: { limit: input.limit, language: input.language },
+            configJson: {
+              limit: input.limit,
+              language: input.language,
+              mode: input.mode,
+              source: input.source,
+              videoIds: input.videoIds,
+            },
           })
           .returning();
         if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -157,6 +213,9 @@ export const appRouter = router({
           runId: run.id,
           limit: input.limit,
           language: input.language,
+          mode: input.mode,
+          source: input.source,
+          videoIds: input.videoIds,
         });
 
         await db
@@ -277,6 +336,8 @@ export const appRouter = router({
           });
         }
 
+        await assertNoActiveRun(channel.id, "muse");
+
         const [run] = await db
           .insert(pipelineRuns)
           .values({
@@ -386,6 +447,8 @@ export const appRouter = router({
           .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
+
+        await assertNoActiveRun(channel.id, "poet");
 
         const [run] = await db
           .insert(pipelineRuns)
@@ -508,6 +571,8 @@ export const appRouter = router({
             message: "请先通过该选题再开始写稿",
           });
         }
+
+        await assertNoActiveRun(channel.id, "poet");
 
         const [run] = await db
           .insert(pipelineRuns)
@@ -718,6 +783,8 @@ export const appRouter = router({
           });
         }
 
+        await assertNoActiveRun(channel.id, "poet");
+
         const [run] = await db
           .insert(pipelineRuns)
           .values({
@@ -851,6 +918,8 @@ export const appRouter = router({
             message: "请先分析该自定义选题再开始写稿",
           });
         }
+
+        await assertNoActiveRun(channel.id, "poet");
 
         const [run] = await db
           .insert(pipelineRuns)

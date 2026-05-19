@@ -15,7 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getActiveClerkRun } from "@/lib/clerk-run";
+import { getActiveAgentRun } from "@/lib/agent-run";
+import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
@@ -66,7 +67,7 @@ export default async function ClerkChannelPage({ params }: Props) {
       .from(clerkSops)
       .where(eq(clerkSops.channelId, channel.id))
       .orderBy(desc(clerkSops.generatedAt)),
-    getActiveClerkRun(channel.id, user.id),
+    getActiveAgentRun(channel.id, user.id, "clerk"),
   ]);
 
   const sopOrder: Record<string, number> = {
@@ -141,7 +142,7 @@ export default async function ClerkChannelPage({ params }: Props) {
                 {formatDuration(v.durationSec)}
               </TableCell>
               <TableCell className="font-mono text-xs text-muted-foreground">
-                {v.analyzedAt ? v.analyzedAt.toLocaleDateString("zh-CN") : "—"}
+                {formatDateTime(v.analyzedAt)}
               </TableCell>
             </TableRow>
           ))}
@@ -204,7 +205,7 @@ function SopCard({ sop }: { sop: typeof clerkSops.$inferSelect }) {
         </div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs text-muted-foreground">
-            {sop.generatedAt.toLocaleDateString("zh-CN")}
+            {formatDateTime(sop.generatedAt)}
           </span>
           <DeleteSopButton sopId={sop.id} sopLabel={label} />
         </div>

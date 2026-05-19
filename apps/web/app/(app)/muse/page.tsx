@@ -1,4 +1,4 @@
-import { count, desc, eq, max, sql } from "drizzle-orm";
+import { count, desc, eq, max } from "drizzle-orm";
 import Link from "next/link";
 
 import { channels, museIdeas, museMonitorVideos } from "@singularity/db";
@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
@@ -32,8 +33,7 @@ export default async function MuseLandingPage() {
     .leftJoin(museIdeas, eq(museIdeas.channelId, channels.id))
     .where(eq(channels.userId, user.id))
     .groupBy(channels.id, channels.slug, channels.name, channels.platform)
-    .having(sql`count(${museIdeas.id}) > 0`)
-    .orderBy(desc(max(museIdeas.generatedAt)));
+    .orderBy(desc(max(museIdeas.generatedAt)), desc(channels.createdAt));
 
   const videoRows = await db
     .select({
@@ -56,9 +56,11 @@ export default async function MuseLandingPage() {
       </header>
 
       {ideaRows.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-sm text-muted-foreground">
-          <span>还没有选题</span>
-          <span className="text-xs">前往任一频道的「编辑」配置对标账号，然后在 Muse 频道页启动巡视</span>
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+          <span>还没有频道</span>
+          <Link href="/channels/new" className="text-xs hover:text-foreground hover:underline">
+            先创建一个频道
+          </Link>
         </div>
       ) : (
         <Table>
@@ -88,13 +90,15 @@ export default async function MuseLandingPage() {
                   </Badge>
                 </TableCell>
                 <TableCell className="font-mono text-sm">
-                  {monitoredByChannel.get(r.channelId) ?? 0}
+                  {(monitoredByChannel.get(r.channelId) ?? 0) > 0
+                    ? monitoredByChannel.get(r.channelId)
+                    : <span className="text-muted-foreground">—</span>}
                 </TableCell>
-                <TableCell className="font-mono text-sm">{r.ideaCount}</TableCell>
+                <TableCell className="font-mono text-sm">
+                  {r.ideaCount > 0 ? r.ideaCount : <span className="text-muted-foreground">—</span>}
+                </TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">
-                  {r.lastGeneratedAt
-                    ? r.lastGeneratedAt.toLocaleDateString("zh-CN")
-                    : "—"}
+                  {r.lastGeneratedAt ? formatDate(r.lastGeneratedAt) : "未巡视"}
                 </TableCell>
               </TableRow>
             ))}

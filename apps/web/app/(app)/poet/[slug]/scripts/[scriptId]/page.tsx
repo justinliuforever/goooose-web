@@ -15,6 +15,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
@@ -103,7 +104,7 @@ export default async function ScriptDetailPage({ params }: Props) {
               <span className="font-mono text-xs">约 {script.durationMinutes} 分钟</span>
             ) : null}
             <span className="font-mono text-xs">
-              {script.generatedAt.toLocaleDateString("zh-CN")} 生成
+              {formatDateTime(script.generatedAt)} 生成
             </span>
           </div>
         </div>
@@ -147,7 +148,7 @@ export default async function ScriptDetailPage({ params }: Props) {
           {bible ? (
             <span className="text-xs text-muted-foreground">
               {bible.content.length.toLocaleString("en-US")} 字 ·{" "}
-              {bible.updatedAt.toLocaleDateString("zh-CN")}
+              {formatDateTime(bible.updatedAt)}
             </span>
           ) : null}
         </div>
@@ -162,7 +163,7 @@ export default async function ScriptDetailPage({ params }: Props) {
           {sop ? (
             <span className="text-xs text-muted-foreground">
               {(sop.contentMd?.length ?? 0).toLocaleString("en-US")} 字 ·{" "}
-              {sop.generatedAt.toLocaleDateString("zh-CN")}
+              {formatDateTime(sop.generatedAt)}
             </span>
           ) : null}
         </div>

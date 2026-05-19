@@ -83,8 +83,33 @@ export function EditChannelSheet({ channel }: Props) {
       setError(result.error.issues[0]?.message ?? "Invalid input");
       return;
     }
+
+    const platformChanged = platform !== channel.platform;
+    const urlChanged = platformUrl !== channel.platformUrl;
+    if (platformChanged || urlChanged) {
+      const lines: string[] = ["⚠️ 你正在修改：" ];
+      if (platformChanged) lines.push(`• 平台 (${channel.platform} → ${platform})`);
+      if (urlChanged) lines.push(`• 主页链接`);
+      lines.push("");
+      lines.push("如果该频道已经跑过 Clerk/Muse/Poet，旧数据是基于原值生成的，会与新值不一致。建议改完后清空旧数据重跑。");
+      lines.push("");
+      lines.push("仍要继续吗？");
+      if (!confirm(lines.join("\n"))) return;
+    }
+
     updateMutation.mutate(result.data);
   }
+
+  const regenerateMutation = trpc.channels.regenerateSlug.useMutation({
+    onSuccess: (fresh) => {
+      utils.channels.list.invalidate();
+      utils.channels.bySlug.invalidate();
+      toast.success(`URL 路径已更新为 ${fresh.slug}`);
+      setOpen(false);
+      router.replace(`/channels/${encodeURIComponent(fresh.slug)}`);
+    },
+    onError: (err) => setError(err.message),
+  });
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -95,7 +120,7 @@ export function EditChannelSheet({ channel }: Props) {
       <SheetContent className="flex w-full flex-col gap-0 sm:max-w-md">
         <SheetHeader>
           <SheetTitle>编辑频道</SheetTitle>
-          <SheetDescription>URL 路径（slug）保持不变。</SheetDescription>
+          <SheetDescription>修改名称、平台、对标后保存即可。</SheetDescription>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
@@ -108,6 +133,28 @@ export function EditChannelSheet({ channel }: Props) {
                 onChange={(e) => setName(e.target.value)}
                 required
               />
+            </Field>
+
+            <Field>
+              <FieldLabel>URL 路径</FieldLabel>
+              <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2">
+                <code className="truncate font-mono text-xs">/channels/{channel.slug}</code>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={regenerateMutation.isPending}
+                  onClick={() => {
+                    if (!confirm("将根据当前频道名称重新生成 URL 路径，老链接会失效。继续？")) return;
+                    regenerateMutation.mutate({ id: channel.id });
+                  }}
+                >
+                  {regenerateMutation.isPending ? "更新中…" : "重置"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                URL 路径在首次创建时根据名称生成；改名后默认保持不变。点「重置」可根据当前名称重生成。
+              </p>
             </Field>
 
             <Field>

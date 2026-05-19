@@ -22,6 +22,10 @@ export const deleteChannelInput = z.object({
   id: z.string().uuid(),
 });
 
+export const regenerateSlugInput = z.object({
+  id: z.string().uuid(),
+});
+
 export type DeleteChannelInput = z.infer<typeof deleteChannelInput>;
 
 export const updateChannelInput = z.object({

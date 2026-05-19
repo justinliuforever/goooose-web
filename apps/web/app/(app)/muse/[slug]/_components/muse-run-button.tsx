@@ -2,12 +2,27 @@
 
 import { Play, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
+import { AgentTimeline, type Stage } from "@/components/agent-timeline";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
+
+const MUSE_STAGES: Stage[] = [
+  {
+    label: "解析对标频道",
+    matches: (p) => p === "resolving competitors" || p === "fetching competitor videos",
+  },
+  {
+    label: "抓取视频内容",
+    matches: (p) => p === "fetching video metadata" || p === "transcribing audio",
+  },
+  { label: "AI 分类相关性", matches: (p) => p === "classifying video" },
+  { label: "分析爆款触发", matches: (p) => p === "analyzing viral trigger" },
+  { label: "生成选题", matches: (p) => p === "generating ideas" },
+];
 
 type ActiveRun = {
   runId: string;
@@ -19,7 +34,7 @@ type Props = {
   channelId: string;
   channelName: string;
   competitorCount: number;
-  initialActive?: ActiveRun | null;
+  initialActive?: (ActiveRun & { startedAt?: Date | string }) | null;
 };
 
 export function MuseRunButton({ channelId, channelName, competitorCount, initialActive }: Props) {
@@ -27,7 +42,11 @@ export function MuseRunButton({ channelId, channelName, competitorCount, initial
   const utils = trpc.useUtils();
   const [active, setActive] = useState<ActiveRun | null>(initialActive ?? null);
   const [startedAt, setStartedAt] = useState<number | null>(
-    initialActive ? Date.now() : null,
+    initialActive?.startedAt
+      ? new Date(initialActive.startedAt).getTime()
+      : initialActive
+        ? Date.now()
+        : null,
   );
 
   const startMutation = trpc.muse.startMonitor.useMutation({
@@ -63,6 +82,10 @@ export function MuseRunButton({ channelId, channelName, competitorCount, initial
           triggerRunId={active.triggerRunId}
           accessToken={active.publicAccessToken}
           startedAt={startedAt}
+          onProgressTick={() => {
+            utils.invalidate();
+            router.refresh();
+          }}
           onSettled={(ok, message) => {
             setActive(null);
             setStartedAt(null);
@@ -100,11 +123,13 @@ function MuseRunProgress({
   accessToken,
   startedAt,
   onSettled,
+  onProgressTick,
 }: {
   triggerRunId: string;
   accessToken: string;
   startedAt: number;
   onSettled: (ok: boolean, message?: string) => void;
+  onProgressTick: (phase: string | undefined) => void;
 }) {
   const { run, error } = useRealtimeRun(triggerRunId, { accessToken });
   const [now, setNow] = useState(Date.now());
@@ -113,6 +138,17 @@ function MuseRunProgress({
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  const phase = (run?.metadata?.progress as ProgressPayload | undefined)?.phase;
+  const lastPhaseRef = useRef<string | undefined>(undefined);
+  const tickRef = useRef(onProgressTick);
+  tickRef.current = onProgressTick;
+  useEffect(() => {
+    if (phase && phase !== lastPhaseRef.current) {
+      lastPhaseRef.current = phase;
+      tickRef.current(phase);
+    }
+  }, [phase]);
 
   useEffect(() => {
     if (error) {
@@ -155,11 +191,16 @@ function MuseRunProgress({
   const pct = total > 0 ? Math.round((current / total) * 100) : 0;
 
   return (
-    <div className="flex w-72 flex-col gap-2 rounded-lg border bg-card p-3">
+    <div className="flex w-72 flex-col gap-3 rounded-lg border bg-card p-3">
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium text-foreground">{phaseLabel}</span>
         <span className="font-mono text-muted-foreground">{elapsed}</span>
       </div>
+      <AgentTimeline
+        stages={MUSE_STAGES}
+        currentPhase={progress?.phase}
+        accentClass="text-muse"
+      />
       {total > 0 ? (
         <div className="flex flex-col gap-1">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">

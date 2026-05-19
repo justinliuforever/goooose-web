@@ -92,14 +92,22 @@ Return ONLY valid JSON. No markdown code fences.
 type SopArgs = {
   channelName: string;
   videoCount: number;
-  totalViews: number;
+  totalViews: number | null;
   date: string;
   videosData: string;
   language?: "en" | "zh";
 };
 
 export function buildHumanSopPrompt(args: SopArgs): string {
-  const inner = `You are an expert YouTube content strategist. Based on the analysis of the top ${args.videoCount} most-viewed videos from the channel "${args.channelName}" (total views analyzed: ${args.totalViews.toLocaleString("en-US")}), create a comprehensive Scriptwriting Standard Operating Procedure.
+  const viewsClause =
+    args.totalViews && args.totalViews > 0
+      ? `total views analyzed: ${args.totalViews.toLocaleString("en-US")}`
+      : "view counts unavailable for these videos";
+  const subtitleViews =
+    args.totalViews && args.totalViews > 0
+      ? `Total views: ${args.totalViews.toLocaleString("en-US")}`
+      : "View counts unavailable";
+  const inner = `You are an expert YouTube content strategist. Based on the analysis of the top ${args.videoCount} most-viewed videos from the channel "${args.channelName}" (${viewsClause}), create a comprehensive Scriptwriting Standard Operating Procedure.
 
 ## Analyzed Videos Data
 ${args.videosData}
@@ -109,7 +117,7 @@ ${args.videosData}
 Create a detailed SOP document with the following sections:
 
 **Title:** "${args.channelName} Scriptwriting Standard Operating Procedure"
-**Subtitle:** "Based on analysis of Top ${args.videoCount} most-viewed videos | Total views: ${args.totalViews.toLocaleString("en-US")} | Generated: ${args.date}"
+**Subtitle:** "Based on analysis of Top ${args.videoCount} most-viewed videos | ${subtitleViews} | Generated: ${args.date}"
 
 **Section 1: Content Formula** - Core content formula.
 **Section 2: Common Themes** - Recurring themes.
@@ -125,6 +133,10 @@ Format as clean markdown.
 }
 
 export function buildAiSopReferencePrompt(args: SopArgs): string {
+  const viewsLine =
+    args.totalViews && args.totalViews > 0
+      ? `# Total Views: ${args.totalViews.toLocaleString("en-US")}`
+      : "# Total Views: unavailable";
   const inner = `You are creating an AI-optimized reference document for an automated scriptwriting agent. Based on the analysis of "${args.channelName}", create a structured reference.
 
 ## Analyzed Videos Data
@@ -137,7 +149,7 @@ Create a structured reference with sections: CONTENT_FORMULA, THEMES, THUMBNAIL_
 # CHANNEL REFERENCE: ${args.channelName}
 # Generated: ${args.date}
 # Videos Analyzed: ${args.videoCount}
-# Total Views: ${args.totalViews}
+${viewsLine}
 
 Return ONLY the document content.
 `;
@@ -153,7 +165,7 @@ Return ONLY the document content.
 type HottestArgs = {
   channelName: string;
   title: string;
-  views: number;
+  views: number | null;
   durationSec: number;
   url: string;
   transcript: string;
@@ -162,11 +174,13 @@ type HottestArgs = {
 };
 
 export function buildHottestSopPrompt(args: HottestArgs): string {
+  const viewsStr =
+    args.views && args.views > 0 ? args.views.toLocaleString("en-US") : "unavailable";
   const inner = `You are an expert YouTube content analyst performing a deep structural breakdown of the #1 most-viewed video from "${args.channelName}".
 
 ## Video Information
 - **Title:** ${args.title}
-- **Views:** ${args.views.toLocaleString("en-US")}
+- **Views:** ${viewsStr}
 - **Duration:** ${args.durationSec} seconds
 - **URL:** ${args.url}
 

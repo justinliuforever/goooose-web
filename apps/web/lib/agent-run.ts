@@ -12,6 +12,7 @@ export type ActiveAgentRun = {
   triggerRunId: string;
   publicAccessToken: string;
   command: string;
+  startedAt: Date;
 };
 
 export async function getActiveAgentRun(
@@ -24,6 +25,7 @@ export async function getActiveAgentRun(
       id: pipelineRuns.id,
       configJson: pipelineRuns.configJson,
       command: pipelineRuns.command,
+      startedAt: pipelineRuns.startedAt,
     })
     .from(pipelineRuns)
     .innerJoin(channels, eq(channels.id, pipelineRuns.channelId))
@@ -52,5 +54,6 @@ export async function getActiveAgentRun(
     triggerRunId,
     publicAccessToken: token,
     command: active.command,
+    startedAt: active.startedAt,
   };
 }

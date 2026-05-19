@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getActiveAgentRun } from "@/lib/agent-run";
+import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
@@ -143,6 +144,7 @@ export default async function PoetChannelPage({ params }: Props) {
                   runId: activeRun.runId,
                   triggerRunId: activeRun.triggerRunId,
                   publicAccessToken: activeRun.publicAccessToken,
+                  startedAt: activeRun.startedAt,
                   kind:
                     activeRun.command === "poet-generate-bible"
                       ? "bible"
@@ -206,7 +208,7 @@ export default async function PoetChannelPage({ params }: Props) {
               {activeBible.content}
             </pre>
             <footer className="font-mono text-xs text-muted-foreground">
-              {activeBible.updatedAt.toLocaleDateString("zh-CN")} 更新
+              {formatDateTime(activeBible.updatedAt)} 更新
             </footer>
           </article>
         ) : (
@@ -289,7 +291,7 @@ export default async function PoetChannelPage({ params }: Props) {
                         {t.language}
                       </span>
                       <span className="font-mono text-[10px] text-muted-foreground">
-                        {t.updatedAt.toLocaleDateString("zh-CN")}
+                        {formatDateTime(t.updatedAt)}
                       </span>
                     </div>
                     <h3 className="text-sm font-medium whitespace-pre-wrap">{t.topic}</h3>
@@ -395,7 +397,7 @@ export default async function PoetChannelPage({ params }: Props) {
                       </span>
                     ) : null}
                     <span className="ml-auto font-mono text-xs text-muted-foreground">
-                      {s.generatedAt.toLocaleDateString("zh-CN")}
+                      {formatDateTime(s.generatedAt)}
                     </span>
                   </div>
                   <p className="line-clamp-2 text-xs text-muted-foreground whitespace-pre-wrap">

@@ -14,14 +14,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/datetime";
 import { trpc } from "@/lib/trpc";
 
 import { DeleteChannelButton } from "./delete-channel-button";
-
-function formatDate(value: Date | string) {
-  const d = typeof value === "string" ? new Date(value) : value;
-  return d.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
-}
 
 export function ChannelsList() {
   const { data, isLoading } = trpc.channels.list.useQuery();

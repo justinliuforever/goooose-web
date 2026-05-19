@@ -1,4 +1,4 @@
-import { count, desc, eq, max, sql } from "drizzle-orm";
+import { count, desc, eq, max } from "drizzle-orm";
 import Link from "next/link";
 
 import { channels, clerkVideos } from "@singularity/db";
@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
@@ -32,8 +33,7 @@ export default async function ClerkLandingPage() {
     .leftJoin(clerkVideos, eq(clerkVideos.channelId, channels.id))
     .where(eq(channels.userId, user.id))
     .groupBy(channels.id, channels.slug, channels.name, channels.platform)
-    .having(sql`count(${clerkVideos.id}) > 0`)
-    .orderBy(desc(max(clerkVideos.analyzedAt)));
+    .orderBy(desc(max(clerkVideos.analyzedAt)), desc(channels.createdAt));
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-8">
@@ -46,8 +46,11 @@ export default async function ClerkLandingPage() {
       </header>
 
       {rows.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center py-16 text-sm text-muted-foreground">
-          还没有分析过的视频 — 去频道页点 &quot;开始分析&quot; 启动 Clerk
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+          <span>还没有频道</span>
+          <Link href="/channels/new" className="text-xs hover:text-foreground hover:underline">
+            先创建一个频道
+          </Link>
         </div>
       ) : (
         <Table>
@@ -75,11 +78,11 @@ export default async function ClerkLandingPage() {
                     {r.platform}
                   </Badge>
                 </TableCell>
-                <TableCell className="font-mono text-sm">{r.videoCount}</TableCell>
+                <TableCell className="font-mono text-sm">
+                  {r.videoCount > 0 ? r.videoCount : <span className="text-muted-foreground">—</span>}
+                </TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">
-                  {r.lastAnalyzedAt
-                    ? r.lastAnalyzedAt.toLocaleDateString("zh-CN")
-                    : "—"}
+                  {r.lastAnalyzedAt ? formatDate(r.lastAnalyzedAt) : "未分析"}
                 </TableCell>
               </TableRow>
             ))}

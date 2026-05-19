@@ -8,6 +8,7 @@ import type { CustomTopicReference } from "@singularity/db";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
@@ -115,7 +116,7 @@ export default async function PoetTopicDetailPage({ params }: Props) {
             <span className="font-mono text-xs">{topic.targetWordCount} words</span>
           ) : null}
           <span className="font-mono text-xs">
-            updated {topic.updatedAt.toLocaleDateString("zh-CN")}
+            updated {formatDateTime(topic.updatedAt)}
           </span>
         </div>
       </header>

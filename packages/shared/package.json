@@ -19,12 +19,15 @@
     "./clients/references": "./src/clients/references.ts",
     "./clients/llm": "./src/clients/llm.ts",
     "./clients/tikhub": "./src/clients/tikhub.ts",
-    "./clients/asr": "./src/clients/asr.ts"
+    "./clients/asr": "./src/clients/asr.ts",
+    "./clients/vision": "./src/clients/vision.ts",
+    "./clients/youtube-data": "./src/clients/youtube-data.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.78",
     "@ai-sdk/deepseek": "^2.0.35",
     "ai": "^6.0.184",
     "groq-sdk": "^1.2.0",
