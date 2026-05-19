@@ -67,8 +67,8 @@ export function ClerkStartSheet({ channelId, channelName, disabled, onStarted }:
     setError(null);
     const limitNum = Number.parseInt(limit, 10);
     if (source !== "urls") {
-      if (!Number.isFinite(limitNum) || limitNum < 1 || limitNum > 20) {
-        setError("请输入 1-20 之间的数字");
+      if (!Number.isFinite(limitNum) || limitNum < 1 || limitNum > 5) {
+        setError("请输入 1-5 之间的数字");
         return;
       }
     }
@@ -130,23 +130,23 @@ export function ClerkStartSheet({ channelId, channelName, disabled, onStarted }:
 
             {source !== "urls" ? (
               <Field>
-                <FieldLabel htmlFor="limit">数量（1-20）</FieldLabel>
+                <FieldLabel htmlFor="limit">数量（1-5）</FieldLabel>
                 <Input
                   id="limit"
                   type="number"
                   min={1}
-                  max={20}
+                  max={5}
                   value={limit}
                   onChange={(e) => setLimit(e.target.value)}
                   className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground">
-                  推荐 5 个起步（约 8-10 分钟出 SOP），最多 20 个
+                  推荐 5 个（约 8-10 分钟出 SOP）
                 </p>
               </Field>
             ) : (
               <Field>
-                <FieldLabel htmlFor="urls">视频链接（每行一个，最多 20 个）</FieldLabel>
+                <FieldLabel htmlFor="urls">视频链接（每行一个，最多 5 个）</FieldLabel>
                 <Textarea
                   id="urls"
                   value={urls}
