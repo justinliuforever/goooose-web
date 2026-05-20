@@ -1,35 +1,45 @@
 # Singularity Web
 
-## 架构
-
-- 总览：[`notes/architecture_final.md`](./notes/architecture_final.md)
-- 完整 8 周 beta 计划：[`notes/beta_rewrite_plan.md`](./notes/beta_rewrite_plan.md)
+AI 内容教练 web SaaS — 给中国小型创作者（XHS + YouTube）完成"看对标 → 出选题 → 写稿"的全链路。Closed beta 目标 Q3 2026。
 
 ## 技术栈
 
-Next.js 15 · TypeScript · tRPC · Vercel AI SDK · Trigger.dev · Logto Cloud · Supabase · Drizzle · Cloudflare R2
+Next.js 16 · TypeScript · tRPC v11 · Vercel AI SDK · Trigger.dev v3 · Logto Cloud · Supabase + Drizzle · Cloudflare R2 · DeepSeek + Claude Sonnet · Deepgram + Groq Whisper
 
-Python sidecar（yt-dlp + XHS 抓取，~500 LOC）部署到 Render Singapore。
+## 文档
 
-## 仓库结构（开发中，Week 1 由 Turborepo 初始化）
+- 架构图与技术栈：[`notes/architecture_final.md`](./notes/architecture_final.md)
+- 功能模块、运维注意事项、未来优化：[`notes/beta_rewrite_plan.md`](./notes/beta_rewrite_plan.md)
+- Claude Code 工作约定：[`CLAUDE.md`](./CLAUDE.md)
+
+## 仓库结构
 
 ```
 singularity-web/
-├── notes/                  # 架构 / 计划文档
-├── apps/                   # Week 1 添加
-│   ├── web/                # Next.js (Vercel)
-│   ├── scraper/            # Python sidecar (Render)
-│   └── jobs/               # Trigger.dev 任务
-├── packages/               # Week 1 添加
-│   ├── db/                 # Drizzle schema
-│   ├── shared/             # Zod + prompts
-│   └── ui/                 # shadcn 共用
-└── infra/                  # 部署配置
+├── apps/
+│   ├── web/                  # Next.js (Vercel)
+│   └── jobs/                 # Trigger.dev 长任务
+├── packages/
+│   ├── db/                   # Drizzle schema + 迁移 + smoke 脚本
+│   ├── shared/               # 核心 IP：prompts / schemas / clients / services
+│   └── ui/                   # 共用 UI
+└── notes/                    # 架构 + 功能说明
 ```
 
-## 前身
+## 开发
 
-本项目是 Electron 桌面原型的 web 重写。原仓库（仅作参考归档）：
-[Singularity-Macos-Social-Media-AI-Agent](https://github.com/Oooowadd/Singularity-Macos-Social-Media-AI-Agent)
+```bash
+pnpm install
+pnpm --filter @singularity/web dev          # Next.js dev
+pnpm --filter @singularity/jobs dev         # Trigger.dev worker（另开窗口）
+```
 
-可在那里查阅原始 Python prompt 模板、LLM 调用模式、抓取层踩坑历史。
+Smoke 测试（任选）：
+
+```bash
+pnpm --filter @singularity/db poet-services-smoke
+pnpm --filter @singularity/db muse-services-smoke
+pnpm --filter @singularity/db xhs-client-smoke
+pnpm --filter @singularity/db vision-and-verify-smoke
+pnpm --filter @singularity/db asr-fallback-smoke
+```
