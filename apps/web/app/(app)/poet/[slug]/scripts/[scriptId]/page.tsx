@@ -90,9 +90,9 @@ export default async function ScriptDetailPage({ params }: Props) {
         {channel.name}
       </Button>
 
-      <header className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">脚本详情</h1>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-2">
+          <h1 className="truncate text-2xl font-semibold tracking-tight">脚本详情</h1>
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <Badge variant="secondary" className="font-mono text-[10px] uppercase">
               {script.language}
@@ -108,11 +108,13 @@ export default async function ScriptDetailPage({ params }: Props) {
             </span>
           </div>
         </div>
-        <ScriptDetailActions
-          scriptId={script.id}
-          scriptText={script.scriptText}
-          channelSlug={slug}
-        />
+        <div className="shrink-0">
+          <ScriptDetailActions
+            scriptId={script.id}
+            scriptText={script.scriptText}
+            channelSlug={slug}
+          />
+        </div>
       </header>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">

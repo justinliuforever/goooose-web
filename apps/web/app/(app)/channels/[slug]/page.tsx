@@ -157,11 +157,11 @@ export default async function ChannelDetailPage({ params }: Props) {
       </Button>
 
       <header className="flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{channel.name}</h1>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Badge variant="secondary" className="font-mono text-[10px] uppercase">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-2">
+            <h1 className="truncate text-2xl font-semibold tracking-tight">{channel.name}</h1>
+            <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+              <Badge variant="secondary" className="shrink-0 font-mono text-[10px] uppercase">
                 {channel.platform}
               </Badge>
               <a
@@ -174,7 +174,9 @@ export default async function ChannelDetailPage({ params }: Props) {
               </a>
             </div>
           </div>
-          <EditChannelSheet channel={channel} />
+          <div className="shrink-0">
+            <EditChannelSheet channel={channel} />
+          </div>
         </div>
         {channel.description ? (
           <p className="max-w-2xl text-sm text-muted-foreground">{channel.description}</p>

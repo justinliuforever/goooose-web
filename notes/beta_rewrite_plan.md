@@ -4,11 +4,9 @@
 
 ---
 
-## 是什么
 
-AI 内容教练 web SaaS。给中国小型创作者（主战 XHS + YouTube）— 完成"看对标 → 出选题 → 写稿"的全链路。
 
-目标：60 秒内出第一稿。Closed beta 目标 Q3 2026。
+目标：Closed beta 目标 Q3 2026。
 
 ---
 
@@ -131,7 +129,7 @@ archive 无此功能，纯 greenfield。Claude Sonnet 4.6 `streamText`。
 
 ---
 
-## 运维注意事项
+## 运维我们要notices
 
 ### 平台
 
