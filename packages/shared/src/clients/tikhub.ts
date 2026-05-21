@@ -134,8 +134,11 @@ export type YouTubeVideoRef = {
 };
 
 export async function getChannelVideos(channelId: string): Promise<YouTubeVideoRef[]> {
+  // TikHub deprecated `web_v2/get_channel_videos` silently — it now returns
+  // an empty array for every channel. The unversioned `web/get_channel_videos`
+  // is the working endpoint as of 2026-05-20.
   const data = await get<{ videos?: YouTubeVideoRef[]; continuation_token?: string }>(
-    "/api/v1/youtube/web_v2/get_channel_videos",
+    "/api/v1/youtube/web/get_channel_videos",
     { channel_id: channelId },
   );
   return (data.videos ?? []).filter((v) => v.video_id && !v.is_live);
