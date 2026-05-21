@@ -173,25 +173,23 @@ export default async function MuseChannelPage({ params }: Props) {
         Muse · 选题官
       </Button>
 
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          <span className="size-2 shrink-0 rounded-full bg-muse" />
-          <h1 className="truncate text-2xl font-semibold tracking-tight">{channel.name}</h1>
-          <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
+      <header className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="size-2 rounded-full bg-muse" />
+          <h1 className="text-2xl font-semibold tracking-tight">{channel.name}</h1>
+          <Badge variant="secondary" className="font-mono text-[10px]">
             {ideas.length} 个选题
           </Badge>
-          <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
+          <Badge variant="secondary" className="font-mono text-[10px]">
             {activeCompetitors.length} 个对标频道
           </Badge>
         </div>
-        <div className="shrink-0">
-          <MuseRunButton
-            channelId={channel.id}
-            channelName={channel.name}
-            competitorCount={activeCompetitors.length}
-            isActive={!!activeRun}
-          />
-        </div>
+        <MuseRunButton
+          channelId={channel.id}
+          channelName={channel.name}
+          competitorCount={activeCompetitors.length}
+          isActive={!!activeRun}
+        />
       </header>
 
       {activeRun && liveStats ? (

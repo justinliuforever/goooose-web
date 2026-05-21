@@ -127,14 +127,14 @@ export default async function PoetChannelPage({ params }: Props) {
         Poet · 写手
       </Button>
 
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          <span className="size-2 shrink-0 rounded-full bg-poet" />
-          <h1 className="truncate text-2xl font-semibold tracking-tight">{channel.name}</h1>
-          <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
+      <header className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="size-2 rounded-full bg-poet" />
+          <h1 className="text-2xl font-semibold tracking-tight">{channel.name}</h1>
+          <Badge variant="secondary" className="font-mono text-[10px]">
             {scripts.length} 篇脚本
           </Badge>
-          <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
+          <Badge variant="secondary" className="font-mono text-[10px]">
             {approvedIdeas.length} 个待写选题
           </Badge>
         </div>
