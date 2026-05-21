@@ -64,3 +64,4 @@ next-env.d.ts
 
 # Local data dumps (xlsx exports, never commit)
 *.xlsx
+.vercel
