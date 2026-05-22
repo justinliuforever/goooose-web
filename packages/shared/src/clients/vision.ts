@@ -20,11 +20,11 @@ export type ThumbnailAnalysis = {
   whyItWorks: string;
 };
 
-const ZH_INSTRUCTION = `你是 YouTube 缩略图视觉分析师。请观察这张缩略图，输出严格的 JSON：
+const ZH_INSTRUCTION = `你是 YouTube 封面视觉分析师。请观察这张封面图，输出严格的 JSON：
 
 {
-  "description": "用 2-3 句中文描述图片实际看到的内容（颜色、元素布局、文字、人物表情、视觉钩子）",
-  "why_it_works": "用 2-3 句中文说明这张缩略图为什么有效（点击诱因、情绪触发、对比手法）"
+  "description": "用 2-3 句中文描述封面实际看到的内容（颜色、元素布局、文字、人物表情、视觉钩子）",
+  "why_it_works": "用 2-3 句中文说明这张封面为什么有效（点击诱因、情绪触发、对比手法）"
 }
 
 只返回 JSON，不要 markdown 代码块。所有描述基于你真实看到的画面，不要根据标题猜测。`;

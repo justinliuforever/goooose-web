@@ -63,7 +63,7 @@ export function ClerkStartSheet({
   const [open, setOpen] = useState(false);
   const [source, setSource] = useState<Source>("newest");
   const [mode, setMode] = useState<Mode>("overwrite");
-  const [limit, setLimit] = useState("5");
+  const [limit, setLimit] = useState("10");
   const [urls, setUrls] = useState("");
   const SOURCE_OPTIONS = platform === "xhs" ? SOURCE_OPTIONS_XHS : SOURCE_OPTIONS_YT;
   const itemLabel = platform === "xhs" ? "笔记" : "视频";
@@ -82,8 +82,8 @@ export function ClerkStartSheet({
     setError(null);
     const limitNum = Number.parseInt(limit, 10);
     if (source !== "urls") {
-      if (!Number.isFinite(limitNum) || limitNum < 1 || limitNum > 5) {
-        setError("请输入 1-5 之间的数字");
+      if (!Number.isFinite(limitNum) || limitNum < 1 || limitNum > 20) {
+        setError("请输入 1-20 之间的数字");
         return;
       }
     }
@@ -145,23 +145,23 @@ export function ClerkStartSheet({
 
             {source !== "urls" ? (
               <Field>
-                <FieldLabel htmlFor="limit">数量（1-5）</FieldLabel>
+                <FieldLabel htmlFor="limit">数量（1-20）</FieldLabel>
                 <Input
                   id="limit"
                   type="number"
                   min={1}
-                  max={5}
+                  max={20}
                   value={limit}
                   onChange={(e) => setLimit(e.target.value)}
                   className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground">
-                  推荐 5 个（约 8-10 分钟出 SOP）
+                  推荐 10-15 个，越多 SOP 越全面（并行分析，约 3-6 分钟出 SOP）
                 </p>
               </Field>
             ) : (
               <Field>
-                <FieldLabel htmlFor="urls">{itemLabel}链接（每行一个，最多 5 个）</FieldLabel>
+                <FieldLabel htmlFor="urls">{itemLabel}链接（每行一个，最多 20 个）</FieldLabel>
                 <Textarea
                   id="urls"
                   value={urls}

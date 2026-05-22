@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
 import Groq from "groq-sdk";
+import { ProxyAgent, type Dispatcher } from "undici";
 
 import { getAudioStreams, type AudioStream } from "./tikhub";
 
@@ -12,6 +13,16 @@ const GROQ_FILE_LIMIT_BYTES = 25 * 1024 * 1024;
 // YouTube CDN serves audio at roughly real-time playback speed (~12 KB/s
 // observed) for non-browser origins. A 13-min audio file can take 6-7 minutes.
 const DOWNLOAD_TIMEOUT_MS = 900_000;
+
+// PROXY_URL routes the YouTube CDN audio download through a residential IP
+// to bypass googlevideo.com 403s on data-center egress (Trigger.dev us-east).
+// Only the audio download hop uses this — TikHub, Deepgram, Groq stay direct.
+let _proxyAgent: ProxyAgent | null = null;
+function getProxyDispatcher(): Dispatcher | undefined {
+  if (!process.env.PROXY_URL) return undefined;
+  if (!_proxyAgent) _proxyAgent = new ProxyAgent(process.env.PROXY_URL);
+  return _proxyAgent;
+}
 
 let _groq: Groq | null = null;
 
@@ -50,10 +61,12 @@ async function downloadOnce(url: string, ext: string): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
   try {
+    const dispatcher = getProxyDispatcher();
     const res = await fetch(url, {
       headers: { "User-Agent": "Mozilla/5.0" },
       signal: controller.signal,
-    });
+      ...(dispatcher ? { dispatcher } : {}),
+    } as RequestInit);
     if (!res.ok || !res.body) throw new Error(`audio download HTTP ${res.status}`);
     // pipeline() vs pipe()+finished() so AbortError can't escape as unhandled 'error'
     await pipeline(Readable.fromWeb(res.body as never), createWriteStream(dest));
