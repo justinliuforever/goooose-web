@@ -27,7 +27,14 @@
     "test-clerk-pipeline": "tsx scripts/test-clerk-pipeline.ts",
     "xhs-discovery-smoke": "tsx scripts/xhs-discovery-smoke.ts",
     "xhs-client-smoke": "tsx scripts/xhs-client-smoke.ts",
-    "vision-and-verify-smoke": "tsx scripts/vision-and-verify-smoke.ts"
+    "vision-and-verify-smoke": "tsx scripts/vision-and-verify-smoke.ts",
+    "seed-proxy-sessions": "tsx scripts/seed-proxy-sessions.ts",
+    "dump-proxy-sessions": "tsx scripts/dump-proxy-sessions.ts",
+    "proxy-stats": "tsx scripts/proxy-stats.ts",
+    "channel-series-stats": "tsx scripts/channel-series-stats.ts",
+    "create-pipeline-run": "tsx scripts/trigger-detect-series.ts",
+    "clerk-video-stats": "tsx scripts/clerk-video-stats.ts",
+    "inspect-video-metadata": "tsx scripts/inspect-video-metadata.ts"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.35",

@@ -4,3 +4,5 @@ export * from "./runs";
 export * from "./clerk";
 export * from "./muse";
 export * from "./poet";
+export * from "./proxy";
+export * from "./channel-series";
