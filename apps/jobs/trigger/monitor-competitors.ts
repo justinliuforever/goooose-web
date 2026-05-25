@@ -5,22 +5,27 @@ import postgres from "postgres";
 
 import {
   channels,
+  flushProxyPool,
+  loadProxyPool,
   museIdeas,
   museMonitorVideos,
   pipelineRuns,
   type CompetitorRef,
 } from "@singularity/db";
-import { transcribeYoutubeVideo } from "@singularity/shared/clients/asr";
 import {
-  getChannelVideos,
-  getVideoWithTranscript,
-  resolveChannelId,
-} from "@singularity/shared/clients/tikhub";
+  renderTranscriptWithTimestamps,
+  transcribeFromStreams,
+  transcribeYoutubeVideo,
+} from "@singularity/shared/clients/asr";
+import type { ProxyPool } from "@singularity/shared/proxy";
+import {
+  getVideoMetadataYtdlp,
+  listChannelVideosYtdlp,
+} from "@singularity/shared/clients/ytdlp";
 import {
   getXhsUserNotes,
   type XhsNote,
 } from "@singularity/shared/clients/xhs";
-import { transcribeFromStreams } from "@singularity/shared/clients/asr";
 import { isRealTranscript } from "@singularity/shared/schemas/muse";
 import {
   analyzeViralTrigger,
@@ -92,6 +97,16 @@ export const monitorCompetitors = task({
         throw new Error("This channel has no competitors configured");
       }
 
+      // Muse touches both XHS and YouTube competitors; pool is YouTube-only.
+      const hasYoutubeCompetitor = competitors.some((c) => c.platform === "youtube");
+      let proxyPool: ProxyPool | null = null;
+      if (hasYoutubeCompetitor) {
+        proxyPool = await loadProxyPool(db, { provider: "wealthproxies" });
+        logger.info(
+          `Loaded proxy pool: ${proxyPool.size} sessions (${proxyPool.aliveCount} alive)`,
+        );
+      }
+
       const channelDescription = channel.description ?? channel.name;
 
       await db
@@ -139,18 +154,32 @@ export const monitorCompetitors = task({
               });
             }
           } else {
-            const ytId = await resolveChannelId(comp.url);
-            const videos = await getChannelVideos(ytId);
-            for (const v of videos.slice(0, maxVideosPerCompetitor)) {
-              candidates.push({
-                competitorIndex: ci,
-                competitorUrl: comp.url,
-                platform: "youtube",
-                videoId: v.video_id,
-                title: v.title,
-                viewCount: v.view_count,
-                duration: v.duration,
-              });
+            if (!proxyPool) {
+              logger.warn(`Competitor ${comp.url}: YouTube path needs proxyPool — skipping`);
+              continue;
+            }
+            const session = proxyPool.checkout();
+            try {
+              const videos = await listChannelVideosYtdlp(
+                comp.url,
+                maxVideosPerCompetitor,
+                session.url,
+              );
+              proxyPool.reportOk(session, 5_000);
+              for (const v of videos) {
+                candidates.push({
+                  competitorIndex: ci,
+                  competitorUrl: comp.url,
+                  platform: "youtube",
+                  videoId: v.video_id,
+                  title: v.title,
+                  viewCount: v.views,
+                  duration: v.duration_sec ? String(v.duration_sec) : undefined,
+                });
+              }
+            } catch (err) {
+              proxyPool.reportErr(session, (err as Error).message, "other");
+              throw err;
             }
           }
         } catch (err) {
@@ -259,37 +288,43 @@ export const monitorCompetitors = task({
               finalTranscript = titleAndDesc || null;
             }
           } else {
-            const { info, transcript: captionTranscript } = await getVideoWithTranscript(
-              ref.videoId,
-            );
+            if (!proxyPool) {
+              throw new Error("YouTube path requires proxyPool — not loaded");
+            }
+            const metaSession = proxyPool.checkout();
+            let info: Awaited<ReturnType<typeof getVideoMetadataYtdlp>> | null = null;
+            try {
+              info = await getVideoMetadataYtdlp(ref.videoId, metaSession.url);
+              proxyPool.reportOk(metaSession, 10_000);
+            } catch (err) {
+              proxyPool.reportErr(metaSession, (err as Error).message, "other");
+              logger.warn(`yt-dlp metadata failed for ${ref.videoId}: ${(err as Error).message?.slice(0, 120)}`);
+            }
 
-            finalTranscript = captionTranscript?.text ?? null;
             const candidateDuration =
-              asPositiveNumber(info.duration_sec) ??
+              asPositiveNumber(info?.duration_sec ?? null) ??
               asPositiveNumber(parseDurationToSec(ref.duration)) ??
               0;
-            const asrEligible =
-              !finalTranscript &&
-              candidateDuration > 0 &&
-              candidateDuration <= ASR_MAX_DURATION_SEC;
-            if (asrEligible) {
+            if (candidateDuration === 0 || candidateDuration <= ASR_MAX_DURATION_SEC) {
               await metadata.set("progress", {
                 ...stepBase,
                 phase: "transcribing audio",
-                detail: `[${i + 1}/${fresh.length}] ${ref.title} · 该视频无字幕，正在音频转写`,
+                detail: `[${i + 1}/${fresh.length}] ${ref.title} · 抓字幕或音频转写中`,
               });
-              const asr = await transcribeYoutubeVideo(ref.videoId, { logger });
-              if (asr) finalTranscript = asr.text;
+              const asr = await transcribeYoutubeVideo(ref.videoId, proxyPool, {
+                logger,
+                durationSec: candidateDuration || undefined,
+              });
+              if (asr) {
+                finalTranscript = renderTranscriptWithTimestamps(asr.text, asr.words);
+              }
             }
 
-            title = safeText(info.title) ?? safeText(ref.title) ?? "(untitled)";
-            views = asPositiveNumber(info.views) ?? asPositiveNumber(ref.viewCount) ?? 0;
-            durationSec =
-              asPositiveNumber(info.duration_sec) ??
-              asPositiveNumber(parseDurationToSec(ref.duration)) ??
-              0;
-            url = safeText(info.url) ?? `https://www.youtube.com/watch?v=${ref.videoId}`;
-            sourceChannelName = safeText(info.channel_name) ?? null;
+            title = safeText(info?.title ?? null) ?? safeText(ref.title) ?? "(untitled)";
+            views = asPositiveNumber(info?.views ?? null) ?? asPositiveNumber(ref.viewCount) ?? 0;
+            durationSec = candidateDuration;
+            url = safeText(info?.url ?? null) ?? `https://www.youtube.com/watch?v=${ref.videoId}`;
+            sourceChannelName = safeText(info?.channel_name ?? null) ?? null;
           }
 
           await metadata.set("progress", {
@@ -455,7 +490,7 @@ export const monitorCompetitors = task({
               phase: "generating ideas",
               detail: `[${i + 1}/${relevantRows.length}] ${row.title} · 生成 ${numIdeasPerVideo} 个选题`,
             });
-            const ideas = await generateIdeas({
+            const ideasResult = await generateIdeas({
               channelDescription,
               title: row.title,
               channelName: row.sourceChannelName ?? "(unknown)",
@@ -465,13 +500,15 @@ export const monitorCompetitors = task({
               language,
             });
 
-            if (ideas.length === 0) {
-              logger.warn(`No ideas parsed for ${row.title}`);
+            if (ideasResult.ideas.length === 0) {
+              logger.warn(
+                `No ideas parsed for "${row.title}" — raw sample: ${ideasResult.rawSample ?? "(none)"} | validation: ${ideasResult.parseErrorSample ?? "(none)"}`,
+              );
               continue;
             }
 
             await db.insert(museIdeas).values(
-              ideas.map((idea, ix) => ({
+              ideasResult.ideas.map((idea, ix) => ({
                 channelId: channel.id,
                 sourceVideoId: row.monitorVideoId,
                 ideaNumber: ix + 1,
@@ -482,7 +519,7 @@ export const monitorCompetitors = task({
                 runId: payload.runId,
               })),
             ).onConflictDoNothing();
-            ideasGenerated += ideas.length;
+            ideasGenerated += ideasResult.ideas.length;
           } catch (err) {
             logger.error(`Idea generation failed for ${row.title}`, {
               message: (err as Error).message?.slice(0, 500),
@@ -490,6 +527,15 @@ export const monitorCompetitors = task({
           }
           if (i < relevantRows.length - 1) await sleep(1500);
         }
+      }
+
+      if (proxyPool) {
+        const flushed = await flushProxyPool(db, proxyPool);
+        const stats = proxyPool.stats();
+        logger.info(
+          `Pool flushed: ${flushed.updatedSessions} sessions touched, ${flushed.newlyDisabled} newly disabled. ` +
+            `alive=${stats.alive}/${stats.total} bytes=${JSON.stringify(stats.bytesByProvider)} ok=${JSON.stringify(stats.okByProvider)} err=${JSON.stringify(stats.errByProvider)}`,
+        );
       }
 
       await db

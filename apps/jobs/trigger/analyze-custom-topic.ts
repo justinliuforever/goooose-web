@@ -6,6 +6,8 @@ import postgres from "postgres";
 import {
   channels,
   clerkSops,
+  flushProxyPool,
+  loadProxyPool,
   pipelineRuns,
   poetBible,
   poetCustomTopics,
@@ -80,12 +82,17 @@ export const analyzeCustomTopic = task({
 
       const userRefs: CustomTopicReference[] = (topic.references as CustomTopicReference[]) ?? [];
       const needFetch = userRefs.filter((r) => r.kind !== "text");
+      const hasYoutubeRef = userRefs.some((r) => r.kind === "youtube");
       await metadata.set("progress", {
         current: 0,
         total: 2,
         phase: "fetching references",
         detail: needFetch.length > 0 ? `抓取 ${needFetch.length} 个外部素材` : "无外部素材，跳过抓取",
       });
+
+      const proxyPool = hasYoutubeRef
+        ? await loadProxyPool(db, { provider: "wealthproxies" })
+        : null;
 
       const fetched: FetchedReference[] = await fetchReferences(
         userRefs.map((r) => ({
@@ -94,7 +101,12 @@ export const analyzeCustomTopic = task({
           text: r.text,
           title: r.title,
         })),
+        { pool: proxyPool ?? undefined },
       );
+
+      if (proxyPool) {
+        await flushProxyPool(db, proxyPool);
+      }
       const failedCount = fetched.filter((r) => r.error).length;
       if (failedCount > 0) {
         logger.warn(`${failedCount}/${fetched.length} references failed to fetch`);

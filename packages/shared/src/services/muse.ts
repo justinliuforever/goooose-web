@@ -1,4 +1,5 @@
 import { generateText } from "ai";
+import { jsonrepair } from "jsonrepair";
 
 import { llm } from "../clients/llm";
 import {
@@ -15,6 +16,8 @@ import {
 
 const TRANSCRIPT_PREVIEW_CHARS = 2000;
 
+// DeepSeek V4 Pro reasoning preamble sometimes emits trailing commas or
+// unescaped " inside Chinese values — jsonrepair recovers without losing data.
 function parseLenientJson(rawText: string): unknown {
   const cleaned = rawText
     .trim()
@@ -24,10 +27,15 @@ function parseLenientJson(rawText: string): unknown {
   const firstBrace = cleaned.indexOf("{");
   const lastBrace = cleaned.lastIndexOf("}");
   if (firstBrace === -1 || lastBrace === -1) return null;
+  const slice = cleaned.slice(firstBrace, lastBrace + 1);
   try {
-    return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+    return JSON.parse(slice);
   } catch {
-    return null;
+    try {
+      return JSON.parse(jsonrepair(slice));
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -108,7 +116,13 @@ export type GenerateIdeasArgs = {
   language?: "en" | "zh";
 };
 
-export async function generateIdeas(args: GenerateIdeasArgs): Promise<Idea[]> {
+export type GenerateIdeasResult = {
+  ideas: Idea[];
+  rawSample: string | null;
+  parseErrorSample: string | null;
+};
+
+export async function generateIdeas(args: GenerateIdeasArgs): Promise<GenerateIdeasResult> {
   const numIdeas = args.numIdeas ?? 5;
   const prompt = buildIdeaGenerationPrompt({
     channelDescription: args.channelDescription,
@@ -119,15 +133,28 @@ export async function generateIdeas(args: GenerateIdeasArgs): Promise<Idea[]> {
     numIdeas,
     language: args.language,
   });
-  const result = await generateText({
-    model: llm("pro"),
-    prompt,
-    temperature: 0.7,
-    maxOutputTokens: 4096,
-    maxRetries: 2,
-  });
-  const parsed = parseLenientJson(result.text);
-  const valid = ideasResponseSchema.safeParse(parsed);
-  if (!valid.success) return [];
-  return valid.data.ideas.slice(0, numIdeas);
+
+  // Retry once on parse failure — single bad LLM response shouldn't drop the video.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await generateText({
+      model: llm("pro"),
+      prompt,
+      temperature: 0.7,
+      maxOutputTokens: 4096,
+      maxRetries: 2,
+    });
+    const parsed = parseLenientJson(result.text);
+    const valid = ideasResponseSchema.safeParse(parsed);
+    if (valid.success) {
+      return { ideas: valid.data.ideas.slice(0, numIdeas), rawSample: null, parseErrorSample: null };
+    }
+    if (attempt === 1) {
+      return {
+        ideas: [],
+        rawSample: result.text.slice(0, 600),
+        parseErrorSample: JSON.stringify(valid.error.issues.slice(0, 3)).slice(0, 400),
+      };
+    }
+  }
+  return { ideas: [], rawSample: null, parseErrorSample: "loop exited unexpectedly" };
 }
