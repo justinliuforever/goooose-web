@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import {
   channels,
+  channelSeries,
   clerkSops,
   museIdeas,
   pipelineRuns,
@@ -37,7 +38,13 @@ import {
   regenerateSlugInput,
   updateChannelInput,
 } from "./schemas/channels";
-import { deleteSopInput, runStatusInput, startAnalysisInput } from "./schemas/clerk";
+import {
+  deleteSopInput,
+  detectSeriesInput,
+  listSeriesInput,
+  runStatusInput,
+  startAnalysisInput,
+} from "./schemas/clerk";
 import { approveIdeaInput, startMonitorInput } from "./schemas/muse";
 import {
   analyzeCustomTopicInput,
@@ -309,6 +316,7 @@ export const appRouter = router({
               mode: input.mode,
               source: input.source,
               videoIds: input.videoIds,
+              recencyMonths: input.recencyMonths,
             },
           })
           .returning();
@@ -322,6 +330,7 @@ export const appRouter = router({
           mode: input.mode,
           source: input.source,
           videoIds: input.videoIds,
+          recencyMonths: input.recencyMonths,
         });
 
         await db
@@ -330,6 +339,10 @@ export const appRouter = router({
             configJson: {
               limit: input.limit,
               language: input.language,
+              mode: input.mode,
+              source: input.source,
+              videoIds: input.videoIds,
+              recencyMonths: input.recencyMonths,
               triggerRunId: handle.id,
             },
           })
@@ -422,6 +435,71 @@ export const appRouter = router({
           )
           .returning({ id: clerkSops.id });
         return { id: deleted?.id ?? null };
+      }),
+
+    listSeries: protectedProcedure
+      .input(listSeriesInput)
+      .query(async ({ ctx, input }) => {
+        const [channel] = await db
+          .select({ id: channels.id })
+          .from(channels)
+          .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
+          .limit(1);
+        if (!channel) return [];
+        return db
+          .select()
+          .from(channelSeries)
+          .where(eq(channelSeries.channelId, channel.id))
+          .orderBy(desc(channelSeries.videoCount));
+      }),
+
+    detectSeries: protectedProcedure
+      .input(detectSeriesInput)
+      .mutation(async ({ ctx, input }) => {
+        const [channel] = await db
+          .select()
+          .from(channels)
+          .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
+          .limit(1);
+        if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
+
+        await assertNoActiveRun(channel.id, "clerk");
+
+        const [run] = await db
+          .insert(pipelineRuns)
+          .values({
+            channelId: channel.id,
+            agent: "clerk",
+            command: "clerk-detect-channel-series",
+            status: "pending",
+            configJson: { videoCount: input.videoCount, language: input.language },
+          })
+          .returning();
+        if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const handle = await tasks.trigger("clerk-detect-channel-series", {
+          channelId: channel.id,
+          runId: run.id,
+          videoCount: input.videoCount,
+          language: input.language,
+        });
+
+        await db
+          .update(pipelineRuns)
+          .set({
+            configJson: {
+              videoCount: input.videoCount,
+              language: input.language,
+              triggerRunId: handle.id,
+            },
+          })
+          .where(eq(pipelineRuns.id, run.id));
+
+        return {
+          runId: run.id,
+          triggerRunId: handle.id,
+          publicAccessToken: handle.publicAccessToken,
+        };
       }),
   }),
 

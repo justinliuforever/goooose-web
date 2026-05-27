@@ -21,6 +21,8 @@ import { trpc } from "@/lib/trpc";
 
 type Source = "newest" | "popular" | "urls";
 type Mode = "overwrite" | "incremental";
+type Recency = "1" | "3" | "6" | "all";
+type Language = "zh" | "en";
 
 type ActiveRun = {
   runId: string;
@@ -35,6 +37,18 @@ type Props = {
   disabled: boolean;
   onStarted: (run: ActiveRun) => void;
 };
+
+const RECENCY_OPTIONS: Array<{ value: Recency; label: string }> = [
+  { value: "1", label: "近 1 月" },
+  { value: "3", label: "近 3 月" },
+  { value: "6", label: "近 6 月" },
+  { value: "all", label: "不限" },
+];
+
+const LANGUAGE_OPTIONS: Array<{ value: Language; label: string; hint: string }> = [
+  { value: "zh", label: "中文 SOP", hint: "适合中文频道" },
+  { value: "en", label: "English SOP", hint: "适合英文频道" },
+];
 
 const SOURCE_OPTIONS_YT: Array<{ value: Source; label: string; hint: string }> = [
   { value: "newest", label: "最新发布", hint: "频道最新发布的 N 个视频" },
@@ -65,6 +79,8 @@ export function ClerkStartSheet({
   const [mode, setMode] = useState<Mode>("overwrite");
   const [limit, setLimit] = useState("10");
   const [urls, setUrls] = useState("");
+  const [recency, setRecency] = useState<Recency>("all");
+  const [language, setLanguage] = useState<Language>("zh");
   const SOURCE_OPTIONS = platform === "xhs" ? SOURCE_OPTIONS_XHS : SOURCE_OPTIONS_YT;
   const itemLabel = platform === "xhs" ? "笔记" : "视频";
   const [error, setError] = useState<string | null>(null);
@@ -82,8 +98,8 @@ export function ClerkStartSheet({
     setError(null);
     const limitNum = Number.parseInt(limit, 10);
     if (source !== "urls") {
-      if (!Number.isFinite(limitNum) || limitNum < 1 || limitNum > 20) {
-        setError("请输入 1-20 之间的数字");
+      if (!Number.isFinite(limitNum) || limitNum < 1 || limitNum > 50) {
+        setError("请输入 1-50 之间的数字");
         return;
       }
     }
@@ -98,13 +114,16 @@ export function ClerkStartSheet({
       setError(platform === "xhs" ? "请粘贴至少 1 个小红书笔记 URL" : "请粘贴至少 1 个视频 URL");
       return;
     }
+    const recencyMonths =
+      recency === "all" ? null : (Number.parseInt(recency, 10) as 1 | 3 | 6);
     startMutation.mutate({
       channelId,
       limit: source === "urls" ? videoIds.length : limitNum,
       mode,
       source,
       videoIds,
-      language: "zh",
+      language,
+      recencyMonths,
     });
   };
 
@@ -145,18 +164,18 @@ export function ClerkStartSheet({
 
             {source !== "urls" ? (
               <Field>
-                <FieldLabel htmlFor="limit">数量（1-20）</FieldLabel>
+                <FieldLabel htmlFor="limit">数量（1-50）</FieldLabel>
                 <Input
                   id="limit"
                   type="number"
                   min={1}
-                  max={20}
+                  max={50}
                   value={limit}
                   onChange={(e) => setLimit(e.target.value)}
                   className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground">
-                  推荐 10 个（约 3-5 分钟出 SOP，4 并行）
+                  推荐 20 个（约 6-10 分钟出 SOP，4 并行）
                 </p>
               </Field>
             ) : (
@@ -192,6 +211,52 @@ export function ClerkStartSheet({
                     onClick={() => setMode(opt.value)}
                     className={`flex flex-1 flex-col items-start gap-0.5 rounded-md border p-3 text-left text-xs transition-colors ${
                       mode === opt.value
+                        ? "border-foreground bg-foreground/5"
+                        : "hover:bg-muted/50"
+                    }`}
+                  >
+                    <span className="text-sm font-medium">{opt.label}</span>
+                    <span className="text-muted-foreground">{opt.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            {platform === "youtube" && source !== "urls" ? (
+              <Field>
+                <FieldLabel>时间范围</FieldLabel>
+                <div className="flex gap-2">
+                  {RECENCY_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setRecency(opt.value)}
+                      className={`flex-1 rounded-md border p-2 text-xs transition-colors ${
+                        recency === opt.value
+                          ? "border-foreground bg-foreground/5"
+                          : "hover:bg-muted/50"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  只在「近期热门」时影响结果排序范围
+                </p>
+              </Field>
+            ) : null}
+
+            <Field>
+              <FieldLabel>SOP 语言</FieldLabel>
+              <div className="flex gap-2">
+                {LANGUAGE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setLanguage(opt.value)}
+                    className={`flex flex-1 flex-col items-start gap-0.5 rounded-md border p-3 text-left text-xs transition-colors ${
+                      language === opt.value
                         ? "border-foreground bg-foreground/5"
                         : "hover:bg-muted/50"
                     }`}

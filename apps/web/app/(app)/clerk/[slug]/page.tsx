@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
-import { channels, clerkSops, clerkVideos } from "@singularity/db";
+import { channels, channelSeries, clerkSops, clerkVideos } from "@singularity/db";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { ensureCurrentUser } from "@/lib/users";
 
 import { ClerkRunButton } from "./_components/clerk-run-button";
 import { DeleteSopButton } from "./_components/delete-sop-button";
+import { ClerkSeriesPanel } from "./_components/clerk-series-panel";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -58,7 +59,7 @@ export default async function ClerkChannelPage({ params }: Props) {
 
   const isXhs = channel.platform === "xhs";
 
-  const [videos, sops, activeRun] = await Promise.all([
+  const [videos, sops, activeRun, seriesRows] = await Promise.all([
     db
       .select()
       .from(clerkVideos)
@@ -70,17 +71,26 @@ export default async function ClerkChannelPage({ params }: Props) {
       .where(eq(clerkSops.channelId, channel.id))
       .orderBy(desc(clerkSops.generatedAt)),
     getActiveAgentRun(channel.id, user.id, "clerk"),
+    channel.platform === "youtube"
+      ? db
+          .select()
+          .from(channelSeries)
+          .where(eq(channelSeries.channelId, channel.id))
+          .orderBy(desc(channelSeries.videoCount))
+      : Promise.resolve([]),
   ]);
 
   const sopOrder: Record<string, number> = {
     human: 0,
-    ai_reference: 1,
-    hottest: 2,
-    single_video: 3,
+    hottest: 1,
+    single_video: 2,
+    ai_reference: 3,
   };
   const sortedSops = [...sops].sort(
     (a, b) => (sopOrder[a.sopType] ?? 99) - (sopOrder[b.sopType] ?? 99),
   );
+  const primarySops = sortedSops.filter((s) => s.sopType !== "ai_reference");
+  const aiReferenceSops = sortedSops.filter((s) => s.sopType === "ai_reference");
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-8">
@@ -156,15 +166,32 @@ export default async function ClerkChannelPage({ params }: Props) {
         </TableBody>
       </Table>
 
-      {sortedSops.length > 0 ? (
+      {channel.platform === "youtube" ? (
+        <ClerkSeriesPanel channelId={channel.id} initialSeries={seriesRows} />
+      ) : null}
+
+      {primarySops.length > 0 ? (
         <section className="flex flex-col gap-4">
           <h2 className="text-sm font-medium text-muted-foreground">脚本撰写 SOP</h2>
           <div className="flex flex-col gap-4">
-            {sortedSops.map((sop) => (
+            {primarySops.map((sop) => (
               <SopCard key={sop.id} sop={sop} />
             ))}
           </div>
         </section>
+      ) : null}
+
+      {aiReferenceSops.length > 0 ? (
+        <details className="flex flex-col gap-3 rounded-lg border bg-card/50 p-4 text-sm">
+          <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+            AI 参考稿（默认隐藏 · 给 AI 用，非给人读）
+          </summary>
+          <div className="mt-3 flex flex-col gap-4">
+            {aiReferenceSops.map((sop) => (
+              <SopCard key={sop.id} sop={sop} />
+            ))}
+          </div>
+        </details>
       ) : null}
     </div>
   );
@@ -178,7 +205,7 @@ function TranscriptSourceBadge({
   hasTranscript: boolean;
 }) {
   if (!hasTranscript) {
-    return <span className="font-mono text-[10px] text-muted-foreground">无</span>;
+    return <span className="font-mono text-[10px] text-muted-foreground">无字幕</span>;
   }
   if (source === "caption") {
     return <Badge variant="secondary" className="text-[10px]">字幕</Badge>;
@@ -189,7 +216,7 @@ function TranscriptSourceBadge({
   if (source === "xhs_text") {
     return <Badge variant="secondary" className="text-[10px]">正文</Badge>;
   }
-  return <span className="font-mono text-[10px] text-muted-foreground">无</span>;
+  return <span className="font-mono text-[10px] text-muted-foreground">无字幕</span>;
 }
 
 function ContentTypeBadge({ contentType }: { contentType: string }) {
