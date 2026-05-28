@@ -42,36 +42,37 @@ type VideoAnalysisArgs = {
   transcript: string | null;
   chapters?: ChapterArg[];
   sponsorChapters?: SponsorChapterArg[];
-  contentType?: "video" | "xhs_image" | "xhs_video";
-  language?: "en" | "zh";
+  contentType?: 'video' | 'xhs_image' | 'xhs_video';
+  language?: 'en' | 'zh';
 };
 
-const NO_TRANSCRIPT_PLACEHOLDER = "[No transcript available — analyze based on title and thumbnail only]";
+const NO_TRANSCRIPT_PLACEHOLDER =
+  '[No transcript available — analyze based on title and thumbnail only]';
 
 function fmtTs(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
-  return `[${m}:${s.toString().padStart(2, "0")}]`;
+  return `[${m}:${s.toString().padStart(2, '0')}]`;
 }
 
 export function buildVideoAnalysisPrompt(args: VideoAnalysisArgs): string {
-  const contentType = args.contentType ?? "video";
-  const language = args.language ?? "en";
+  const contentType = args.contentType ?? 'video';
+  const language = args.language ?? 'en';
 
   const preamble =
-    contentType === "xhs_image"
+    contentType === 'xhs_image'
       ? XHS_IMAGE_PREAMBLE
-      : contentType === "xhs_video"
+      : contentType === 'xhs_video'
         ? XHS_VIDEO_PREAMBLE
-        : "";
+        : '';
 
-  const isVideo = contentType === "video";
+  const isVideo = contentType === 'video';
   const timestampInstruction = isVideo
     ? `
 
 ## Critical: timestamp citations
 The transcript above contains [m:ss] markers every ~6 seconds. EVERY hook, structural beat, and rehook MUST quote the exact [m:ss] marker present in the transcript. Format: \`[m:ss] "exact quoted line"\`. Do NOT invent timestamps that are not in the transcript. Do NOT use percentages or relative positions ("intro", "midpoint") — use the [m:ss] anchor.`
-    : "";
+    : '';
 
   // Creator-authored chapters: only ~33% of videos have these but when present
   // they're ground truth for the video's structural intent.
@@ -79,8 +80,10 @@ The transcript above contains [m:ss] markers every ~6 seconds. EVERY hook, struc
     isVideo && args.chapters && args.chapters.length > 0
       ? `\n\n## Chapters (creator-defined — these are ground-truth structural intent)\n${args.chapters
           .map((c) => `${fmtTs(c.start_time)}-${fmtTs(c.end_time)} ${c.title}`)
-          .join("\n")}\n\nWhen these chapters exist, ALIGN your \`opening_structure\` and \`script_structure\` to the chapter boundaries. Quote or paraphrase the chapter titles — they are the creator's own intent labels.`
-      : "";
+          .join(
+            '\n',
+          )}\n\nWhen these chapters exist, ALIGN your \`opening_structure\` and \`script_structure\` to the chapter boundaries. Quote or paraphrase the chapter titles — they are the creator's own intent labels.`
+      : '';
 
   // SponsorBlock segments: authoritative timestamps for intro/hook/sponsor/etc.
   // sponsor/selfpromo words have already been stripped from the transcript so
@@ -88,17 +91,22 @@ The transcript above contains [m:ss] markers every ~6 seconds. EVERY hook, struc
   const sponsorBlock =
     isVideo && args.sponsorChapters && args.sponsorChapters.length > 0
       ? `\n\n## SponsorBlock markers (authoritative timestamps; sponsor/selfpromo content already removed from transcript)\n${args.sponsorChapters
-          .map((c) => `${fmtTs(c.start_time)}-${fmtTs(c.end_time)} [${c.category}]`)
-          .join("\n")}\n\nWhen \`hook\`/\`intro\` markers exist, use those as the opening_hook boundary. When \`interaction\`/\`outro\` markers exist, use them for cta_placement. Do NOT infer hook/CTA from spans labeled \`sponsor\` or \`selfpromo\` — those are ads, not content.`
-      : "";
+          .map(
+            (c) =>
+              `${fmtTs(c.start_time)}-${fmtTs(c.end_time)} [${c.category}]`,
+          )
+          .join(
+            '\n',
+          )}\n\nWhen \`hook\`/\`intro\` markers exist, use those as the opening_hook boundary. When \`interaction\`/\`outro\` markers exist, use them for cta_placement. Do NOT infer hook/CTA from spans labeled \`sponsor\` or \`selfpromo\` — those are ads, not content.`
+      : '';
 
   const body = `You are an expert content analyst. Analyze this content and extract structured data about its scripting techniques.
 
 ## Video Information
 - **Title:** ${args.title}
-- **Views:** ${args.views?.toLocaleString("en-US") ?? "unknown"}
-- **Duration:** ${args.durationSec ?? "unknown"} seconds
-- **Thumbnail URL:** ${args.thumbnailUrl ?? "unknown"}
+- **Views:** ${args.views?.toLocaleString('en-US') ?? 'unknown'}
+- **Duration:** ${args.durationSec ?? 'unknown'} seconds
+- **Thumbnail URL:** ${args.thumbnailUrl ?? 'unknown'}
 ${chaptersBlock}${sponsorBlock}
 
 ## Full Transcript
@@ -129,10 +137,10 @@ Return ONLY valid JSON. No markdown code fences.
 `;
 
   const composed = preamble + body;
-  if (language !== "zh") return composed;
+  if (language !== 'zh') return composed;
   return (
     CHINESE_WRAPPER(composed) +
-    "\n\nIMPORTANT: JSON keys must remain in English (thumbnail_description, opening_hook, framework, …). Only the VALUES (the strings on the right side) should be in Simplified Chinese."
+    '\n\nIMPORTANT: JSON keys must remain in English (thumbnail_description, opening_hook, framework, …). Only the VALUES (the strings on the right side) should be in Simplified Chinese.'
   );
 }
 
@@ -142,18 +150,18 @@ type SopArgs = {
   totalViews: number | null;
   date: string;
   videosData: string;
-  language?: "en" | "zh";
+  language?: 'en' | 'zh';
 };
 
 export function buildHumanSopPrompt(args: SopArgs): string {
   const viewsClause =
     args.totalViews && args.totalViews > 0
-      ? `total views analyzed: ${args.totalViews.toLocaleString("en-US")}`
-      : "view counts unavailable for these videos";
+      ? `total views analyzed: ${args.totalViews.toLocaleString('en-US')}`
+      : 'view counts unavailable for these videos';
   const subtitleViews =
     args.totalViews && args.totalViews > 0
-      ? `Total views: ${args.totalViews.toLocaleString("en-US")}`
-      : "View counts unavailable";
+      ? `Total views: ${args.totalViews.toLocaleString('en-US')}`
+      : 'View counts unavailable';
   const inner = `You are an expert YouTube content strategist. Based on the analysis of the top ${args.videoCount} most-viewed videos from the channel "${args.channelName}" (${viewsClause}), create a comprehensive Scriptwriting Standard Operating Procedure that a writer could pick up and use to produce a new video in this channel's voice.
 
 ## Analyzed Videos Data
@@ -217,15 +225,17 @@ Translate the SOP into a 10-15-bullet actionable checklist a writer can tick bef
 
 Format as clean markdown. Cite \`[m:ss]\` timestamps from the analyzed transcripts wherever quoting a line — do NOT invent timestamps.
 `;
-  return args.language === "zh" ? CHINESE_WRAPPER(inner) : inner;
+  return args.language === 'zh' ? CHINESE_WRAPPER(inner) : inner;
 }
 
 export function buildAiSopReferencePrompt(args: SopArgs): string {
   const viewsLine =
     args.totalViews && args.totalViews > 0
-      ? `# Total Views: ${args.totalViews.toLocaleString("en-US")}`
-      : "# Total Views: unavailable";
+      ? `# Total Views: ${args.totalViews.toLocaleString('en-US')}`
+      : '# Total Views: unavailable';
   const inner = `You are creating an AI-optimized reference document for an automated scriptwriting agent. Based on the analysis of "${args.channelName}", create a structured reference.
+
+Write the ENTIRE document in English (it is read by an AI scriptwriter, not an end user). Keep verbatim quotes and example lines in their original language, but all headers, definitions, and explanations must be English.
 
 ## Analyzed Videos Data
 ${args.videosData}
@@ -300,10 +310,8 @@ Bulleted list of writing constraints the channel respects (e.g. "Never use rheto
 
 Return ONLY the document content above. No preface. No code fences around the whole document.
 `;
-  return args.language === "zh"
-    ? CHINESE_WRAPPER(inner) +
-        "\n\nIMPORTANT: 章节标识（CONTENT_FORMULA / HOOK_TEMPLATES 等）保留英文作为结构锚点，但所有描述、说明、例子、模板内容必须用简体中文。"
-    : inner;
+
+  return inner;
 }
 
 type HottestArgs = {
@@ -315,21 +323,23 @@ type HottestArgs = {
   transcript: string;
   analysisSummary: string;
   commentsSummary?: string | null;
-  language?: "en" | "zh";
+  language?: 'en' | 'zh';
 };
 
 export function buildHottestSopPrompt(args: HottestArgs): string {
   const viewsStr =
-    args.views && args.views > 0 ? args.views.toLocaleString("en-US") : "unavailable";
+    args.views && args.views > 0
+      ? args.views.toLocaleString('en-US')
+      : 'unavailable';
   const commentsBlock = args.commentsSummary
     ? `\n\n## What viewers actually say (top comments — sorted by likes)\n${args.commentsSummary}`
-    : "";
+    : '';
 
   const commentsInstruction = args.commentsSummary
     ? `
 
 After the Retention Tape, append a **Viewer Resonance** section: synthesize the comments above into a one-paragraph answer to "why DID this video go viral?" Cross-reference specific \`[m:ss]\` moments from the transcript with the themes viewers raised. Quote 1-2 comments verbatim if they directly explain a structural choice.`
-    : "";
+    : '';
 
   const inner = `You are an expert YouTube content analyst performing a deep structural breakdown of the #1 most-viewed video from "${args.channelName}".
 
@@ -357,5 +367,5 @@ After the Parts, append a **Retention Tape** section: a single chronological lis
 
 Format as clean markdown. NEVER invent timestamps — only use markers that are present in the transcript above.
 `;
-  return args.language === "zh" ? CHINESE_WRAPPER(inner) : inner;
+  return args.language === 'zh' ? CHINESE_WRAPPER(inner) : inner;
 }
