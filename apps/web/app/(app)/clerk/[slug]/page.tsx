@@ -136,12 +136,21 @@ export default async function ClerkChannelPage({ params }: Props) {
           {videos.map((v) => (
             <TableRow key={v.id}>
               <TableCell className="max-w-md truncate font-medium">
-                <Link
-                  href={`/clerk/${encodeURIComponent(slug)}/${encodeURIComponent(v.platformVideoId)}`}
-                  className="hover:text-foreground hover:underline"
-                >
-                  {v.title}
-                </Link>
+                <div className="flex items-center gap-2">
+                  {v.coverDiagnosis ? (
+                    <span
+                      title={`封面可改进点：${v.coverDiagnosis.slice(0, 200)}`}
+                      className="size-2 shrink-0 rounded-full bg-amber-500"
+                      aria-label="cover has diagnosis"
+                    />
+                  ) : null}
+                  <Link
+                    href={`/clerk/${encodeURIComponent(slug)}/${encodeURIComponent(v.platformVideoId)}`}
+                    className="truncate hover:text-foreground hover:underline"
+                  >
+                    {v.title}
+                  </Link>
+                </div>
               </TableCell>
               <TableCell>
                 <ContentTypeBadge contentType={v.contentType} />
