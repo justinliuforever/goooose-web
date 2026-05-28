@@ -117,17 +117,21 @@ export const detectChannelSeries = task({
         language,
       });
 
+      // DeepSeek Pro is a reasoning model — needs generous output budget so the
+      // JSON arrives after the reasoning tokens. 6K cap leaves no room for output.
       const result = await generateText({
-        model: llm("flash"),
+        model: llm("pro"),
         prompt,
-        maxOutputTokens: 4096,
+        maxOutputTokens: 12000,
         temperature: 0.3,
         maxRetries: 2,
       });
 
       const parsed = parseSeriesJson(result.text);
       if (!parsed || !Array.isArray(parsed.series)) {
-        throw new Error(`Series JSON parse failed. Head: ${result.text.slice(0, 200)}`);
+        throw new Error(
+          `Series JSON parse failed. finish=${result.finishReason ?? "unknown"} len=${result.text.length} head=${result.text.slice(0, 300)}`,
+        );
       }
       logger.info(`Detected ${parsed.series.length} series`);
 

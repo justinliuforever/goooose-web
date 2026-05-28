@@ -164,13 +164,17 @@ ${args.videosData}
 **Title:** "${args.channelName} Scriptwriting Standard Operating Procedure"
 **Subtitle:** "Based on analysis of Top ${args.videoCount} most-viewed videos | ${subtitleViews} | Generated: ${args.date}"
 
-**Table of Contents** (required): markdown bullet list linking to each section by name.
+**Table of Contents** (required): markdown bullet list linking to all numbered sections AND both appendices by name. Include sub-headings (e.g. 5.1, 6.1, 6.5, 7.5, Appendix A, Appendix B).
 
 **Section 1: Master Formula**
-Express the channel's content formula as a one-line equation, e.g. \`Hook (specific claim) → Setup (origin / stakes) → Payload (3-5 demonstrations) → Reframe (lesson) → CTA\`. Then break each variable down with a short paragraph and concrete examples from the analyzed videos. Cite at least two video titles per variable. This is the single most important section.
+1A. Express the channel's content formula as a one-line equation, e.g. \`Hook (specific claim) → Setup (origin / stakes) → Payload (3-5 demonstrations) → Reframe (lesson) → CTA\`. Then break each variable down with a short paragraph and concrete examples from the analyzed videos. Cite at least two video titles per variable. This is the single most important section.
 
-**Section 2: Common Themes**
-Cluster the analyzed videos into 3-6 recurring themes. For each theme: name, ratio of videos that hit it (e.g. "4/10"), why it works for this audience, and one concrete title example.
+1B. **Content Pillars** sub-section: cluster the analyzed videos into 3-5 content pillars by purpose (e.g. "Beginner Guides", "Gear Philosophy", "News Reactions"). For each pillar list 2-4 example video titles with their view counts.
+
+**Section 2: Common Themes & Brand Voice**
+2A. Cluster the analyzed videos into 3-6 recurring themes. For each theme: name, ratio of videos that hit it (e.g. "4/10"), why it works for this audience, and one concrete title example.
+
+2B. **Brand Voice** sub-section: 4-6 voice traits (e.g. "Conversational", "Self-deprecating", "Authority-flexing") — each with a one-line definition and a verbatim quoted phrase from the analyzed transcripts as proof.
 
 **Section 3: Cover / Thumbnail Playbook**
 - Visual pattern checklist (composition, color, faces, text overlays, props)
@@ -191,17 +195,25 @@ For each of the 3-5 distinct hook formulas used by the channel, write a Hook Car
 - **5.3 Emotional Escalation Map**: chart how energy/stakes shift over the runtime with cited \`[m:ss]\` peaks
 
 **Section 6: Storytelling Frameworks**
-Break this into FOUR explicit sub-sections:
+Break this into FIVE explicit sub-sections:
 - **6.1 Primary Framework**: name + 2-3 sentence definition + one full example video walk-through citing \`[m:ss]\` beats
 - **6.2 Secondary Frameworks**: 1-2 alternative shapes used when the primary doesn't fit
 - **6.3 Narrative Arc Shape**: the emotional arc plotted as a sequence (e.g. "calm → tension → reveal → relief → punchline") with timestamped examples
 - **6.4 Signature Moves**: 3-5 recurring narrative devices unique to this creator (catchphrases, structural tics, recurring sound-bites) with quoted examples
+- **6.5 Viewer Journey** (NEW): markdown table with columns \`Stage | Viewer feeling | Script section that triggers it | Cited [m:ss] example\` covering 5-7 stages from "scrolling past" → "took action".
 
 **Section 7: Retention Mechanics**
 - **7.1 Open Loops**: 3-5 specific open-loop phrases the channel uses with \`[m:ss]\` of where opened and where closed
 - **7.2 Rehook Phrases**: verbatim list of every "stay with me / here's the crazy part / wait until you see this" line found across the analyzed videos, each with \`[m:ss]\`
 - **7.3 Specificity Spikes**: concrete numbers, names, dates, dollar amounts that re-grab attention, each with \`[m:ss]\`
 - **7.4 Pattern Breaks**: tone shifts, B-roll cuts, recap interludes, with timestamps
+- **7.5 Emotional Reframes** (NEW): markdown table with columns \`Negative framing the audience expects | How this creator reframes it | Verbatim example + [m:ss]\` — 3-5 rows showing how the creator turns negatives (failures, cheap gear, common mistakes) into positives.
+
+**Appendix A: Pre-Writing Checklist**
+Translate the SOP into a 10-15-bullet actionable checklist a writer can tick before publishing (hook chosen, opening loop set, 2-3 rehooks placed, signature move included, specificity spike per minute, CTA tone, etc.).
+
+**Appendix B: Optimal Video Spec**
+2-column table (Element / Target) covering: ideal duration, hook duration, sponsor placement, sections count, visual-reveal cadence, anecdote count, CTA style — calibrated to the channel's top performers.
 
 Format as clean markdown. Cite \`[m:ss]\` timestamps from the analyzed transcripts wherever quoting a line — do NOT invent timestamps.
 `;
