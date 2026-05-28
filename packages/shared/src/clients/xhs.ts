@@ -339,7 +339,8 @@ export async function resolveXhsUser(profileUrlOrId: string): Promise<XhsUser> {
   if (!userId) {
     throw new Error(`Could not extract XHS user_id from: ${profileUrlOrId}`);
   }
-  const j = await get<RawUserInfo>("/api/v1/xiaohongshu/web/get_user_info", { user_id: userId });
+  // app_v2 replaces deprecated `web/get_user_info`. Response shape backward-compatible.
+  const j = await get<RawUserInfo>("/api/v1/xiaohongshu/app_v2/get_user_info", { user_id: userId });
   const d = j.data?.data ?? {};
   const interactions = d.interactions ?? [];
   const fansCount = Number(interactions.find((i) => i.type === "fans")?.count ?? 0);
@@ -366,8 +367,10 @@ export async function getXhsUserNotes(
 ): Promise<XhsNote[]> {
   const userId = extractXhsUserId(profileUrlOrId);
   if (!userId) throw new Error(`Could not extract user_id from: ${profileUrlOrId}`);
-  const j = await get<RawNoteListResp>("/api/v1/xiaohongshu/web/get_user_notes_v2", {
+  // app_v2 replaces deprecated `web/get_user_notes_v2`. Response keeps `data.data.notes`.
+  const j = await get<RawNoteListResp>("/api/v1/xiaohongshu/app_v2/get_user_posted_notes", {
     user_id: userId,
+    num: String(Math.max(limit, 10)),
   });
   const raws = j.data?.data?.notes ?? [];
   return raws.slice(0, limit).map((n) => normalizeNote(n));
