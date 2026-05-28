@@ -75,8 +75,12 @@ function slugify(name: string): string {
 }
 
 async function assertNoActiveRun(channelId: string, agent: "clerk" | "muse" | "poet") {
+  // Ignore "pending" rows older than 30 min — they're orphans (e.g. a smoke
+  // script staged the row but never triggered the task). Without this filter,
+  // a single orphan would block all future runs for the channel + agent.
+  const orphanCutoff = new Date(Date.now() - 30 * 60 * 1000);
   const [active] = await db
-    .select({ id: pipelineRuns.id })
+    .select({ id: pipelineRuns.id, startedAt: pipelineRuns.startedAt })
     .from(pipelineRuns)
     .where(
       and(
@@ -85,8 +89,9 @@ async function assertNoActiveRun(channelId: string, agent: "clerk" | "muse" | "p
         inArray(pipelineRuns.status, ["pending", "running"]),
       ),
     )
+    .orderBy(desc(pipelineRuns.startedAt))
     .limit(1);
-  if (active) {
+  if (active && active.startedAt > orphanCutoff) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
       message: "该频道当前已有运行中的任务，请等其完成后再启动",
@@ -287,6 +292,62 @@ export const appRouter = router({
           .returning();
         if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         return updated;
+      }),
+  }),
+
+  pipeline: router({
+    listActive: protectedProcedure
+      .input(z.object({ channelId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        return db
+          .select({
+            id: pipelineRuns.id,
+            agent: pipelineRuns.agent,
+            command: pipelineRuns.command,
+            status: pipelineRuns.status,
+            startedAt: pipelineRuns.startedAt,
+            configJson: pipelineRuns.configJson,
+          })
+          .from(pipelineRuns)
+          .innerJoin(channels, eq(channels.id, pipelineRuns.channelId))
+          .where(
+            and(
+              eq(pipelineRuns.channelId, input.channelId),
+              eq(channels.userId, ctx.user.id),
+              inArray(pipelineRuns.status, ["pending", "running"]),
+            ),
+          )
+          .orderBy(desc(pipelineRuns.startedAt));
+      }),
+
+    cancelRun: protectedProcedure
+      .input(z.object({ runId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const [run] = await db
+          .select({
+            id: pipelineRuns.id,
+            configJson: pipelineRuns.configJson,
+            status: pipelineRuns.status,
+          })
+          .from(pipelineRuns)
+          .innerJoin(channels, eq(channels.id, pipelineRuns.channelId))
+          .where(and(eq(pipelineRuns.id, input.runId), eq(channels.userId, ctx.user.id)))
+          .limit(1);
+        if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+
+        const triggerRunId = (run.configJson as { triggerRunId?: string } | null)?.triggerRunId;
+        if (triggerRunId) {
+          try {
+            await runs.cancel(triggerRunId);
+          } catch {
+            /* Trigger.dev side may already be terminal — swallow. */
+          }
+        }
+        await db
+          .update(pipelineRuns)
+          .set({ status: "failed", errorMessage: "User canceled", completedAt: new Date() })
+          .where(eq(pipelineRuns.id, run.id));
+        return { runId: run.id };
       }),
   }),
 

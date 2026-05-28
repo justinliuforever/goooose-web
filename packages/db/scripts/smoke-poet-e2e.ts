@@ -40,6 +40,9 @@ try {
       command: "poet-generate-bible",
       status: "pending",
       configJson: { smoke: true, language: "en" },
+      status: "failed",
+      errorMessage: "Smoke placeholder — trigger via MCP if needed",
+      completedAt: new Date(),
     })
     .returning({ id: pipelineRuns.id });
 

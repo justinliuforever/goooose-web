@@ -19,6 +19,7 @@ import {
   type SeriesDetectResponse,
 } from "@singularity/shared/prompts/clerk-series";
 import { listChannelVideosYtdlp } from "@singularity/shared/clients/ytdlp";
+import { fetchVideoMetadataBatch } from "@singularity/shared/clients/youtube-data";
 
 type Payload = {
   channelId: string;
@@ -117,15 +118,25 @@ export const detectChannelSeries = task({
         language,
       });
 
-      // DeepSeek Pro is a reasoning model — needs generous output budget so the
-      // JSON arrives after the reasoning tokens. 6K cap leaves no room for output.
-      const result = await generateText({
-        model: llm("pro"),
+      // Title-only clustering is a Flash-tier task; fall back to Pro only if Flash
+      // emits empty output (DeepSeek's reasoning-budget-empty-text quirk).
+      let result = await generateText({
+        model: llm("flash"),
         prompt,
-        maxOutputTokens: 12000,
+        maxOutputTokens: 8000,
         temperature: 0.3,
         maxRetries: 2,
       });
+      if (result.text.length === 0) {
+        logger.warn("Flash returned empty for series detect; retrying with Pro");
+        result = await generateText({
+          model: llm("pro"),
+          prompt,
+          maxOutputTokens: 12000,
+          temperature: 0.3,
+          maxRetries: 2,
+        });
+      }
 
       const parsed = parseSeriesJson(result.text);
       if (!parsed || !Array.isArray(parsed.series)) {
@@ -142,6 +153,11 @@ export const detectChannelSeries = task({
         detail: `写入 ${parsed.series.length} 个系列`,
       });
 
+      // Enrich with YT Data API so sampleVideos carry real viewCount + publishedAt
+      // (yt-dlp flat returns null/0 for both).
+      const enrich = await fetchVideoMetadataBatch(videos.map((v) => v.video_id));
+      logger.info(`Enriched ${enrich.size}/${videos.length} videos via YT Data API`);
+
       // Replace prior detection for this channel (single canonical clustering per run).
       await db.delete(channelSeries).where(eq(channelSeries.channelId, channel.id));
 
@@ -151,14 +167,16 @@ export const detectChannelSeries = task({
         const sampleVideos: SeriesVideoRef[] = s.video_indices
           .map((idx) => videos[idx - 1])
           .filter((v): v is NonNullable<typeof v> => !!v)
-          .slice(0, 12)
-          .map((v) => ({
-            video_id: v.video_id,
-            title: v.title,
-            duration_sec: v.duration_sec,
-            views: v.views,
-            published_at: v.published_at,
-          }));
+          .map((v) => {
+            const yt = enrich.get(v.video_id);
+            return {
+              video_id: v.video_id,
+              title: yt?.title || v.title,
+              duration_sec: yt?.durationSec ?? v.duration_sec,
+              views: yt?.viewCount ?? v.views,
+              published_at: yt?.publishedAt ?? v.published_at,
+            };
+          });
         if (sampleVideos.length === 0) continue;
         await db.insert(channelSeries).values({
           channelId: channel.id,
