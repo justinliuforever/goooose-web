@@ -70,6 +70,9 @@ export default async function MuseChannelPage({ params }: Props) {
         factsAndData: museIdeas.factsAndData,
         whySimilar: museIdeas.whySimilar,
         viralTrigger: museIdeas.viralTrigger,
+        coverConcept: museIdeas.coverConcept,
+        suggestedHookType: museIdeas.suggestedHookType,
+        riskFactors: museIdeas.riskFactors,
         approved: museIdeas.approved,
         scripted: museIdeas.scripted,
         generatedAt: museIdeas.generatedAt,
@@ -317,6 +320,35 @@ export default async function MuseChannelPage({ params }: Props) {
                       为什么对标
                     </h4>
                     <p className="text-sm whitespace-pre-wrap">{idea.whySimilar}</p>
+                  </div>
+                ) : null}
+
+                {idea.coverConcept ? (
+                  <div className="flex flex-col gap-1">
+                    <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                      封面建议
+                    </h4>
+                    <p className="text-sm whitespace-pre-wrap">{idea.coverConcept}</p>
+                  </div>
+                ) : null}
+
+                {idea.suggestedHookType ? (
+                  <div className="flex flex-col gap-1">
+                    <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                      建议钩子类型
+                    </h4>
+                    <p className="text-sm whitespace-pre-wrap">{idea.suggestedHookType}</p>
+                  </div>
+                ) : null}
+
+                {idea.riskFactors ? (
+                  <div className="flex flex-col gap-1">
+                    <h4 className="text-xs font-medium tracking-wide text-amber-700 dark:text-amber-400 uppercase">
+                      风险提示
+                    </h4>
+                    <p className="text-sm whitespace-pre-wrap text-amber-700 dark:text-amber-400">
+                      {idea.riskFactors}
+                    </p>
                   </div>
                 ) : null}
 

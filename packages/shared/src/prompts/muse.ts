@@ -129,7 +129,10 @@ Return JSON:
     {
       "story_angle": "Compelling working title capturing the viral hook.",
       "facts_and_data": "2-3 specific facts, statistics, or data points.",
-      "why_similar": "One sentence on how this uses the same viral trigger."
+      "why_similar": "One sentence on how this uses the same viral trigger.",
+      "cover_concept": "1-sentence visual concept for the thumbnail (subject, text overlay, emotion, color cue).",
+      "suggested_hook_type": "One of the channel's hook formulas to open with (e.g. 'Ironic Contradiction', 'Curiosity Gap', 'Personal Crisis'). Reuse the channel's vocabulary.",
+      "risk_factors": "1-2 sentences flagging why this idea could underperform (sensitive topic, low search volume, dated reference, off-brand)."
     }
   ]
 }
@@ -139,6 +142,6 @@ Return ONLY valid JSON. Generate exactly ${args.numIdeas} ideas.
   if (args.language !== "zh") return inner;
   return (
     CHINESE_WRAPPER(inner) +
-    '\n\nIMPORTANT: JSON keys must remain in English (ideas, story_angle, facts_and_data, why_similar). Only the VALUES should be in Simplified Chinese.'
+    '\n\nIMPORTANT: JSON keys must remain in English (ideas, story_angle, facts_and_data, why_similar, cover_concept, suggested_hook_type, risk_factors). Only the VALUES should be in Simplified Chinese.'
   );
 }

@@ -516,6 +516,9 @@ export const monitorCompetitors = task({
                 factsAndData: safeText(idea.facts_and_data),
                 whySimilar: safeText(idea.why_similar),
                 viralTrigger: safeText(viralTrigger),
+                coverConcept: safeText(idea.cover_concept),
+                suggestedHookType: safeText(idea.suggested_hook_type),
+                riskFactors: safeText(idea.risk_factors),
                 runId: payload.runId,
               })),
             ).onConflictDoNothing();

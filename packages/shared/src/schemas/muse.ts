@@ -12,6 +12,9 @@ export const ideaSchema = z.object({
   story_angle: z.string().default(""),
   facts_and_data: z.string().default(""),
   why_similar: z.string().default(""),
+  cover_concept: z.string().default(""),
+  suggested_hook_type: z.string().default(""),
+  risk_factors: z.string().default(""),
 });
 
 export const ideasResponseSchema = z.object({
