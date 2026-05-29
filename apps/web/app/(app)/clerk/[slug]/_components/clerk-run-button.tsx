@@ -3,6 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
@@ -38,48 +39,73 @@ export function ClerkRunButton({ channelId, channelName, platform, initialActive
         : null,
   );
 
+  // Portal target for the full-width progress panel (rendered below the header by
+  // the page). Keeps the header showing a compact chip while the detailed panel
+  // spans full width — avoids a narrow card squeezed into the header slot.
+  const [panelSlot, setPanelSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setPanelSlot(document.getElementById("clerk-run-panel-slot"));
+  }, []);
+
+  const cancel = trpc.pipeline.cancelRun.useMutation({
+    onSuccess: () => {
+      setActive(null);
+      setStartedAt(null);
+      toast.success("已取消分析");
+      utils.invalidate();
+      router.refresh();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  if (!active || !startedAt) {
+    return (
+      <ClerkStartSheet
+        channelId={channelId}
+        channelName={channelName}
+        platform={platform}
+        disabled={false}
+        onStarted={(run) => {
+          setActive(run);
+          setStartedAt(Date.now());
+        }}
+      />
+    );
+  }
+
+  const panel = (
+    <ClerkRunProgress
+      triggerRunId={active.triggerRunId}
+      accessToken={active.publicAccessToken}
+      startedAt={startedAt}
+      onCancel={() => cancel.mutate({ runId: active.runId })}
+      canceling={cancel.isPending}
+      onProgressTick={() => {
+        utils.invalidate();
+        router.refresh();
+      }}
+      onSettled={(ok, message) => {
+        setActive(null);
+        setStartedAt(null);
+        if (ok) {
+          toast.success(message ?? "分析完成");
+          utils.invalidate();
+          router.refresh();
+        } else {
+          toast.error(message ?? "分析失败");
+        }
+      }}
+    />
+  );
+
   return (
-    <div className="flex flex-col items-end gap-2">
-      {active ? (
-        <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5 text-xs text-muted-foreground">
-          <Loader2 className="size-3 animate-spin" />
-          分析中…
-        </div>
-      ) : (
-        <ClerkStartSheet
-          channelId={channelId}
-          channelName={channelName}
-          platform={platform}
-          disabled={!!active}
-          onStarted={(run) => {
-            setActive(run);
-            setStartedAt(Date.now());
-          }}
-        />
-      )}
-      {active && startedAt ? (
-        <ClerkRunProgress
-          triggerRunId={active.triggerRunId}
-          accessToken={active.publicAccessToken}
-          startedAt={startedAt}
-          onProgressTick={() => {
-            utils.invalidate();
-            router.refresh();
-          }}
-          onSettled={(ok, message) => {
-            setActive(null);
-            setStartedAt(null);
-            if (ok) {
-              toast.success(message ?? "分析完成");
-              utils.invalidate();
-              router.refresh();
-            } else {
-              toast.error(message ?? "分析失败");
-            }
-          }}
-        />
-      ) : null}
-    </div>
+    <>
+      <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5 text-xs text-muted-foreground">
+        <Loader2 className="size-3 animate-spin" />
+        分析中…
+      </div>
+      {panelSlot ? createPortal(panel, panelSlot) : null}
+    </>
   );
 }
 
@@ -98,12 +124,16 @@ function ClerkRunProgress({
   startedAt,
   onSettled,
   onProgressTick,
+  onCancel,
+  canceling,
 }: {
   triggerRunId: string;
   accessToken: string;
   startedAt: number;
   onSettled: (ok: boolean, message?: string) => void;
   onProgressTick: (phase: string | undefined) => void;
+  onCancel?: () => void;
+  canceling?: boolean;
 }) {
   const { run, error } = useRealtimeRun(triggerRunId, { accessToken });
 
@@ -163,6 +193,8 @@ function ClerkRunProgress({
       log={log}
       videoTracks={videoTracks}
       allDone={run?.status === "COMPLETED"}
+      onCancel={onCancel}
+      canceling={canceling}
     />
   );
 }

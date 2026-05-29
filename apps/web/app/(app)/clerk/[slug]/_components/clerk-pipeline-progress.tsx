@@ -1,7 +1,9 @@
 "use client";
 
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+
+import { Button } from "@/components/ui/button";
 
 import { ActivityLog, type LogEntry } from "./activity-log";
 import { LiveVideoTracks, type VideoTrack } from "./live-video-tracks";
@@ -58,6 +60,8 @@ type Props = {
   log: LogEntry[];
   videoTracks: Record<string, VideoTrack>;
   allDone?: boolean;
+  onCancel?: () => void;
+  canceling?: boolean;
 };
 
 function fmtSeconds(sec: number): string {
@@ -85,6 +89,8 @@ export function ClerkPipelineProgress({
   log,
   videoTracks,
   allDone,
+  onCancel,
+  canceling,
 }: Props) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -124,19 +130,36 @@ export function ClerkPipelineProgress({
   const showTracks = isAnalyzeStage && Object.keys(videoTracks).length > 0;
 
   return (
-    <div className="flex w-full max-w-md flex-col gap-3 rounded-lg border bg-card p-4 text-sm sm:w-[460px]">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+    <div className="flex w-full flex-col gap-3 rounded-lg border bg-card p-4 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
           {allDone ? (
-            <Check className="size-4.5 text-clerk" />
+            <Check className="size-4.5 shrink-0 text-clerk" />
           ) : (
-            <Loader2 className="size-4 animate-spin text-clerk" />
+            <Loader2 className="size-4 shrink-0 animate-spin text-clerk" />
           )}
           <span className="text-sm font-medium text-foreground">
-            {allDone ? "已完成" : phase ? "分析中" : "准备中…"}
+            {allDone ? "分析完成" : phase ? "分析中" : "准备中…"}
+          </span>
+          <span className="truncate text-xs text-muted-foreground">
+            · 完成前无法启动新的分析任务
           </span>
         </div>
-        <span className="font-mono text-xs text-muted-foreground">{fmtElapsed(elapsed)}</span>
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="font-mono text-xs text-muted-foreground">{fmtElapsed(elapsed)}</span>
+          {onCancel && !allDone ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+              onClick={onCancel}
+              disabled={canceling}
+            >
+              <X className="size-3" />
+              {canceling ? "取消中…" : "取消"}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {total > 0 ? (

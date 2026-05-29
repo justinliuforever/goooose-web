@@ -20,7 +20,6 @@ import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
-import { ActiveRunsBanner } from "@/components/active-runs-banner";
 
 import { ClerkRunButton } from "./_components/clerk-run-button";
 import { DeleteSopButton } from "./_components/delete-sop-button";
@@ -106,7 +105,7 @@ export default async function ClerkChannelPage({ params }: Props) {
         Clerk · 分析师
       </Button>
 
-      <header className="flex flex-col items-start gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <header className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="size-2 shrink-0 rounded-full bg-clerk" />
           <h1 className="truncate text-2xl font-semibold tracking-tight">{channel.name}</h1>
@@ -122,7 +121,7 @@ export default async function ClerkChannelPage({ params }: Props) {
         />
       </header>
 
-      <ActiveRunsBanner channelId={channel.id} />
+      <div id="clerk-run-panel-slot" className="empty:hidden" />
 
       <div className="overflow-x-auto rounded-md border">
       <Table>
