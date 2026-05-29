@@ -17,7 +17,7 @@ import {
   transcribeFromStreams,
   transcribeYoutubeVideo,
 } from "@singularity/shared/clients/asr";
-import type { ProxyPool } from "@singularity/shared/proxy";
+import { classifyError, type ProxyPool } from "@singularity/shared/proxy";
 import {
   getVideoMetadataYtdlp,
   listChannelVideosYtdlp,
@@ -158,29 +158,40 @@ export const monitorCompetitors = task({
               logger.warn(`Competitor ${comp.url}: YouTube path needs proxyPool — skipping`);
               continue;
             }
-            const session = proxyPool.checkout();
-            try {
-              const videos = await listChannelVideosYtdlp(
-                comp.url,
-                maxVideosPerCompetitor,
-                session.url,
-              );
-              proxyPool.reportOk(session, 5_000);
-              for (const v of videos) {
-                candidates.push({
-                  competitorIndex: ci,
-                  competitorUrl: comp.url,
-                  platform: "youtube",
-                  videoId: v.video_id,
-                  title: v.title,
-                  viewCount: v.views,
-                  duration: v.duration_sec ? String(v.duration_sec) : undefined,
-                });
+            const scoutAttempts = 4;
+            let listed = false;
+            for (let attempt = 1; attempt <= scoutAttempts; attempt++) {
+              const session = proxyPool.checkout();
+              try {
+                const videos = await listChannelVideosYtdlp(
+                  comp.url,
+                  maxVideosPerCompetitor,
+                  session.url,
+                );
+                proxyPool.reportOk(session, 5_000);
+                for (const v of videos) {
+                  candidates.push({
+                    competitorIndex: ci,
+                    competitorUrl: comp.url,
+                    platform: "youtube",
+                    videoId: v.video_id,
+                    title: v.title,
+                    viewCount: v.views,
+                    duration: v.duration_sec ? String(v.duration_sec) : undefined,
+                  });
+                }
+                listed = true;
+                break;
+              } catch (err) {
+                const kind = classifyError(err, (err as Error & { status?: number }).status);
+                proxyPool.reportErr(session, (err as Error).message, kind);
+                if (attempt < scoutAttempts && (kind === "bot_check" || kind === "consecutive_403")) {
+                  continue;
+                }
+                throw err;
               }
-            } catch (err) {
-              proxyPool.reportErr(session, (err as Error).message, "other");
-              throw err;
             }
+            if (!listed) continue;
           }
         } catch (err) {
           logger.warn(`Competitor ${comp.url} failed: ${(err as Error).message}`);
@@ -291,14 +302,23 @@ export const monitorCompetitors = task({
             if (!proxyPool) {
               throw new Error("YouTube path requires proxyPool — not loaded");
             }
-            const metaSession = proxyPool.checkout();
             let info: Awaited<ReturnType<typeof getVideoMetadataYtdlp>> | null = null;
-            try {
-              info = await getVideoMetadataYtdlp(ref.videoId, metaSession.url);
-              proxyPool.reportOk(metaSession, 10_000);
-            } catch (err) {
-              proxyPool.reportErr(metaSession, (err as Error).message, "other");
-              logger.warn(`yt-dlp metadata failed for ${ref.videoId}: ${(err as Error).message?.slice(0, 120)}`);
+            const metaAttempts = 3;
+            for (let attempt = 1; attempt <= metaAttempts; attempt++) {
+              const metaSession = proxyPool.checkout();
+              try {
+                info = await getVideoMetadataYtdlp(ref.videoId, metaSession.url);
+                proxyPool.reportOk(metaSession, 10_000);
+                break;
+              } catch (err) {
+                const kind = classifyError(err, (err as Error & { status?: number }).status);
+                proxyPool.reportErr(metaSession, (err as Error).message, kind);
+                if (attempt < metaAttempts && (kind === "bot_check" || kind === "consecutive_403")) {
+                  continue;
+                }
+                logger.warn(`yt-dlp metadata failed for ${ref.videoId}: ${(err as Error).message?.slice(0, 120)}`);
+                break;
+              }
             }
 
             const candidateDuration =

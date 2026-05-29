@@ -9,6 +9,7 @@ export type ErrorKind =
   | "consecutive_403"
   | "auth_failed"
   | "timeout"
+  | "bot_check"
   | "manual"
   | "other";
 

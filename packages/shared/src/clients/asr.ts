@@ -373,6 +373,7 @@ async function transcribeYoutubeOnce(
   await ensureYtdlpBinary();
 
   // Caption-first: ~50KB vs 5-10MB audio download. Skip on caption miss or short text.
+  let captionBotCheck: Error | null = null;
   try {
     onPhase?.("selecting");
     const captions = await getAutoCaptionsYtdlp(
@@ -406,10 +407,13 @@ async function transcribeYoutubeOnce(
       logger?.info(`${tag}: no auto-captions found, falling through to audio ASR`);
     }
   } catch (err) {
+    const status = (err as Error & { status?: number }).status;
+    if (classifyError(err, status) === "bot_check") captionBotCheck = err as Error;
     logger?.warn(`${tag}: caption attempt threw: ${(err as Error).message?.slice(0, 120)}`);
   }
 
   if (opts.durationSec !== undefined && opts.durationSec > MAX_AUDIO_DURATION_SEC) {
+    if (captionBotCheck) throw captionBotCheck;
     logger?.info(
       `${tag}: skipping audio ASR — duration ${opts.durationSec}s > ${MAX_AUDIO_DURATION_SEC}s cap`,
     );
@@ -448,12 +452,12 @@ async function transcribeYoutubeOnce(
 }
 
 // High-level YouTube ASR: checks out session from pool, downloads via that session,
-// reports outcome back to pool. Retries once on session-fatal error with a new session.
+// reports outcome back to pool. Each retry checks out a fresh session (rotates IP).
 export async function transcribeYoutubeVideo(
   videoId: string,
   pool: ProxyPool,
   opts: TranscribeOpts = {},
-  maxAttempts = 2,
+  maxAttempts = 3,
 ): Promise<AsrResult | null> {
   let lastErr: Error | undefined;
   let excludeProvider: string | undefined;

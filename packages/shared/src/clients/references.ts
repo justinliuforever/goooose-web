@@ -1,4 +1,4 @@
-import { ProxyPool } from "../proxy";
+import { classifyError, ProxyPool } from "../proxy";
 import { type CaptionTrack } from "./tikhub";
 import {
   renderTranscriptWithTimestamps,
@@ -81,13 +81,22 @@ async function fetchYoutubeReference(
     };
   }
   try {
-    const metaSession = pool.checkout();
     let info: Awaited<ReturnType<typeof getVideoMetadataYtdlp>> | null = null;
-    try {
-      info = await getVideoMetadataYtdlp(videoId, metaSession.url);
-      pool.reportOk(metaSession, 10_000);
-    } catch (err) {
-      pool.reportErr(metaSession, (err as Error).message, "other");
+    const metaAttempts = 3;
+    for (let attempt = 1; attempt <= metaAttempts; attempt++) {
+      const metaSession = pool.checkout();
+      try {
+        info = await getVideoMetadataYtdlp(videoId, metaSession.url);
+        pool.reportOk(metaSession, 10_000);
+        break;
+      } catch (err) {
+        const kind = classifyError(err, (err as Error & { status?: number }).status);
+        pool.reportErr(metaSession, (err as Error).message, kind);
+        if (attempt < metaAttempts && (kind === "bot_check" || kind === "consecutive_403")) {
+          continue;
+        }
+        break;
+      }
     }
     const asr = await transcribeYoutubeVideo(videoId, pool, {
       durationSec: info?.duration_sec,
