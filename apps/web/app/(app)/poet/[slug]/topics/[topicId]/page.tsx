@@ -107,25 +107,17 @@ export default async function PoetTopicDetailPage({ params }: Props) {
         </h1>
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <Badge variant="secondary" className="font-mono text-[10px]">
-            {topic.status}
+            {topic.status === "draft" ? "草稿" : topic.status === "analyzed" ? "已分析" : "已写稿"}
           </Badge>
           <span className="font-mono text-xs uppercase">{topic.language}</span>
-          {topic.durationMinutes ? (
-            <span className="font-mono text-xs">{topic.durationMinutes}m target</span>
-          ) : null}
-          {topic.targetWordCount ? (
-            <span className="font-mono text-xs">{topic.targetWordCount} words</span>
-          ) : null}
-          <span className="font-mono text-xs">
-            updated {formatDateTime(topic.updatedAt)}
-          </span>
+          <span className="font-mono text-xs">更新于 {formatDateTime(topic.updatedAt)}</span>
         </div>
       </header>
 
       {topic.references.length > 0 ? (
         <section className="flex flex-col gap-2">
           <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            References
+            参考素材
           </h3>
           <div className="flex flex-wrap gap-2">
             {topic.references.map((reference, i) => (
@@ -135,21 +127,21 @@ export default async function PoetTopicDetailPage({ params }: Props) {
         </section>
       ) : null}
 
-      <Section title="Story angle" body={topic.storyAngle} />
-      <Section title="Facts & data" body={topic.factsAndData} />
-      <Section title="Verbatim facts" body={topic.verbatimFacts} />
-      <Section title="Why similar" body={topic.whySimilar} />
-      <Section title="Viral trigger" body={topic.viralTrigger} />
+      <Section title="故事角度" body={topic.storyAngle} />
+      <Section title="事实与数据" body={topic.factsAndData} />
+      <Section title="原文事实" body={topic.verbatimFacts} />
+      <Section title="为什么对标" body={topic.whySimilar} />
+      <Section title="爆款触发因素" body={topic.viralTrigger} />
 
       {bible || sop ? (
         <section className="flex flex-col gap-2 border-t pt-6">
           <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Linked
+            关联
           </h3>
           <div className="flex flex-col gap-1 text-sm">
             {bible ? (
               <span>
-                Bible:{" "}
+                圣经：{" "}
                 <Link
                   href={`/poet/${encodeURIComponent(slug)}`}
                   className="hover:text-foreground hover:underline"
@@ -160,7 +152,7 @@ export default async function PoetTopicDetailPage({ params }: Props) {
             ) : null}
             {sop ? (
               <span className="font-mono text-xs text-muted-foreground">
-                SOP: {sop.sopType} ({sop.language})
+                SOP：{sop.sopType}（{sop.language}）
               </span>
             ) : null}
           </div>

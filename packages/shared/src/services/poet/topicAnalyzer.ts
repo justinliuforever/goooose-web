@@ -1,6 +1,4 @@
-import { generateText } from "ai";
-
-import { llm } from "../../clients/llm";
+import { generateTextWithFallback } from "../../clients/llm";
 import { buildTopicAnalysisPrompt } from "../../prompts/poet";
 import { formatReferencesBlock, type ScriptReference } from "./scriptWriter";
 
@@ -59,8 +57,9 @@ export async function analyzeTopic(args: AnalyzeTopicArgs): Promise<TopicAnalysi
 
   let data: Record<string, unknown> = {};
   for (let attempt = 0; attempt < 2; attempt++) {
-    const result = await generateText({
-      model: llm("pro"),
+    // Pro-first, auto-downgrade to Flash on empty so reasoning-budget burn doesn't
+    // yield an empty (but "successful") analysis.
+    const result = await generateTextWithFallback({
       prompt,
       temperature: 0.6,
       maxOutputTokens: 6144,
@@ -73,11 +72,19 @@ export async function analyzeTopic(args: AnalyzeTopicArgs): Promise<TopicAnalysi
     }
   }
 
-  return {
+  const analysis = {
     storyAngle: toText(data.story_angle),
     factsAndData: toText(data.facts_and_data),
     verbatimFacts: toText(data.verbatim_facts),
     whySimilar: toText(data.why_similar),
     viralTrigger: toText(data.viral_trigger),
   };
+  // Don't pass a content-less analysis off as success — the caller marks the topic
+  // 'analyzed' and feeds it to script generation. Fail loudly so the run retries.
+  if (!analysis.storyAngle && !analysis.factsAndData) {
+    throw new Error(
+      "Topic analysis produced no usable content (story_angle + facts_and_data empty)",
+    );
+  }
+  return analysis;
 }

@@ -31,11 +31,13 @@ async function get<T>(
           "User-Agent": "Mozilla/5.0",
         },
       });
-      if (res.status >= 500 || res.status === 400) {
+      if (res.status >= 500 || res.status === 429 || res.status === 400) {
         const body = await res.text();
         lastErr = new Error(`TikHub ${endpoint} HTTP ${res.status}: ${body.slice(0, 120)}`);
         if (i < attempts) {
-          await new Promise((r) => setTimeout(r, 800 * i));
+          const retryAfter = Number(res.headers.get("retry-after"));
+          const waitMs = res.status === 429 && retryAfter > 0 ? retryAfter * 1000 : 800 * i;
+          await new Promise((r) => setTimeout(r, waitMs));
           continue;
         }
         throw lastErr;

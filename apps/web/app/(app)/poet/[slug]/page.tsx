@@ -5,6 +5,7 @@ import { ChevronLeft } from "lucide-react";
 
 import {
   channels,
+  clerkSops,
   museIdeas,
   museMonitorVideos,
   poetBible,
@@ -14,6 +15,7 @@ import {
   type CustomTopicReference,
 } from "@singularity/db";
 
+import { formatDurationLabel } from "@singularity/shared/schemas/poet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getActiveAgentRun } from "@/lib/agent-run";
@@ -21,7 +23,6 @@ import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
-import { BibleEditSheet } from "./_components/bible-edit-sheet";
 import { BibleGenerateSheet } from "./_components/bible-generate-sheet";
 import { BibleHistory } from "./_components/bible-history";
 import { DeleteScriptButton } from "./_components/delete-script-button";
@@ -55,7 +56,7 @@ export default async function PoetChannelPage({ params }: Props) {
     .limit(1);
   if (!channel || channel.userId !== user.id) notFound();
 
-  const [activeBibleRow, bibles, latestDrift, approvedIdeas, customTopics, scripts, activeRun] =
+  const [activeBibleRow, bibles, latestDrift, approvedIdeas, customTopics, scripts, activeRun, aiSopRows] =
     await Promise.all([
       db
         .select()
@@ -108,9 +109,15 @@ export default async function PoetChannelPage({ params }: Props) {
         .orderBy(desc(poetScripts.generatedAt))
         .limit(20),
       getActiveAgentRun(channel.id, user.id, "poet"),
+      db
+        .select({ id: clerkSops.id })
+        .from(clerkSops)
+        .where(and(eq(clerkSops.channelId, channel.id), eq(clerkSops.sopType, "ai_reference")))
+        .limit(1),
     ]);
 
   const activeBible = activeBibleRow[0] ?? null;
+  const hasAiReferenceSop = aiSopRows.length > 0;
   const recentDrift = latestDrift[0] ?? null;
   const showDriftBanner =
     recentDrift !== null &&
@@ -173,29 +180,13 @@ export default async function PoetChannelPage({ params }: Props) {
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-muted-foreground">频道圣经</h2>
-          {activeBible ? (
-            <div className="flex items-center gap-2">
-              <BibleEditSheet
-                bibleId={activeBible.id}
-                bibleName={activeBible.name}
-                bibleContent={activeBible.content}
-              />
-              <BibleGenerateSheet
-                channelId={channel.id}
-                channelName={channel.name}
-                channelDescription={channel.description}
-                buttonLabel="重新生成"
-                buttonVariant="outline"
-              />
-            </div>
-          ) : (
-            <BibleGenerateSheet
-              channelId={channel.id}
-              channelName={channel.name}
-              channelDescription={channel.description}
-              buttonLabel="生成圣经"
-            />
-          )}
+          <BibleGenerateSheet
+            channelId={channel.id}
+            channelName={channel.name}
+            channelDescription={channel.description}
+            buttonLabel={activeBible ? "+ 新建 Bible" : "生成圣经"}
+            buttonVariant={activeBible ? "outline" : "default"}
+          />
         </div>
 
         {activeBible ? (
@@ -219,7 +210,13 @@ export default async function PoetChannelPage({ params }: Props) {
             <span className="text-xs">先生成一份，再来选题写稿</span>
           </div>
         )}
-        <BibleHistory bibles={bibles} />
+        <BibleHistory
+          bibles={
+            activeBible && !bibles.some((b) => b.id === activeBible.id)
+              ? [activeBible, ...bibles]
+              : bibles
+          }
+        />
       </section>
 
       {approvedIdeas.length > 0 ? (
@@ -249,6 +246,7 @@ export default async function PoetChannelPage({ params }: Props) {
                   ideaTitle={idea.storyAngle ?? "选题"}
                   disabled={!activeBible}
                   disabledReason={!activeBible ? "请先生成并激活一份频道圣经" : undefined}
+                  hasSop={hasAiReferenceSop}
                 />
               </article>
             ))}
@@ -304,6 +302,7 @@ export default async function PoetChannelPage({ params }: Props) {
                     topicLabel={t.topic}
                     status={t.status}
                     hasActiveBible={!!activeBible}
+                    hasSop={hasAiReferenceSop}
                   />
                 </header>
 
@@ -393,9 +392,9 @@ export default async function PoetChannelPage({ params }: Props) {
                     <span className="font-mono text-xs text-muted-foreground">
                       {s.wordCount ?? "—"} {s.language === "zh" ? "字" : "词"}
                     </span>
-                    {s.durationMinutes ? (
+                    {formatDurationLabel(s.durationSeconds) ? (
                       <span className="font-mono text-xs text-muted-foreground">
-                        约 {s.durationMinutes} 分钟
+                        {formatDurationLabel(s.durationSeconds)}
                       </span>
                     ) : null}
                     <span className="ml-auto font-mono text-xs text-muted-foreground">

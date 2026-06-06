@@ -13,6 +13,7 @@ import {
   poetScripts,
 } from "@singularity/db";
 
+import { formatDurationLabel } from "@singularity/shared/schemas/poet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/datetime";
@@ -100,8 +101,8 @@ export default async function ScriptDetailPage({ params }: Props) {
             <span className="font-mono text-xs">
               {script.wordCount ?? "—"} {script.language === "zh" ? "字" : "词"}
             </span>
-            {script.durationMinutes ? (
-              <span className="font-mono text-xs">约 {script.durationMinutes} 分钟</span>
+            {formatDurationLabel(script.durationSeconds) ? (
+              <span className="font-mono text-xs">{formatDurationLabel(script.durationSeconds)}</span>
             ) : null}
             <span className="font-mono text-xs">
               {formatDateTime(script.generatedAt)} 生成

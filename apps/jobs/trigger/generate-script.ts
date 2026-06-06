@@ -29,7 +29,7 @@ type Payload = {
   ideaId?: string;
   customTopicId?: string;
   language?: "en" | "zh";
-  durationMinutes?: number;
+  durationSeconds?: number;
 };
 
 function safeText(v: string | null | undefined): string | null {
@@ -43,7 +43,7 @@ export const generateScript = task({
   maxDuration: 3600,
   run: async (payload: Payload) => {
     const language = payload.language ?? "zh";
-    const targetWordCount = computeTargetWordCount(payload.durationMinutes, language);
+    const targetWordCount = computeTargetWordCount(payload.durationSeconds, language);
     const willGoLong = isLongForm(targetWordCount, language);
     const client = postgres(process.env.DATABASE_URL!, { prepare: false });
     const db = drizzle(client);
@@ -251,7 +251,10 @@ export const generateScript = task({
       let scriptText = safeText(draft.scriptText) ?? "";
       if (!scriptText) throw new Error("Script generation returned empty text");
 
-      if (language === "zh") {
+      // Humanize only the short path. Long-form sections are already written in
+      // spoken style + the de-translationese glossary, and a one-pass humanize of a
+      // long script truncates (the guard then returns it unchanged) — a wasted call.
+      if (language === "zh" && draft.path === "short") {
         step = total - 1;
         await setProgress("humanizing script", "改写为真人口语（约 1-2 分钟）");
         scriptText = (await humanizeChinese(scriptText)).trim() || scriptText;
@@ -262,7 +265,7 @@ export const generateScript = task({
 
       const wordCount =
         language === "zh" ? scriptText.length : scriptText.trim().split(/\s+/).length;
-      const durationMinutes = payload.durationMinutes ?? null;
+      const durationSeconds = payload.durationSeconds ?? null;
 
       const [scriptRow] = await db
         .insert(poetScripts)
@@ -275,7 +278,7 @@ export const generateScript = task({
           scriptText: safeText(scriptText) ?? "",
           language,
           wordCount,
-          durationMinutes,
+          durationSeconds,
           runId: payload.runId,
         })
         .returning();

@@ -22,13 +22,17 @@ type Props = {
   ideaTitle: string;
   disabled?: boolean;
   disabledReason?: string;
+  hasSop?: boolean;
 };
 
 const DURATIONS = [
-  { minutes: 5, label: "5 分钟 · 短稿", hint: "≈ 1000 字，单次写出" },
-  { minutes: 10, label: "10 分钟 · 长稿", hint: "≈ 2000 字，大纲→分段" },
-  { minutes: 20, label: "20 分钟 · 长稿", hint: "≈ 4000 字，大纲→分段" },
-  { minutes: 30, label: "30 分钟 · 长稿", hint: "≈ 6000 字，大纲→分段" },
+  { seconds: 30, label: "30 秒 · 短视频", hint: "≈ 100 字" },
+  { seconds: 60, label: "60 秒 · 短视频", hint: "≈ 200 字" },
+  { seconds: 180, label: "3 分钟 · 短稿", hint: "≈ 600 字" },
+  { seconds: 300, label: "5 分钟 · 短稿", hint: "≈ 1000 字，单次写出" },
+  { seconds: 600, label: "10 分钟 · 长稿", hint: "≈ 2000 字，大纲→分段" },
+  { seconds: 1200, label: "20 分钟 · 长稿", hint: "≈ 4000 字，大纲→分段" },
+  { seconds: 1800, label: "30 分钟 · 长稿", hint: "≈ 6000 字，大纲→分段" },
 ] as const;
 
 export function WriteScriptButton({
@@ -37,10 +41,12 @@ export function WriteScriptButton({
   ideaTitle,
   disabled,
   disabledReason,
+  hasSop = true,
 }: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
   const [pending, setPending] = useState(false);
+  const [custom, setCustom] = useState("");
 
   const mutation = trpc.poet.generateScript.useMutation({
     onSuccess: () => {
@@ -68,9 +74,26 @@ export function WriteScriptButton({
     );
   }
 
-  const handlePick = (minutes: number) => {
+  const handlePick = (seconds: number) => {
+    if (
+      !hasSop &&
+      !confirm(
+        "该频道还没有 AI 参考 SOP（来自 Clerk 分析），脚本会缺少结构化的钩子 / 留人指导。建议先用 Clerk 生成 SOP。仍要继续写稿吗？",
+      )
+    ) {
+      return;
+    }
     setPending(true);
-    mutation.mutate({ channelId, ideaId, durationMinutes: minutes, language: "zh" });
+    mutation.mutate({ channelId, ideaId, durationSeconds: seconds, language: "zh" });
+  };
+
+  const handlePickCustom = () => {
+    const sec = Math.round(Number(custom));
+    if (!Number.isFinite(sec) || sec < 15 || sec > 3600) {
+      toast.error("请输入 15–3600 之间的秒数");
+      return;
+    }
+    handlePick(sec);
   };
 
   return (
@@ -88,8 +111,8 @@ export function WriteScriptButton({
           <DropdownMenuLabel>选择视频时长</DropdownMenuLabel>
           {DURATIONS.map((d) => (
             <DropdownMenuItem
-              key={d.minutes}
-              onClick={() => handlePick(d.minutes)}
+              key={d.seconds}
+              onClick={() => handlePick(d.seconds)}
               disabled={pending}
               className="flex flex-col items-start gap-0.5"
             >
@@ -97,6 +120,32 @@ export function WriteScriptButton({
               <span className="text-xs text-muted-foreground">{d.hint}</span>
             </DropdownMenuItem>
           ))}
+          <div
+            className="px-2 pb-1.5 pt-1"
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <div className="mb-1 text-xs text-muted-foreground">自定义（秒，15–3600）</div>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={15}
+                max={3600}
+                value={custom}
+                onChange={(e) => setCustom(e.target.value)}
+                placeholder="如 45"
+                className="h-7 w-20 rounded border bg-background px-2 text-sm"
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-7"
+                disabled={pending}
+                onClick={handlePickCustom}
+              >
+                生成
+              </Button>
+            </div>
+          </div>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

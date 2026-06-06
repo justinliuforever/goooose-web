@@ -74,6 +74,11 @@ function parseDurationToSec(text: string | number | undefined): number {
 
 export const monitorCompetitors = task({
   id: "muse-monitor-competitors",
+  // Serial per-video pipeline (I/O + LLM bound) — medium-1x is plenty; one audio
+  // buffer at a time fits in 2GB. (large-1x would be wasted here.)
+  machine: { preset: "medium-1x" },
+  // Cap concurrent runs so a burst of users can't exhaust the Trigger/Groq budget.
+  queue: { concurrencyLimit: 6 },
   // 4h headroom for 10-20 videos with YouTube CDN throttle (Trigger.dev Hobby).
   maxDuration: 14400,
   run: async (payload: Payload) => {
@@ -455,7 +460,10 @@ export const monitorCompetitors = task({
       const inMemoryIds = new Set(relevantRows.map((r) => r.monitorVideoId));
       for (const o of orphans) {
         if (inMemoryIds.has(o.monitorVideoId)) continue;
-        if (!o.transcript || o.transcript.trim().length < 50) continue;
+        // Use the same real-transcript gate as the main path (content type isn't
+        // persisted, so apply the stricter video floor) — don't feed 50-199 char
+        // garbage/partial ASR into idea generation.
+        if (!o.transcript || !isRealTranscript(o.transcript, "video")) continue;
         relevantRows.push({
           monitorVideoId: o.monitorVideoId,
           title: o.title,

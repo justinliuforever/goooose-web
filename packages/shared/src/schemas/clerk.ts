@@ -1,10 +1,6 @@
 import { z } from "zod";
 
-/**
- * Clerk video analysis structured output schema.
- * Matches archive's `analyze_video()` return shape (15 string fields).
- * Maps 1:1 to the analysis columns on the `clerk_videos` table.
- */
+// Mirrors archive `analyze_video()` (15 string fields), 1:1 with clerk_videos analysis columns.
 export const clerkAnalysisSchema = z.object({
   thumbnail_description: z.string(),
   thumbnail_why_it_works: z.string(),
@@ -25,10 +21,7 @@ export const clerkAnalysisSchema = z.object({
 
 export type ClerkAnalysis = z.infer<typeof clerkAnalysisSchema>;
 
-/**
- * Maps the snake_case LLM JSON output to the camelCase Drizzle column names
- * on the `clerk_videos` table.
- */
+// snake_case LLM JSON → camelCase Drizzle columns.
 export function clerkAnalysisToDbRow(a: ClerkAnalysis) {
   return {
     thumbnailDescription: a.thumbnail_description,

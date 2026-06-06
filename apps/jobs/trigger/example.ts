@@ -1,12 +1,6 @@
 import { logger, metadata, task, wait } from "@trigger.dev/sdk";
 
-/**
- * Hello-world task — verifies the worker connects to the cloud and that
- * metadata.set() streams progress for useRealtimeRun() in the frontend.
- *
- * Trigger from CLI: pnpm --filter @singularity/jobs dev
- * Then in another terminal: pnpm --filter @singularity/jobs trigger.dev send hello
- */
+// Smoke task: verifies worker connectivity and that metadata.set() streams progress to useRealtimeRun().
 export const helloWorld = task({
   id: "hello-world",
   maxDuration: 60,

@@ -82,23 +82,37 @@ export const generateBible = task({
         current: 0,
         total: 1,
         phase: "writing bible",
-        detail: "AI 生成频道圣经中（约 1-2 分钟）",
+        detail: "AI 生成频道圣经中…",
       });
 
-      const bible = await generateChannelBible({
-        ideaText: payload.ideaText,
-        channelDescription: resolvedDescription,
-        language,
-      });
+      const bible = await generateChannelBible(
+        {
+          ideaText: payload.ideaText,
+          channelDescription: resolvedDescription,
+          language,
+        },
+        async (chars) => {
+          await metadata.set("progress", {
+            current: 0,
+            total: 1,
+            phase: "writing bible",
+            detail: `AI 生成频道圣经中…已生成 ${chars} 字`,
+          });
+        },
+      );
 
       const drifted = bible.driftWarning !== null;
       const cleanContent = safeText(bible.content) ?? "";
       if (!cleanContent) throw new Error("Bible generation returned empty content");
 
-      await db
-        .update(poetBible)
-        .set({ isActive: false })
-        .where(and(eq(poetBible.channelId, channel.id), eq(poetBible.isActive, true)));
+      // Never clobber an active bible (extras stay inactive for explicit switch); auto-activate
+      // only when none is active yet — even a drifted first one, so the channel is never left empty.
+      const [existingActive] = await db
+        .select({ id: poetBible.id })
+        .from(poetBible)
+        .where(and(eq(poetBible.channelId, channel.id), eq(poetBible.isActive, true)))
+        .limit(1);
+      const shouldActivate = !existingActive;
 
       const [inserted] = await db
         .insert(poetBible)
@@ -107,7 +121,7 @@ export const generateBible = task({
           name: payload.name ?? (bible.topicClaimed || "未命名"),
           content: cleanContent,
           sourceIdea: payload.ideaText,
-          isActive: !drifted,
+          isActive: shouldActivate,
         })
         .returning();
 

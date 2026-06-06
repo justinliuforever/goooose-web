@@ -33,7 +33,9 @@ let _groq: Groq | null = null;
 function getGroq(): Groq {
   if (!_groq) {
     if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY not set in env");
-    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    // maxRetries makes the SDK back off on 429 — XHS now leans entirely on Groq
+    // at higher concurrency, so absorb rate-limit bursts instead of failing to text.
+    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY, maxRetries: 3 });
   }
   return _groq;
 }
@@ -259,36 +261,39 @@ async function transcribeAtPath(
   mime: string,
   sizeBytes: number,
   opts: TranscribeOpts,
+  directGroq = false,
 ): Promise<AsrResult | null> {
   const { onPhase, logger, durationSec, tag = "ASR" } = opts;
-  onPhase?.("transcribing", { bytes: sizeBytes, provider: "deepgram" });
-  try {
-    const bytes = readFileSync(tempPath);
-    const dg = await transcribeWithDeepgram(bytes, mime);
-    if (dg) {
-      const effectiveDur = durationSec ?? dg.durationSec;
-      const ratio = effectiveDur && effectiveDur > 0 ? dg.text.length / effectiveDur : Infinity;
-      if (effectiveDur && effectiveDur > 30 && ratio < MIN_CHARS_PER_SEC) {
-        logger?.warn(
-          `${tag}: Deepgram returned ${dg.text.length} chars for ${effectiveDur}s audio (${ratio.toFixed(2)} chars/sec, likely garbled), trying Groq`,
-        );
+  // XHS audio (h265-in-mp4) reliably yields no usable Deepgram output, so the
+  // XHS path skips straight to Groq instead of burning a guaranteed-failed call.
+  if (!directGroq) {
+    onPhase?.("transcribing", { bytes: sizeBytes, provider: "deepgram" });
+    try {
+      const bytes = readFileSync(tempPath);
+      const dg = await transcribeWithDeepgram(bytes, mime);
+      if (dg) {
+        const effectiveDur = durationSec ?? dg.durationSec;
+        const ratio = effectiveDur && effectiveDur > 0 ? dg.text.length / effectiveDur : Infinity;
+        if (effectiveDur && effectiveDur > 30 && ratio < MIN_CHARS_PER_SEC) {
+          logger?.warn(
+            `${tag}: Deepgram returned ${dg.text.length} chars for ${effectiveDur}s audio (${ratio.toFixed(2)} chars/sec, likely garbled), trying Groq`,
+          );
+        } else {
+          logger?.info(`${tag}: Deepgram OK (${dg.text.length} chars, ${dg.words.length} words)`);
+          return { ...dg, provider: "deepgram" };
+        }
       } else {
-        logger?.info(`${tag}: Deepgram OK (${dg.text.length} chars, ${dg.words.length} words)`);
-        return { ...dg, provider: "deepgram" };
+        logger?.warn(`${tag}: Deepgram returned empty, trying Groq`);
       }
-    } else {
-      logger?.warn(`${tag}: Deepgram returned empty, trying Groq`);
+    } catch (err) {
+      logger?.warn(
+        `${tag}: Deepgram failed (${(err as Error).message?.slice(0, 120)}), trying Groq`,
+      );
     }
-  } catch (err) {
-    logger?.warn(
-      `${tag}: Deepgram failed (${(err as Error).message?.slice(0, 120)}), trying Groq`,
-    );
   }
 
   if (sizeBytes > GROQ_FILE_LIMIT_BYTES) {
-    logger?.warn(
-      `${tag}: Deepgram failed and file ${sizeBytes}B exceeds Groq 25MB cap`,
-    );
+    logger?.warn(`${tag}: file ${sizeBytes}B exceeds Groq 25MB cap`);
     return null;
   }
   onPhase?.("transcribing", { bytes: sizeBytes, provider: "groq" });
@@ -310,7 +315,12 @@ export async function transcribeFromStreams(
   streams: StreamCandidate[],
   opts: TranscribeOpts = {},
 ): Promise<AsrResult | null> {
-  const { onPhase, logger, tag = "ASR" } = opts;
+  const { onPhase, logger, durationSec, tag = "ASR" } = opts;
+  // Skip oversized audio before downloading (mirrors the YouTube path's cap).
+  if (durationSec !== undefined && durationSec > MAX_AUDIO_DURATION_SEC) {
+    logger?.warn(`${tag}: skipping audio ASR — duration ${durationSec}s > ${MAX_AUDIO_DURATION_SEC}s cap`);
+    return null;
+  }
   let tempPath: string | null = null;
   try {
     const sorted = [...streams]
@@ -349,7 +359,8 @@ export async function transcribeFromStreams(
       `${tag}: downloaded ${actualSize} bytes${chosen.label ? ` (${chosen.label})` : ""}`,
     );
     const mime = (chosen.mimeType ?? "audio/mp4").split(";")[0] ?? "audio/mp4";
-    return await transcribeAtPath(tempPath, mime, actualSize, opts);
+    // XHS → Groq directly (Deepgram can't decode XHS h265 audio).
+    return await transcribeAtPath(tempPath, mime, actualSize, opts, true);
   } catch (err) {
     logger?.warn(`${tag} failed: ${(err as Error).message?.slice(0, 200) ?? err}`);
     return null;

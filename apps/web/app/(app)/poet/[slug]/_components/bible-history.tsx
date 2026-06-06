@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/datetime";
 import { trpc } from "@/lib/trpc";
 
+import { BibleEditSheet } from "./bible-edit-sheet";
+
 type Props = {
   bibles: PoetBible[];
 };
@@ -41,12 +43,13 @@ export function BibleHistory({ bibles }: Props) {
     onSettled: () => setPendingId(null),
   });
 
-  const inactive = bibles.filter((b) => !b.isActive);
-  if (inactive.length === 0) return null;
+  if (bibles.length === 0) return null;
   const hasActive = bibles.some((b) => b.isActive);
-  // Auto-open when no active bible — user just drifted and needs to choose
-  // whether to reactivate one of these or regenerate.
-  const defaultOpen = !hasActive;
+  // Active version first, then most-recent (page already sorts by updatedAt desc).
+  const ordered = [...bibles].sort((a, b) => Number(b.isActive) - Number(a.isActive));
+  // Open by default when there's no active version (user must pick one) or when
+  // there are multiple versions to switch between.
+  const defaultOpen = !hasActive || bibles.length > 1;
 
   return (
     <details
@@ -55,14 +58,14 @@ export function BibleHistory({ bibles }: Props) {
     >
       <summary className="flex cursor-pointer items-center justify-between gap-3 list-none [&::-webkit-details-marker]:hidden">
         <span className="text-xs font-medium uppercase text-muted-foreground">
-          圣经历史版本（{inactive.length}）
+          圣经版本库（{bibles.length}）
         </span>
         <span className="text-xs text-muted-foreground">
           {defaultOpen ? "可点击折叠" : "点击展开"}
         </span>
       </summary>
       <div className="flex flex-col gap-2 border-t pt-3">
-        {inactive.map((b) => (
+        {ordered.map((b) => (
           <div
             key={b.id}
             className="flex items-center justify-between gap-3 rounded-md border bg-background p-3"
@@ -85,6 +88,7 @@ export function BibleHistory({ bibles }: Props) {
               </span>
             </div>
             <div className="flex items-center gap-1">
+              <BibleEditSheet bibleId={b.id} bibleName={b.name} bibleContent={b.content} />
               {!b.isActive ? (
                 <Button
                   size="sm"

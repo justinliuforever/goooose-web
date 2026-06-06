@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { channels } from "./channels";
 import { clerkSops } from "./clerk";
@@ -8,16 +8,25 @@ import { pipelineRuns } from "./runs";
 
 export const languageEnum = pgEnum("language", ["zh", "en"]);
 
-export const poetBible = pgTable("poet_bible", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  content: text("content").notNull(),
-  sourceIdea: text("source_idea"),
-  isActive: boolean("is_active").notNull().default(true),
-  generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const poetBible = pgTable(
+  "poet_bible",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    content: text("content").notNull(),
+    sourceIdea: text("source_idea"),
+    isActive: boolean("is_active").notNull().default(true),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    // Hard-guarantee a single active bible per channel (consumers do where(isActive).limit(1)).
+    oneActivePerChannel: uniqueIndex("poet_bible_one_active_per_channel")
+      .on(table.channelId)
+      .where(sql`${table.isActive}`),
+  }),
+);
 
 export const driftReasonEnum = pgEnum("drift_reason", ["no_overlap", "ai_markers", "topic_substitution"]);
 
@@ -58,7 +67,8 @@ export const poetCustomTopics = pgTable("poet_custom_topics", {
   bibleId: uuid("bible_id").references(() => poetBible.id, { onDelete: "set null" }),
   sopId: uuid("sop_id").references(() => clerkSops.id, { onDelete: "set null" }),
   language: languageEnum("language").notNull().default("zh"),
-  durationMinutes: integer("duration_minutes"),
+  durationMinutes: integer("duration_minutes"), // legacy — superseded by durationSeconds
+  durationSeconds: integer("duration_seconds"),
   targetWordCount: integer("target_word_count"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -76,7 +86,8 @@ export const poetScripts = pgTable(
     scriptText: text("script_text").notNull(),
     language: languageEnum("language").notNull(),
     wordCount: integer("word_count"),
-    durationMinutes: integer("duration_minutes"),
+    durationMinutes: integer("duration_minutes"), // legacy — superseded by durationSeconds
+    durationSeconds: integer("duration_seconds"),
     generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     runId: uuid("run_id").references(() => pipelineRuns.id, { onDelete: "set null" }),

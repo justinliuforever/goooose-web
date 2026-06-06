@@ -114,6 +114,28 @@ async function uniqueSlug(userId: string, base: string): Promise<string> {
   }
 }
 
+// Trigger a task; if the trigger call itself fails, mark the just-created run
+// failed immediately instead of leaving a 'pending' orphan until the watchdog.
+async function triggerOrFailRun(
+  runId: string,
+  taskId: string,
+  payload: Record<string, unknown>,
+) {
+  try {
+    return await tasks.trigger(taskId, payload);
+  } catch (err) {
+    await db
+      .update(pipelineRuns)
+      .set({
+        status: "failed",
+        errorMessage: (err as Error).message?.slice(0, 500) ?? "trigger failed",
+        completedAt: new Date(),
+      })
+      .where(eq(pipelineRuns.id, runId));
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "无法启动后台任务，请稍后重试" });
+  }
+}
+
 export const appRouter = router({
   channels: router({
     list: protectedProcedure.query(async ({ ctx }) => {
@@ -383,7 +405,7 @@ export const appRouter = router({
           .returning();
         if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-        const handle = await tasks.trigger("clerk-analyze-channel", {
+        const handle = await triggerOrFailRun(run.id,"clerk-analyze-channel", {
           channelId: channel.id,
           runId: run.id,
           limit: input.limit,
@@ -538,7 +560,7 @@ export const appRouter = router({
           .returning();
         if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-        const handle = await tasks.trigger("clerk-detect-channel-series", {
+        const handle = await triggerOrFailRun(run.id,"clerk-detect-channel-series", {
           channelId: channel.id,
           runId: run.id,
           videoCount: input.videoCount,
@@ -599,7 +621,7 @@ export const appRouter = router({
           .returning();
         if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-        const handle = await tasks.trigger("muse-monitor-competitors", {
+        const handle = await triggerOrFailRun(run.id,"muse-monitor-competitors", {
           channelId: channel.id,
           runId: run.id,
           maxVideosPerCompetitor: input.maxVideosPerCompetitor,
@@ -753,7 +775,7 @@ export const appRouter = router({
           .returning();
         if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-        const handle = await tasks.trigger("poet-generate-bible", {
+        const handle = await triggerOrFailRun(run.id,"poet-generate-bible", {
           channelId: channel.id,
           runId: run.id,
           ideaText: input.ideaText,
@@ -876,18 +898,18 @@ export const appRouter = router({
               kind: "script",
               ideaId: input.ideaId,
               language: input.language,
-              durationMinutes: input.durationMinutes,
+              durationSeconds: input.durationSeconds,
             },
           })
           .returning();
         if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-        const handle = await tasks.trigger("poet-generate-script", {
+        const handle = await triggerOrFailRun(run.id,"poet-generate-script", {
           channelId: channel.id,
           runId: run.id,
           ideaId: input.ideaId,
           language: input.language,
-          durationMinutes: input.durationMinutes,
+          durationSeconds: input.durationSeconds,
         });
 
         await db
@@ -897,7 +919,7 @@ export const appRouter = router({
               kind: "script",
               ideaId: input.ideaId,
               language: input.language,
-              durationMinutes: input.durationMinutes,
+              durationSeconds: input.durationSeconds,
               triggerRunId: handle.id,
             },
           })
@@ -1088,7 +1110,7 @@ export const appRouter = router({
           .returning();
         if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-        const handle = await tasks.trigger("poet-analyze-custom-topic", {
+        const handle = await triggerOrFailRun(run.id,"poet-analyze-custom-topic", {
           channelId: channel.id,
           runId: run.id,
           topicId: input.topicId,
@@ -1223,18 +1245,18 @@ export const appRouter = router({
               kind: "script",
               customTopicId: input.topicId,
               language: input.language,
-              durationMinutes: input.durationMinutes,
+              durationSeconds: input.durationSeconds,
             },
           })
           .returning();
         if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-        const handle = await tasks.trigger("poet-generate-script", {
+        const handle = await triggerOrFailRun(run.id,"poet-generate-script", {
           channelId: channel.id,
           runId: run.id,
           customTopicId: input.topicId,
           language: input.language,
-          durationMinutes: input.durationMinutes,
+          durationSeconds: input.durationSeconds,
         });
 
         await db
@@ -1244,7 +1266,7 @@ export const appRouter = router({
               kind: "script",
               customTopicId: input.topicId,
               language: input.language,
-              durationMinutes: input.durationMinutes,
+              durationSeconds: input.durationSeconds,
               triggerRunId: handle.id,
             },
           })

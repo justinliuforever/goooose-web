@@ -80,8 +80,7 @@ Identify the VIRAL TRIGGER:
 2. **Watch Trigger**: What kept them watching?
 3. **Share Trigger**: What would make someone share this?
 
-Synthesize into 2-3 sentences:
-"This video works because [CLICK]. Viewers stay because [WATCH]. It spreads because [SHARE]. The core viral mechanism is: [ONE-LINE SUMMARY]."
+Synthesize into 2-3 sentences covering: why people click, why they keep watching, why they would share — then end with a one-line statement of the core viral mechanism. Write in the output language naturally; do not use bracketed placeholders or an English template.
 
 Return ONLY plain text (not JSON).
 `;
@@ -128,10 +127,10 @@ Return JSON:
   "ideas": [
     {
       "story_angle": "Compelling working title capturing the viral hook.",
-      "facts_and_data": "2-3 specific facts, statistics, or data points.",
+      "facts_and_data": "Several concrete, specific facts — statistics, numbers, names, dates, or researchable claims the script can build on. Be substantive, not a one-liner. Only include facts you can ground in the source; if unsure, describe the data point to verify and mark it (needs verification) — never fabricate specific numbers, dates, or names.",
       "why_similar": "One sentence on how this uses the same viral trigger.",
       "cover_concept": "1-sentence visual concept for the thumbnail (subject, text overlay, emotion, color cue).",
-      "suggested_hook_type": "One of the channel's hook formulas to open with (e.g. 'Ironic Contradiction', 'Curiosity Gap', 'Personal Crisis'). Reuse the channel's vocabulary.",
+      "suggested_hook_type": "Which of the channel's hook formulas to open with — reuse the exact hook name the channel/SOP already uses, in the channel's own language.",
       "risk_factors": "1-2 sentences flagging why this idea could underperform (sensitive topic, low search volume, dated reference, off-brand)."
     }
   ]

@@ -141,7 +141,7 @@ export function ClerkSeriesPanel({ channelId, initialSeries }: Props) {
 
       {!hasSeries ? (
         <p className="text-xs text-muted-foreground">
-          频道系列归类会拉取近期视频，按主题聚类（如教育/旅行/种草），让你能挑系列做针对性 SOP 分析。点击数字选择拉取数量，再点扫描。
+          频道系列归类会拉取近期视频，按常见主题归类（如教育 / 旅行 / 种草），帮你看清这个账号反复在做哪几类内容，再挑某一类做针对性 SOP 分析。这里是归纳已分析视频的共同点，不是给账号做大类目分类。点击数字选择拉取数量，再点扫描。
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -10,18 +10,36 @@ function key(): string {
 async function get<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
   const qs = new URLSearchParams(params).toString();
   const url = `${BASE}${endpoint}${qs ? `?${qs}` : ""}`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${key()}`, accept: "application/json" },
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`TikHub ${endpoint} HTTP ${res.status}: ${body.slice(0, 200)}`);
+  const attempts = 3;
+  let lastErr: Error | null = null;
+  // Retry transient 5xx / 429 / documented-transient 400 with backoff (mirrors xhs.ts).
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${key()}`, accept: "application/json" },
+      });
+      if ((res.status >= 500 || res.status === 429 || res.status === 400) && i < attempts) {
+        const retryAfter = Number(res.headers.get("retry-after"));
+        const waitMs = res.status === 429 && retryAfter > 0 ? retryAfter * 1000 : 800 * i;
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`TikHub ${endpoint} HTTP ${res.status}: ${body.slice(0, 200)}`);
+      }
+      const json = (await res.json()) as { code?: number; data?: T; detail?: unknown };
+      if (json.code && json.code !== 200) {
+        throw new Error(`TikHub ${endpoint} code ${json.code}: ${JSON.stringify(json).slice(0, 200)}`);
+      }
+      return (json.data ?? json) as T;
+    } catch (err) {
+      lastErr = err as Error;
+      if (i >= attempts) throw lastErr;
+      await new Promise((r) => setTimeout(r, 800 * i));
+    }
   }
-  const json = (await res.json()) as { code?: number; data?: T; detail?: unknown };
-  if (json.code && json.code !== 200) {
-    throw new Error(`TikHub ${endpoint} code ${json.code}: ${JSON.stringify(json).slice(0, 200)}`);
-  }
-  return (json.data ?? json) as T;
+  throw lastErr ?? new Error(`TikHub ${endpoint} request failed`);
 }
 
 // Validates a YouTube channel landing URL (not a video URL). Accepts:

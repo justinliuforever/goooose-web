@@ -22,7 +22,6 @@ export function AgentTimeline({
   allDone,
   accentClass = "text-foreground",
 }: Props) {
-  // Decide which stage index the current phase belongs to.
   let currentIndex = -1;
   if (!allDone && currentPhase) {
     currentIndex = stages.findIndex((s) => s.matches(currentPhase));

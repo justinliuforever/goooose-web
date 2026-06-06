@@ -7,6 +7,7 @@ export const XHS_IMAGE_PREAMBLE = `NOTE: This is a Xiaohongshu (小红书) IMAGE
 - "duration_sec" is not applicable; focus on text flow and reading engagement
 - The "transcript" below is the post's full text content (title + description)
 - "Views" shown is actually a weighted engagement score (likes + collects + comments + shares)
+- IMPORTANT: there is NO timeline. For ALL keys (incl. opening_structure, script_structure, rehooks_used, retention_pattern, cta_placement, key_takeaways), cite section numbers or reading order (开头 / 第2段 / 结尾), NEVER [m:ss] timestamps. Ignore any instruction below that asks for [m:ss] — it does not apply to image posts.
 `;
 
 export const XHS_VIDEO_PREAMBLE = `NOTE: This is a Xiaohongshu (小红书) short video post, not a YouTube video.
@@ -15,10 +16,36 @@ export const XHS_VIDEO_PREAMBLE = `NOTE: This is a Xiaohongshu (小红书) short
 - The "transcript" may include both the post description text and a Whisper-transcribed audio track
 - The transcript has NO timestamps — estimate timing based on word count and duration_sec, but clearly mark estimates as approximate (e.g., "~0-10s")
 - Do NOT fabricate specific timestamps that are not in the transcript
+- IMPORTANT: for ANY key that asks for [m:ss] (opening_structure, script_structure, rehooks_used, retention_pattern, cta_placement, key_takeaways), use APPROXIMATE ranges like "~0-10s" or "~中段" — never invent precise [m:ss] markers. Ignore instructions below demanding exact [m:ss]; this post has no real timeline.
 `;
 
+// Shared de-translationese style guide. Reused by CHINESE_WRAPPER (Clerk SOP +
+// Bible) and appended to the Poet zh script prompts so the final scripts get the
+// same glossary discipline.
+export const ZH_STYLE_GUIDE = `用简体中文输出全文。这是给中国内容创作者看的实战手册，必须读起来像一个资深中文编导在讲话，不能有翻译腔或 AI 腔。
+
+## 术语对照（按下面的说法写，禁止直译生造词）
+- call to action / CTA → 「引导动作」或直接「CTA」；禁止「社会仪式 CTA」
+- signature move → 「IP 标志性动作」；禁止「签名式动作」
+- theme / thematic cluster → 「常见主题」或「核心话题」；禁止「主题聚类」
+- pattern interrupt / cognitive schema / "bomb" → 「黄金前 3 秒钩子」「打断刷视频的惯性」「完播率痛点」「避免观众划走」；禁止「认知基模」「炸弹」「阻止滑动」
+- cognitive lever / psychology → 「为什么管用（底层心理）」「心理钩子」；禁止「认知杠杆」
+- hook → 钩子；open loop → 留扣子 / 悬念；rehook → 二次抓人；reframe → 换个说法 / 重新定义
+- retention → 完播 / 留人；specificity spike → 具体细节抓人点；payload → 干货 / 正片；setup → 铺垫；beat → 节奏段
+- Master Formula → 核心公式；Retention Tape → 留人时间轴；Viewer Resonance → 观众为什么买账；Emotional Escalation Map → 情绪递进图；Narrative Arc → 故事弧线
+- 禁止这些中文生造直译：开放回路 / 打开回路 → 留扣子·悬念；模式打断 / 模式打破 → 打断惯性·换个节奏；认知杠杆 → 心理钩子；视觉锤 → 视觉记忆点；留人钉 → 留人点；情绪过山车 → 情绪起伏；社交证据 → 大家都在追。
+- 其它英文行话一律换成中文创作者圈通用说法；专有名词、品牌名、逐字引用、[m:ss] 时间戳保持原样。
+
+## 写法要求（去翻译腔 / 去 AI 腔）
+- 不要虚化动词：别用「进行 / 加以 / 予以 / 给予 + 名词」，直接用动词。
+- 少用被动「被」，改主动。
+- 删掉八股套话：「值得注意的是」「总而言之」「众所周知」「……之一」。
+- 短句、口语化；不要名词堆叠长句。
+- 介词别硬译：of / about / as 不要一律译成「关于 / 对于」。
+- 不用 emoji，不写「让我们一起」「希望对你有帮助」「好的，以下是」这类客套与复述指令。`;
+
 export const CHINESE_WRAPPER = (innerPrompt: string) =>
-  `IMPORTANT: Write the ENTIRE response in Simplified Chinese (简体中文). All section titles, analysis, explanations, templates, and examples must be in Chinese. Keep proper nouns and technical terms in their original language where appropriate.
+  `${ZH_STYLE_GUIDE}
 
 ${innerPrompt}`;
 
@@ -133,6 +160,8 @@ Analyze this video and return a JSON object with these exact keys:
 14. **cta_placement**: Where and how CTAs appear, with timestamps.
 15. **key_takeaways**: 3-5 bullet points on what makes this video's script effective. Cite at least one timestamped example per takeaway.
 
+**Grounding (important):** Base every field ONLY on what the transcript above actually contains. If the transcript is clearly partial or very short (e.g. only the first few seconds), analyze just what is present and say so plainly — do NOT fabricate timestamps, defects, prices, comparisons, or beats that are not in the transcript.
+
 Return ONLY valid JSON. No markdown code fences.
 `;
 
@@ -172,7 +201,7 @@ ${args.videosData}
 **Title:** "${args.channelName} Scriptwriting Standard Operating Procedure"
 **Subtitle:** "Based on analysis of Top ${args.videoCount} most-viewed videos | ${subtitleViews} | Generated: ${args.date}"
 
-**Table of Contents** (required): markdown bullet list linking to all numbered sections AND both appendices by name. Include sub-headings (e.g. 5.1, 6.1, 6.5, 7.5, Appendix A, Appendix B).
+**Table of Contents** (required): markdown bullet list linking to all numbered sections AND both appendices by name. Include sub-headings (e.g. 5.1, 6.1, Appendix A, Appendix B).
 
 **Section 1: Master Formula**
 1A. Express the channel's content formula as a one-line equation, e.g. \`Hook (specific claim) → Setup (origin / stakes) → Payload (3-5 demonstrations) → Reframe (lesson) → CTA\`. Then break each variable down with a short paragraph and concrete examples from the analyzed videos. Cite at least two video titles per variable. This is the single most important section.
@@ -203,19 +232,17 @@ For each of the 3-5 distinct hook formulas used by the channel, write a Hook Car
 - **5.3 Emotional Escalation Map**: chart how energy/stakes shift over the runtime with cited \`[m:ss]\` peaks
 
 **Section 6: Storytelling Frameworks**
-Break this into FIVE explicit sub-sections:
+Break this into FOUR explicit sub-sections:
 - **6.1 Primary Framework**: name + 2-3 sentence definition + one full example video walk-through citing \`[m:ss]\` beats
 - **6.2 Secondary Frameworks**: 1-2 alternative shapes used when the primary doesn't fit
 - **6.3 Narrative Arc Shape**: the emotional arc plotted as a sequence (e.g. "calm → tension → reveal → relief → punchline") with timestamped examples
 - **6.4 Signature Moves**: 3-5 recurring narrative devices unique to this creator (catchphrases, structural tics, recurring sound-bites) with quoted examples
-- **6.5 Viewer Journey** (NEW): markdown table with columns \`Stage | Viewer feeling | Script section that triggers it | Cited [m:ss] example\` covering 5-7 stages from "scrolling past" → "took action".
 
 **Section 7: Retention Mechanics**
 - **7.1 Open Loops**: 3-5 specific open-loop phrases the channel uses with \`[m:ss]\` of where opened and where closed
 - **7.2 Rehook Phrases**: verbatim list of every "stay with me / here's the crazy part / wait until you see this" line found across the analyzed videos, each with \`[m:ss]\`
 - **7.3 Specificity Spikes**: concrete numbers, names, dates, dollar amounts that re-grab attention, each with \`[m:ss]\`
 - **7.4 Pattern Breaks**: tone shifts, B-roll cuts, recap interludes, with timestamps
-- **7.5 Emotional Reframes** (NEW): markdown table with columns \`Negative framing the audience expects | How this creator reframes it | Verbatim example + [m:ss]\` — 3-5 rows showing how the creator turns negatives (failures, cheap gear, common mistakes) into positives.
 
 **Appendix A: Pre-Writing Checklist**
 Translate the SOP into a 10-15-bullet actionable checklist a writer can tick before publishing (hook chosen, opening loop set, 2-3 rehooks placed, signature move included, specificity spike per minute, CTA tone, etc.).

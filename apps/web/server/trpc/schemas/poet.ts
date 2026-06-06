@@ -17,11 +17,12 @@ export const switchActiveBibleInput = z.object({
   bibleId: z.string().uuid(),
 });
 
-// Duration ≥ 10 min (≥ 2000 zh chars / ≥ 1500 en words) routes to long-form.
+// Duration in seconds (supports ≤60s short videos). ≥ 2000 zh chars / ≥ 1500 en
+// words (≈10 min) routes to long-form.
 export const generateScriptInput = z.object({
   channelId: z.string().uuid(),
   ideaId: z.string().uuid(),
-  durationMinutes: z.number().int().min(1).max(60).default(5),
+  durationSeconds: z.number().int().min(15).max(3600).default(300),
   language: z.enum(["en", "zh"]).default("zh"),
 });
 
@@ -67,6 +68,6 @@ export const analyzeCustomTopicInput = z.object({
 export const generateScriptFromCustomTopicInput = z.object({
   channelId: z.string().uuid(),
   topicId: z.string().uuid(),
-  durationMinutes: z.number().int().min(1).max(60).default(5),
+  durationSeconds: z.number().int().min(15).max(3600).default(300),
   language: z.enum(["en", "zh"]).default("zh"),
 });

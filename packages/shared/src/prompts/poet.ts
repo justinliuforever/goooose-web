@@ -1,4 +1,11 @@
-import { CHINESE_WRAPPER } from "./clerk";
+import { CHINESE_WRAPPER, ZH_STYLE_GUIDE } from "./clerk";
+
+// Append the de-translationese glossary to zh output. The script/outline/section
+// prompts stay English-instruction (better structure adherence) but get the same
+// term discipline as the Bible so the final user-facing script avoids 翻译腔.
+function withZhStyle(prompt: string, language: "en" | "zh"): string {
+  return language === "zh" ? `${prompt}\n\n${ZH_STYLE_GUIDE}` : prompt;
+}
 
 type ChannelBibleArgs = {
   ideaText: string;
@@ -89,7 +96,7 @@ export function buildScriptWritingPrompt(args: ScriptWritingArgs): string {
   // Script-writing prompt is intentionally English-instruction even for Chinese
   // output — the LLM follows English structure better. The `language_name`
   // variable controls the actual output language.
-  return `You are a scriptwriter for a specific niche channel. Your job is to write a complete, ready-to-film script that sounds like a real human host speaking — not a polished AI document.
+  return withZhStyle(`You are a scriptwriter for a specific niche channel. Your job is to write a complete, ready-to-film script that sounds like a real human host speaking — not a polished AI document.
 
 ## Step 1: Channel Bible
 Understand the niche, the core thesis, the content rules, and the source categories.
@@ -118,12 +125,6 @@ ${args.verbatimFactsContext}
 - **Idea:**
 ${args.ideaText}
 
-## Step 4.5: Brand Wrapper Extraction (MANDATORY)
-
-Before writing the script, scan the Channel Bible above and identify the channel's signature **brand wrapper** — a recurring branded phrase, show-name segment, or signature opener/closer the host uses every video (e.g. "The Code Report", "Welcome back to the channel", "It is [DATE] and you're watching X"). It is usually mentioned in the Bible's tone/voice or content-pillars section, often quoted in quotation marks.
-
-You MUST include the EXACT brand wrapper phrase, verbatim, at least once in your script — preferably in the [HOOK] / [TEASE] / [CLOSE] segments where the host typically anchors brand. This is not optional. If the Bible truly contains no brand wrapper, only then skip this requirement.
-
 ## Step 5: Write the Script
 
 Write a COMPLETE, ready-to-film script in **${languageName}**. Target **${args.targetWordCount} ${lengthUnit}** — this is not a suggestion, it is the required output length. Do not end the script before reaching at least 90% of this count (${minWordCount} ${lengthUnit}). If you finish all sections early, expand the ITEM sections with more specific examples, detail, and emotional beats until you reach the minimum.
@@ -137,7 +138,7 @@ Follow the SOP structure precisely:
 6. Write in the voice and tone described in the SOP — as if a real person is speaking, not reading a document.
 7. If the Channel Bible defines a recurring brand wrapper, signature phrase, or show-name segment (e.g. "The Code Report", "Welcome back to X"), include it naturally in the script.
 
-**Sensitive topic guard.** For jailbreaks, exploits, hacks, harm, drugs, or other genuinely risky territory: refer to the danger category abstractly (e.g. "things that should make a safety team cry", "exactly the kind of output you'd hope a safety lab would never produce"). Do NOT enumerate specific dangerous content types (weapons, explosives, malware, illicit drugs, phishing techniques, etc.) even when describing what someone else demonstrated. Cynical and funny — not a blueprint.
+**Sensitive topic guard.** If the topic genuinely touches dangerous territory (weapons, malware, illicit drugs, self-harm, etc.), stay responsible — don't write an actionable how-to or step-by-step blueprint. For everything else, write naturally and specifically; do not become vague, evasive, or euphemistic about ordinary topics.
 
 **Sound like a human talking, not an AI writing.** The SOP describes a real host's voice. Honour it:
 - Use the sentence lengths and rhythms the SOP shows, not generic YouTube-presenter cadences.
@@ -151,7 +152,7 @@ Follow the SOP structure precisely:
 - Do not invent any fact not present in the references. If a fact isn't there, leave it out.
 
 Output the script as plain text. Include section markers [HOOK], [TEASE], [ITEM 1], [CTA], [CLIMAX], [CLOSE]. No meta-commentary, no preamble.
-`;
+`, args.language);
 }
 
 type OutlineArgs = {
@@ -227,7 +228,7 @@ export function buildSectionExpandPrompt(args: SectionExpandArgs): string {
   const languageName = args.language === "zh" ? "Chinese (中文)" : "English";
   const lengthUnit = args.language === "zh" ? "characters (字)" : "words";
   const minCount = Math.round(args.targetCount * 0.85);
-  return `You are writing one section of a long-form YouTube script in **${languageName}**.
+  return withZhStyle(`You are writing one section of a long-form YouTube script in **${languageName}**.
 
 ## SOP Reference (this is your VOICE MODEL — follow the tone, rhythm, and retention devices exactly)
 ${args.sopReference}
@@ -260,7 +261,7 @@ Do NOT start the next section. End at a natural stopping point.
 Sound like a real human talking. Follow the SOP voice precisely.
 
 **LENGTH IS NON-NEGOTIABLE**: If you finish covering the key points but haven't reached ${minCount} ${lengthUnit}, keep going — add more specific examples, vivid detail, emotional depth, or a relevant story beat. Do not end early.
-`;
+`, args.language);
 }
 
 type TopicAnalysisArgs = {
@@ -320,7 +321,7 @@ Output ONLY the JSON object. No markdown fences, no explanation, no prefix. The 
   if (args.language !== "zh") return base;
   return (
     base +
-    "\n\n【重要输出要求】story_angle、facts_and_data、why_similar、viral_trigger 字段必须用简体中文输出。verbatim_facts 保持原始语言（数字和专有名词不翻译）。仅返回有效 JSON，不使用代码块。"
+    "\n\n【重要输出要求】story_angle、facts_and_data、why_similar、viral_trigger 字段必须用简体中文输出。verbatim_facts 保持原始语言（数字和专有名词不翻译）。仅返回有效 JSON，不使用代码块。\n【去翻译腔】字段值要像中文编导说话：不要直译生造词（禁止 认知基模 / 认知杠杆 / 模式打断 / 开放回路 / 视觉锤 之类），不要照抄 SOP 里的英文公式或英文标签（如 'Pattern Interrupt + Curiosity Gap …'）——一律用自然中文转述。"
   );
 }
 

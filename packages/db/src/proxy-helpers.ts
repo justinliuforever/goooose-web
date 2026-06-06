@@ -25,8 +25,7 @@ export async function loadProxyPool(
   return new ProxyPool(sessions);
 }
 
-// Batch UPDATE per session at task end — single round-trip per affected session.
-// Sessions with zero activity in the run are skipped.
+// One UPDATE per session with activity, flushed at task end.
 export async function flushProxyPool(
   db: PostgresJsDatabase,
   pool: ProxyPool,
@@ -37,8 +36,7 @@ export async function flushProxyPool(
   let newlyDisabled = 0;
   const now = new Date();
 
-  // Drizzle has no native bulk-update-by-row-id; loop with one UPDATE each.
-  // 20 sessions × ~230ms ≈ 4.6s — acceptable at task end.
+  // Drizzle has no bulk-update-by-row-id; loop is acceptable (~230ms/session at task end).
   for (const [id, o] of outcomes.entries()) {
     const setExpr: Record<string, unknown> = {
       totalOk: sql`${proxySessions.totalOk} + ${o.okDelta}`,
@@ -58,7 +56,7 @@ export async function flushProxyPool(
   return { updatedSessions: outcomes.size, newlyDisabled };
 }
 
-// Manual re-enable (called from cron or admin script later).
+// Re-enable disabled sessions; called from cron or admin script.
 export async function reenableSessions(
   db: PostgresJsDatabase,
   ids: string[],

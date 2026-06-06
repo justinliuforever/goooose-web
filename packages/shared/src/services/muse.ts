@@ -1,7 +1,7 @@
 import { generateText } from "ai";
 import { jsonrepair } from "jsonrepair";
 
-import { llm } from "../clients/llm";
+import { generateTextWithFallback, llm } from "../clients/llm";
 import {
   buildClassificationPrompt,
   buildIdeaGenerationPrompt,
@@ -91,19 +91,15 @@ export type ViralTriggerArgs = {
 
 export async function analyzeViralTrigger(args: ViralTriggerArgs): Promise<string> {
   const prompt = buildViralTriggerPrompt(args);
-  // 4096 budget: 2048 was starving the answer when reasoning ran long.
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const result = await generateText({
-      model: llm("pro"),
-      prompt,
-      temperature: 0.4,
-      maxOutputTokens: 4096,
-      maxRetries: 2,
-    });
-    const text = result.text.trim();
-    if (text.length > 0) return text;
-  }
-  return "";
+  // Pro-first, auto-downgrade to Flash on empty (reasoning can burn the budget and
+  // return nothing) so a relevant video never silently loses its trigger analysis.
+  const result = await generateTextWithFallback({
+    prompt,
+    temperature: 0.4,
+    maxOutputTokens: 4096,
+    maxRetries: 2,
+  });
+  return result.text.trim();
 }
 
 export type GenerateIdeasArgs = {
@@ -134,27 +130,36 @@ export async function generateIdeas(args: GenerateIdeasArgs): Promise<GenerateId
     language: args.language,
   });
 
-  // Retry once on parse failure — single bad LLM response shouldn't drop the video.
+  // Pro-first with Flash fallback on empty; 8192 budget keeps 6 fields × N ideas
+  // concrete. Drop blank/half-truncated ideas (missing story_angle or facts) so a
+  // partial response isn't saved as success — retry once if we're short of numIdeas.
+  let lastText = "";
+  let lastIssues = "";
   for (let attempt = 0; attempt < 2; attempt++) {
-    const result = await generateText({
-      model: llm("pro"),
+    const result = await generateTextWithFallback({
       prompt,
       temperature: 0.7,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 8192,
       maxRetries: 2,
     });
+    lastText = result.text;
     const parsed = parseLenientJson(result.text);
     const valid = ideasResponseSchema.safeParse(parsed);
     if (valid.success) {
-      return { ideas: valid.data.ideas.slice(0, numIdeas), rawSample: null, parseErrorSample: null };
-    }
-    if (attempt === 1) {
-      return {
-        ideas: [],
-        rawSample: result.text.slice(0, 600),
-        parseErrorSample: JSON.stringify(valid.error.issues.slice(0, 3)).slice(0, 400),
-      };
+      const complete = valid.data.ideas.filter(
+        (i) => i.story_angle.trim().length > 0 && i.facts_and_data.trim().length > 0,
+      );
+      // Full set, or whatever complete ideas we have on the final attempt.
+      if (complete.length >= numIdeas || (attempt === 1 && complete.length > 0)) {
+        return { ideas: complete.slice(0, numIdeas), rawSample: null, parseErrorSample: null };
+      }
+    } else {
+      lastIssues = JSON.stringify(valid.error.issues.slice(0, 3)).slice(0, 400);
     }
   }
-  return { ideas: [], rawSample: null, parseErrorSample: "loop exited unexpectedly" };
+  return {
+    ideas: [],
+    rawSample: lastText.slice(0, 600),
+    parseErrorSample: lastIssues || "incomplete ideas after retry",
+  };
 }

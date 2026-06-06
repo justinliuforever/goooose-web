@@ -113,7 +113,7 @@ function parseLenientJson(rawText: string): unknown {
   }
 }
 
-function normalizeOutline(parsed: unknown, fallbackTargetCount: number): Outline | null {
+function normalizeOutline(parsed: unknown, fallbackTargetCount: number, targetTotal: number): Outline | null {
   if (!parsed || typeof parsed !== "object") return null;
   const obj = parsed as Record<string, unknown>;
   const rawSections = obj.sections;
@@ -139,6 +139,13 @@ function normalizeOutline(parsed: unknown, fallbackTargetCount: number): Outline
     });
   }
   if (sections.length === 0) return null;
+  // Under-budgeted outlines silently yield a short script; if the section targets
+  // sum well below the requested total, scale them up to hit the requested length.
+  const sum = sections.reduce((a, s) => a + s.target_count, 0);
+  if (sum > 0 && sum < targetTotal * 0.8) {
+    const scale = targetTotal / sum;
+    for (const s of sections) s.target_count = Math.round(s.target_count * scale);
+  }
   return {
     overall_arc: typeof obj.overall_arc === "string" ? obj.overall_arc : "",
     sections,
@@ -178,7 +185,7 @@ async function writeScriptLong(
     model: llm("pro"),
     prompt: outlinePrompt,
     temperature: 0.5,
-    maxOutputTokens: 4096,
+    maxOutputTokens: 8192,
     maxRetries: 2,
   });
 
@@ -186,6 +193,7 @@ async function writeScriptLong(
   const outline = normalizeOutline(
     parseLenientJson(outlineResult.text),
     Math.max(200, Math.round(targetWordCount / 5)),
+    targetWordCount,
   );
   if (!outline) {
     // eslint-disable-next-line no-console
@@ -301,39 +309,10 @@ export async function writeScript(
     result = { ...short, path: "short" };
   }
 
-  // Final brand-wrapper enforcement — applies to both short + long paths.
-  const brandWrapper = extractBrandWrapper(args.bibleText);
-  if (brandWrapper && !result.scriptText.includes(brandWrapper)) {
-    const appendPrompt = `The following script is missing the channel's brand wrapper phrase "${brandWrapper}". Rewrite ONLY the [HOOK] or [TEASE] section to naturally include this exact verbatim string. Return the full revised script with all sections present. Do not add commentary.\n\n=== SCRIPT ===\n${result.scriptText}`;
-    const revised = await generateText({
-      model: llm("pro"),
-      prompt: appendPrompt,
-      temperature: 0.4,
-      maxOutputTokens: 12000,
-      maxRetries: 1,
-    });
-    if (revised.text.includes(brandWrapper) && revised.text.length > result.scriptText.length * 0.7) {
-      result = {
-        ...result,
-        scriptText: revised.text,
-        wordCount:
-          args.language === "zh"
-            ? revised.text.length
-            : revised.text.trim().split(/\s+/).length,
-      };
-    }
-  }
-
+  // Brand wrapper is now a soft guideline inside the script prompt itself — no
+  // post-hoc forced rewrite. (Removed: regex that injected any quoted Bible
+  // phrase into the hook, which often shoved an irrelevant line into the open.)
   return result;
-}
-
-// Heuristic: extract a likely brand-wrapper phrase from the Bible — any short
-// quoted phrase (3-50 chars) within sections that describe tone/branding.
-function extractBrandWrapper(bibleText: string): string | null {
-  const brandSection = bibleText.match(/(?:brand|signature|recurring|wrapper|outro|opener)[^\n]{0,200}["“']([^"”']{3,50})["”']/i);
-  if (brandSection?.[1]) return brandSection[1].trim();
-  const anyQuoted = bibleText.match(/["“']([^"”']{3,50})["”']/);
-  return anyQuoted?.[1]?.trim() ?? null;
 }
 
 export async function writeScriptShort(args: WriteScriptArgs): Promise<ScriptResult> {
@@ -355,12 +334,12 @@ export async function writeScriptShort(args: WriteScriptArgs): Promise<ScriptRes
     targetWordCount: args.targetWordCount,
   });
 
-  // Brand-wrapper enforcement happens in writeScript() once, not here.
   const result = await generateText({
     model: llm("pro"),
     prompt,
-    temperature: 0.5,
-    maxOutputTokens: 8192,
+    // 16384 so the short path (and the long-form fallback that reuses it) doesn't
+    // truncate larger targets; reasoning tokens also draw from this budget.
+    maxOutputTokens: 16384,
     maxRetries: 2,
   });
 

@@ -1,4 +1,4 @@
-import { generateText } from "ai";
+import { streamText } from "ai";
 
 import { llm } from "../../clients/llm";
 import { buildChannelBiblePrompt } from "../../prompts/poet";
@@ -106,23 +106,38 @@ export type GenerateBibleArgs = {
   language?: "en" | "zh";
 };
 
-export async function generateChannelBible(args: GenerateBibleArgs): Promise<BibleResult> {
+export async function generateChannelBible(
+  args: GenerateBibleArgs,
+  onProgress?: (charCount: number) => void | Promise<void>,
+): Promise<BibleResult> {
   const prompt = buildChannelBiblePrompt({
     ideaText: args.ideaText,
     channelDescription: args.channelDescription,
     language: args.language,
   });
-  // Retry once on empty content — V4 Pro reasoning occasionally eats the full budget.
+  // Flash, not Pro: the Bible is a structured strategy brief, not deep reasoning.
+  // A/B shows Flash is 2.4-3.5× faster with equal quality. Stream so the caller
+  // can surface live progress. 16384 token ceiling leaves generous headroom.
+  // Retry once on empty.
   let content = "";
   for (let attempt = 0; attempt < 2; attempt++) {
-    const result = await generateText({
-      model: llm("pro"),
+    const result = streamText({
+      model: llm("flash"),
       prompt,
       temperature: 0.4,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 16384,
       maxRetries: 2,
     });
-    content = result.text.trim();
+    let acc = "";
+    let lastTick = 0;
+    for await (const delta of result.textStream) {
+      acc += delta;
+      if (onProgress && acc.length - lastTick >= 300) {
+        lastTick = acc.length;
+        await onProgress(acc.length);
+      }
+    }
+    content = acc.trim();
     if (content.length > 0) break;
   }
   const topicClaimed = extractTopicLine(content);
