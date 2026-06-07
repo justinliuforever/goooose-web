@@ -327,6 +327,47 @@ Output ONLY the JSON object. No markdown fences, no explanation, no prefix. The 
   );
 }
 
+export type FactCheckItem = { index: number; fact: string; src: string };
+
+// Verify each extracted fact against world knowledge. A source citation does NOT make a
+// fact correct (reference material can be wrong, e.g. a famous product's launch year).
+// Deliberately conservative: default to "verified" — a false flag is worse than a miss.
+export function buildFactCheckPrompt(args: {
+  items: FactCheckItem[];
+  referenceTitles: string[];
+  language: "en" | "zh";
+}): string {
+  const noteLang = args.language === "zh" ? "Chinese (中文)" : "English";
+  const list = args.items
+    .map((it) => `${it.index}. ${it.fact}${it.src ? ` [src: ${it.src}]` : ""}`)
+    .join("\n");
+  const sources = args.referenceTitles.length
+    ? args.referenceTitles.map((t) => `- ${t}`).join("\n")
+    : "(no reference titles provided)";
+  return `You are a meticulous fact-checker. Below is a numbered list of factual atoms extracted from reference material, each tagged with the source it was pulled from. A source citation does NOT guarantee the fact is correct — reference material can itself be wrong. Using your own world knowledge, classify each fact.
+
+## Sources these facts were pulled from
+${sources}
+
+## Facts to check
+${list}
+
+## For each fact, assign one status
+- "verified": consistent with well-known reality, OR you cannot judge it from world knowledge (a niche/obscure detail) — DEFAULT to "verified" when unsure. Most facts should be "verified".
+- "disputed": ONLY when you are HIGHLY confident it conflicts with widely-known reality (e.g. a famous product's launch year, a well-known date / name / spec is wrong). In "note", give the commonly-accepted correct value, briefly.
+- "unsupported": the claim is internally incoherent or clearly fabricated nonsense.
+
+## Critical rules
+- Be conservative. When in doubt → "verified". Do NOT flag something merely because you're unsure — only clear, high-confidence conflicts. A wrongly-flagged correct fact is worse than a missed one.
+- Do NOT rewrite or correct the facts themselves. Only classify, and for "disputed"/"unsupported" add a short "note".
+- "note" must be written in ${noteLang}. Omit "note" for "verified".
+
+## Output
+Output ONLY a JSON array, one object per fact, in the same order:
+[{"index": 1, "status": "verified"}, {"index": 2, "status": "disputed", "note": "..."}]
+No markdown fences, no prose. Must be parseable by JSON.parse().`;
+}
+
 export function buildChineseHumanizerPrompt(scriptText: string): string {
   return `你现在是这个视频的真实创作者，正在对着镜头说话。这个脚本是AI草稿，你的任务是把它改成你自己真实开口说出来的样子。
 

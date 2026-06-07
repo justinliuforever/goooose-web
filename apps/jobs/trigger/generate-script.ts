@@ -13,6 +13,7 @@ import {
   poetBible,
   poetCustomTopics,
   poetScripts,
+  type CheckedFact,
   type CustomTopicReference,
 } from "@singularity/db";
 import { humanizeChinese } from "@singularity/shared/services/poet/humanizer";
@@ -84,6 +85,7 @@ export const generateScript = task({
       };
       let references: ScriptReference[] = [];
       let verbatimFacts: string | null = null;
+      let factChecks: CheckedFact[] | null = null;
       let museIdeaId: string | null = null;
       let customTopicIdFinal: string | null = null;
 
@@ -171,6 +173,7 @@ export const generateScript = task({
           sourceChannel: "Custom topic",
         };
         verbatimFacts = topicRow.verbatimFacts;
+        factChecks = topicRow.factChecks;
         const stored = (topicRow.references as CustomTopicReference[] | null) ?? [];
         references = stored
           .map((r): ScriptReference | null => {
@@ -224,6 +227,7 @@ export const generateScript = task({
           references,
           targetWordCount,
           verbatimFacts,
+          factChecks,
         },
         {
           onOutlineDone: async (outline) => {

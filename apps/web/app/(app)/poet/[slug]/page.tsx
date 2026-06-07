@@ -18,6 +18,7 @@ import {
 import { formatDurationLabel } from "@singularity/shared/schemas/poet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PoetFactList } from "@/components/poet-fact-list";
 import { getActiveAgentRun } from "@/lib/agent-run";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
@@ -339,7 +340,14 @@ export default async function PoetChannelPage({ params }: Props) {
                           <p className="whitespace-pre-wrap">{t.factsAndData}</p>
                         </div>
                       ) : null}
-                      {t.verbatimFacts ? (
+                      {t.factChecks.length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                          <span className="font-medium uppercase text-muted-foreground">
+                            原文事实
+                          </span>
+                          <PoetFactList facts={t.factChecks} references={t.references} />
+                        </div>
+                      ) : t.verbatimFacts ? (
                         <div className="flex flex-col gap-1">
                           <span className="font-medium uppercase text-muted-foreground">
                             原文事实

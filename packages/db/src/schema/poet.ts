@@ -47,6 +47,16 @@ export type CustomTopicReference = {
   title?: string;
 };
 
+// Per-fact verification produced at topic-analysis time. status="disputed" means the
+// fact conflicts with well-known reality even though a source cites it (e.g. a wrong
+// product year); note carries the suggested correct value. We mark, never auto-edit.
+export type CheckedFact = {
+  fact: string;
+  src: string;
+  status: "verified" | "disputed" | "unsupported";
+  note?: string;
+};
+
 export const customTopicStatusEnum = pgEnum("custom_topic_status", [
   "draft",
   "analyzed",
@@ -61,6 +71,7 @@ export const poetCustomTopics = pgTable("poet_custom_topics", {
   storyAngle: text("story_angle"),
   factsAndData: text("facts_and_data"),
   verbatimFacts: text("verbatim_facts"),
+  factChecks: jsonb("fact_checks").$type<CheckedFact[]>().default([]).notNull(),
   whySimilar: text("why_similar"),
   viralTrigger: text("viral_trigger"),
   status: customTopicStatusEnum("status").notNull().default("draft"),

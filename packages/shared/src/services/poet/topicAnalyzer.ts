@@ -1,6 +1,7 @@
 import { generateTextWithFallback } from "../../clients/llm";
 import { redactUngrounded } from "../grounding";
 import { buildTopicAnalysisPrompt } from "../../prompts/poet";
+import { factCheckVerbatim, type CheckedFact } from "./factCheck";
 import { formatReferencesBlock, type ScriptReference } from "./scriptWriter";
 
 export type TopicAnalysis = {
@@ -9,6 +10,7 @@ export type TopicAnalysis = {
   verbatimFacts: string;
   whySimilar: string;
   viralTrigger: string;
+  factChecks: CheckedFact[];
 };
 
 export type AnalyzeTopicArgs = {
@@ -73,12 +75,13 @@ export async function analyzeTopic(args: AnalyzeTopicArgs): Promise<TopicAnalysi
     }
   }
 
-  const analysis = {
+  const analysis: TopicAnalysis = {
     storyAngle: toText(data.story_angle),
     factsAndData: toText(data.facts_and_data),
     verbatimFacts: toText(data.verbatim_facts),
     whySimilar: toText(data.why_similar),
     viralTrigger: toText(data.viral_trigger),
+    factChecks: [],
   };
   // Don't pass a content-less analysis off as success — the caller marks the topic
   // 'analyzed' and feeds it to script generation. Fail loudly so the run retries.
@@ -93,6 +96,15 @@ export async function analyzeTopic(args: AnalyzeTopicArgs): Promise<TopicAnalysi
     source: formatReferencesBlock(args.references ?? null),
     language: args.language,
     maxOutputTokens: 4096,
+  });
+  // Verify extracted verbatim facts against world knowledge — catches sourced-but-wrong
+  // claims the grounding pass keeps (it trusts cited sources). Marks only, never edits.
+  analysis.factChecks = await factCheckVerbatim({
+    verbatimFacts: analysis.verbatimFacts,
+    referenceTitles: (args.references ?? [])
+      .map((r) => r.title)
+      .filter((t): t is string => !!t),
+    language: args.language,
   });
   return analysis;
 }

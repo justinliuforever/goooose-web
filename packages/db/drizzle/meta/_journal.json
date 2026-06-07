@@ -78,6 +78,13 @@
       "when": 1780770427027,
       "tag": "0010_add_bible_active_index",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1780860948424,
+      "tag": "0011_add_fact_checks",
+      "breakpoints": true
     }
   ]
 }

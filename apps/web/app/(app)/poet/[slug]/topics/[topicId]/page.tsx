@@ -8,6 +8,7 @@ import type { CustomTopicReference } from "@singularity/db";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PoetFactList } from "@/components/poet-fact-list";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
@@ -129,7 +130,16 @@ export default async function PoetTopicDetailPage({ params }: Props) {
 
       <Section title="故事角度" body={topic.storyAngle} />
       <Section title="事实与数据" body={topic.factsAndData} />
-      <Section title="原文事实" body={topic.verbatimFacts} />
+      {topic.factChecks.length > 0 ? (
+        <section className="flex flex-col gap-2">
+          <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            原文事实
+          </h3>
+          <PoetFactList facts={topic.factChecks} references={topic.references} />
+        </section>
+      ) : (
+        <Section title="原文事实" body={topic.verbatimFacts} />
+      )}
       <Section title="为什么对标" body={topic.whySimilar} />
       <Section title="爆款触发因素" body={topic.viralTrigger} />
 

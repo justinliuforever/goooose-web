@@ -1,0 +1,1 @@
+ALTER TABLE "poet_custom_topics" ADD COLUMN "fact_checks" jsonb DEFAULT '[]'::jsonb NOT NULL;

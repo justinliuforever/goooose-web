@@ -152,6 +152,7 @@ export const analyzeCustomTopic = task({
           storyAngle: safeText(analysis.storyAngle),
           factsAndData: safeText(analysis.factsAndData),
           verbatimFacts: safeText(analysis.verbatimFacts),
+          factChecks: analysis.factChecks,
           whySimilar: safeText(analysis.whySimilar),
           viralTrigger: safeText(analysis.viralTrigger),
           bibleId: bible.id,

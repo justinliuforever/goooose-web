@@ -8,6 +8,7 @@ import {
   buildSectionExpandPrompt,
 } from "../../prompts/poet";
 import { isLongForm } from "../../schemas/poet";
+import type { CheckedFact } from "./factCheck";
 
 const MAX_REFERENCE_CHARS = 24000;
 const MAX_SECTION_REFERENCE_CHARS = 10000;
@@ -54,7 +55,23 @@ export function formatReferencesBlock(
   return parts.join("\n");
 }
 
-export function formatVerbatimFacts(verbatimFacts: string | null | undefined): string {
+export function formatVerbatimFacts(
+  verbatimFacts: string | null | undefined,
+  factChecks?: CheckedFact[] | null,
+): string {
+  // When fact-check flagged disputed/unsupported atoms, rebuild the list from the
+  // structured facts so each flagged one carries an inline caution the writer must heed.
+  const flagged = (factChecks ?? []).filter((f) => f.status !== "verified");
+  if (flagged.length > 0) {
+    return (factChecks ?? [])
+      .map((f) => {
+        const base = `- ${f.fact}${f.src ? ` [src: ${f.src}]` : ""}`;
+        if (f.status === "verified") return base;
+        const why = f.note?.trim() || "conflicts with well-known facts";
+        return `${base}  ⚠️ DISPUTED — ${why}; do NOT state this specific value as fact (generalize it or omit the number/year)`;
+      })
+      .join("\n");
+  }
   const text = (verbatimFacts ?? "").trim();
   if (!text) {
     return "(No verbatim facts extracted. Pull all specific data directly from the References above and copy exactly.)";
@@ -79,6 +96,7 @@ export type WriteScriptArgs = {
   references?: ScriptReference[] | null;
   targetWordCount: number;
   verbatimFacts?: string | null;
+  factChecks?: CheckedFact[] | null;
 };
 
 export type ScriptResult = {
@@ -171,7 +189,7 @@ async function writeScriptLong(
     `Why Similar: ${args.idea.whySimilar}`;
   const refsBlockFull = formatReferencesBlock(args.references, MAX_REFERENCE_CHARS);
   const refsBlockSection = formatReferencesBlock(args.references, MAX_SECTION_REFERENCE_CHARS);
-  const verbatimBlock = formatVerbatimFacts(args.verbatimFacts);
+  const verbatimBlock = formatVerbatimFacts(args.verbatimFacts, args.factChecks);
 
   const outlinePrompt = buildLongFormOutlinePrompt({
     sopReference: args.sopText,
@@ -319,7 +337,7 @@ export async function writeScript(
   const source = [
     args.bibleText,
     formatReferencesBlock(args.references),
-    formatVerbatimFacts(args.verbatimFacts),
+    formatVerbatimFacts(args.verbatimFacts, args.factChecks),
     args.idea.factsAndData,
   ].join("\n\n");
   const grounded = await redactUngrounded({
@@ -349,7 +367,7 @@ export async function writeScriptShort(args: WriteScriptArgs): Promise<ScriptRes
     channelBible: args.bibleText,
     sopReference: args.sopText,
     referencesContext: formatReferencesBlock(args.references),
-    verbatimFactsContext: formatVerbatimFacts(args.verbatimFacts),
+    verbatimFactsContext: formatVerbatimFacts(args.verbatimFacts, args.factChecks),
     sourceTitle: args.idea.sourceTitle,
     sourceChannel: args.idea.sourceChannel,
     viralTrigger: args.idea.viralTrigger,
