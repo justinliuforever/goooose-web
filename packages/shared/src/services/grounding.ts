@@ -1,4 +1,6 @@
-import { generateTextWithFallback } from "../clients/llm";
+import { generateText } from "ai";
+
+import { llm } from "../clients/llm";
 
 // Anti-fabrication grounding pass: a second LLM checks every specific claim in a
 // generated draft against the source material and redacts the ones the source does
@@ -43,14 +45,24 @@ ${args.source?.trim() || "(none provided — treat ALL specific figures, specs, 
 ## DRAFT
 ${draft}`;
   try {
-    const { text } = await generateTextWithFallback({
+    // Flash, not Pro: redaction is mechanical (copy-with-edits), and a reasoning
+    // model burns the output budget on long docs and truncates the result.
+    const result = await generateText({
+      model: llm("flash"),
       prompt,
       maxOutputTokens: args.maxOutputTokens ?? 16384,
       temperature: 0.2,
+      maxRetries: 2,
     });
-    const out = text.trim();
+    const out = result.text.trim();
     if (!out) {
       args.logger?.warn?.("grounding pass returned empty; keeping draft");
+      return args.draft;
+    }
+    // If the redaction itself hit the length cap, ship the original — an un-redacted
+    // but complete doc beats a truncated one.
+    if (result.finishReason === "length") {
+      args.logger?.warn?.(`grounding pass truncated (length cap); keeping original draft`);
       return args.draft;
     }
     args.logger?.info?.(`grounding pass: ${draft.length} → ${out.length} chars`);
