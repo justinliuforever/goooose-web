@@ -327,6 +327,7 @@ export async function writeScript(
     source,
     language: args.language,
     mode: "script",
+    tier: "fallback", // Pro-first: catches factual errors (e.g. wrong product year) a script asserts.
   });
   if (grounded && grounded !== result.scriptText) {
     result = {

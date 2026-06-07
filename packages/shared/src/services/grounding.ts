@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 
-import { llm } from "../clients/llm";
+import { generateTextWithFallback, llm } from "../clients/llm";
 
 // Anti-fabrication / fact-safety pass: a second LLM compares a generated draft to its
 // source and (1) redacts specifics the source doesn't support, (2) cleans garbled ASR
@@ -13,6 +13,7 @@ export async function redactUngrounded(args: {
   source: string;
   language?: "en" | "zh";
   mode?: "doc" | "script";
+  tier?: "flash" | "fallback";
   maxOutputTokens?: number;
   logger?: { info?: (m: string) => void; warn?: (m: string) => void };
 }): Promise<string> {
@@ -48,23 +49,27 @@ ${args.source?.trim() || "(none provided — treat ALL specific figures, specs, 
 ## DRAFT
 ${draft}`;
   try {
-    // Flash, not Pro: redaction is mechanical (copy-with-edits), and a reasoning
-    // model burns the output budget on long docs and truncates the result.
-    const result = await generateText({
-      model: llm("flash"),
-      prompt,
-      maxOutputTokens: args.maxOutputTokens ?? 16384,
-      temperature: 0.2,
-      maxRetries: 2,
-    });
-    const out = result.text.trim();
+    // Default Flash: redaction is mechanical and a reasoning model truncates long docs.
+    // tier:"fallback" (Pro-first, Flash on empty) is for SHORT drafts (scripts) where
+    // Pro's world knowledge catches factual errors and the length is safe.
+    const maxOutputTokens = args.maxOutputTokens ?? 16384;
+    let out: string;
+    let finishReason: string | undefined;
+    if (args.tier === "fallback") {
+      const r = await generateTextWithFallback({ prompt, maxOutputTokens, temperature: 0.2 });
+      out = r.text.trim();
+      finishReason = r.finishReason;
+    } else {
+      const r = await generateText({ model: llm("flash"), prompt, maxOutputTokens, temperature: 0.2, maxRetries: 2 });
+      out = r.text.trim();
+      finishReason = r.finishReason;
+    }
     if (!out) {
       args.logger?.warn?.("grounding pass returned empty; keeping draft");
       return args.draft;
     }
-    // If the redaction itself hit the length cap, ship the original — an un-redacted
-    // but complete doc beats a truncated one.
-    if (result.finishReason === "length") {
+    // If the pass hit the length cap, ship the original — un-redacted but complete beats truncated.
+    if (finishReason === "length") {
       args.logger?.warn?.(`grounding pass truncated (length cap); keeping original draft`);
       return args.draft;
     }

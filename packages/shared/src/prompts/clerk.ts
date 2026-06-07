@@ -187,7 +187,19 @@ type SopArgs = {
   date: string;
   videosData: string;
   language?: 'en' | 'zh';
+  transcriptCount?: number;
 };
+
+// When most/all videos lack a transcript, tell the SOP not to fabricate the
+// timestamp/quote-heavy sections the templates otherwise demand.
+function transcriptCoverageNote(transcriptCount: number | undefined, total: number): string {
+  const tc = transcriptCount ?? total;
+  if (tc >= total) return '';
+  if (tc <= 0) {
+    return `⚠️ TRANSCRIPT COVERAGE: 0 of ${total} analyzed videos have a transcript (audio/captions unavailable). You have NO spoken source — do NOT produce [m:ss] timestamps, verbatim quotes, beat-by-beat timelines, EXAMPLE_OPENING lines, narrative-arc timestamps, or per-video frequency counts (they would be fabricated). Build only from titles + cover/thumbnail signals, keep it at the title/cover-pattern level, and state this limitation plainly at the top.\n\n`;
+  }
+  return `⚠️ TRANSCRIPT COVERAGE: only ${tc} of ${total} analyzed videos have a transcript. Use [m:ss], verbatim quotes, and timelines ONLY for the videos that have one; for the rest work from title/cover and never invent timecodes or quotes.\n\n`;
+}
 
 export function buildHumanSopPrompt(args: SopArgs): string {
   const viewsClause =
@@ -259,7 +271,8 @@ Translate the SOP into a 10-15-bullet actionable checklist a writer can tick bef
 
 Format as clean markdown. Cite \`[m:ss]\` timestamps from the analyzed transcripts wherever quoting a line — do NOT invent timestamps.
 `;
-  return args.language === 'zh' ? CHINESE_WRAPPER(inner) : inner;
+  const note = transcriptCoverageNote(args.transcriptCount, args.videoCount);
+  return args.language === 'zh' ? CHINESE_WRAPPER(note + inner) : note + inner;
 }
 
 export function buildAiSopReferencePrompt(args: SopArgs): string {
@@ -347,7 +360,7 @@ Bulleted list of writing constraints the channel respects (e.g. "Never use rheto
 Return ONLY the document content above. No preface. No code fences around the whole document.
 `;
 
-  return inner;
+  return transcriptCoverageNote(args.transcriptCount, args.videoCount) + inner;
 }
 
 type HottestArgs = {
