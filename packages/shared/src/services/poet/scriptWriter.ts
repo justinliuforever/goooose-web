@@ -314,13 +314,20 @@ export async function writeScript(
   // post-hoc forced rewrite. (Removed: regex that injected any quoted Bible
   // phrase into the hook, which often shoved an irrelevant line into the open.)
 
-  // Grounding pass: strip stats/specs/quotes the references + idea facts don't support.
+  // Grounding pass (script mode: generalize, never insert tags — it's read aloud).
+  // Include the bible so the channel/host identity counts as grounded.
   const source = [
+    args.bibleText,
     formatReferencesBlock(args.references),
     formatVerbatimFacts(args.verbatimFacts),
     args.idea.factsAndData,
   ].join("\n\n");
-  const grounded = await redactUngrounded({ draft: result.scriptText, source, language: args.language });
+  const grounded = await redactUngrounded({
+    draft: result.scriptText,
+    source,
+    language: args.language,
+    mode: "script",
+  });
   if (grounded && grounded !== result.scriptText) {
     result = {
       ...result,
