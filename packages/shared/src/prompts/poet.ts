@@ -92,6 +92,8 @@ export function buildScriptWritingPrompt(args: ScriptWritingArgs): string {
   const languageName = args.language === "zh" ? "Chinese (中文)" : "English";
   const lengthUnit = args.language === "zh" ? "characters (字)" : "words";
   const minWordCount = Math.round(args.targetWordCount * 0.9);
+  const maxWordCount = Math.round(args.targetWordCount * 1.2);
+  const isShort = args.targetWordCount < 300;
 
   // Script-writing prompt is intentionally English-instruction even for Chinese
   // output — the LLM follows English structure better. The `language_name`
@@ -127,14 +129,14 @@ ${args.ideaText}
 
 ## Step 5: Write the Script
 
-Write a COMPLETE, ready-to-film script in **${languageName}**. Target **${args.targetWordCount} ${lengthUnit}** — this is not a suggestion, it is the required output length. Do not end the script before reaching at least 90% of this count (${minWordCount} ${lengthUnit}). If you finish all sections early, expand the ITEM sections with more specific examples, detail, and emotional beats until you reach the minimum.
+Write a COMPLETE, ready-to-film script in **${languageName}**. Length is a HARD WINDOW: **${minWordCount}–${maxWordCount} ${lengthUnit}** (aim for ~${args.targetWordCount}). Do not fall below ${minWordCount} and do NOT exceed ${maxWordCount}.${isShort ? " This is a SHORT video — keep every section to 1-2 sentences, front-load the hook, and cut anything that doesn't earn its place. Do not pad to reach a higher count." : " If you finish all sections early, expand the ITEM sections with more specific detail until you reach the target — never pad with filler."}
 
 Follow the SOP structure precisely:
 1. Open with one of the hook formulas from the SOP, adapted to this topic.
 2. Follow the exact beat-by-beat template from the SOP.
 3. Use the retention devices from the SOP: open loops, rehook phrases, specificity spikes, emotional reframes.
-4. Place the CTA according to the SOP rules.
-5. Build emotional escalation — the final beat must be the most powerful.
+4. Place the CTA AFTER the climax — the climax is the emotional peak, the CTA is the viewer's next-step ask.
+5. Build emotional escalation toward the [CLIMAX] (the most powerful beat); keep [CLOSE] a brief single sign-off — not a second climax or a second CTA.
 6. Write in the voice and tone described in the SOP — as if a real person is speaking, not reading a document.
 7. If the Channel Bible defines a recurring brand wrapper, signature phrase, or show-name segment (e.g. "The Code Report", "Welcome back to X"), include it naturally in the script.
 
@@ -151,7 +153,7 @@ Follow the SOP structure precisely:
 - Copy every number, date, name, price, and model name exactly as it appears in the references. Do not round, normalise, or convert.
 - Do not invent any fact not present in the references. If a fact isn't there, leave it out.
 
-Output the script as plain text. Include section markers [HOOK], [TEASE], [ITEM 1], [CTA], [CLIMAX], [CLOSE]. No meta-commentary, no preamble.
+Output the script as plain text, with section markers in this EXACT order: [HOOK], [TEASE], [ITEM 1], [CLIMAX], [CTA], [CLOSE]. Use each marker once; [CLIMAX] must come before [CTA]; [CLOSE] is the single final sign-off. No meta-commentary, no preamble.
 `, args.language);
 }
 

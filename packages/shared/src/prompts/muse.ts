@@ -80,7 +80,7 @@ Identify the VIRAL TRIGGER:
 2. **Watch Trigger**: What kept them watching?
 3. **Share Trigger**: What would make someone share this?
 
-Synthesize into 2-3 sentences covering: why people click, why they keep watching, why they would share — then end with a one-line statement of the core viral mechanism. Write in the output language naturally; do not use bracketed placeholders or an English template.
+Synthesize into 2-3 sentences covering: why people click, why they keep watching, why they would share — then end with a one-line statement of the core viral mechanism. Base this ONLY on the transcript above; do not invent specifics that are not present in it. Write in the output language naturally; do not use bracketed placeholders or an English template.
 
 Return ONLY plain text (not JSON).
 `;
@@ -129,6 +129,7 @@ Return JSON:
       "story_angle": "Compelling working title capturing the viral hook.",
       "facts_and_data": "Several concrete, specific facts — statistics, numbers, names, dates, or researchable claims the script can build on. Be substantive, not a one-liner. Only include facts you can ground in the source; if unsure, describe the data point to verify and mark it (needs verification) — never fabricate specific numbers, dates, or names.",
       "why_similar": "One sentence on how this uses the same viral trigger.",
+      "viral_trigger": "1-2 sentences on why THIS specific idea will spread — its own click / watch / share hook applied to this topic. Do NOT restate the source video's analysis; make it specific to this idea.",
       "cover_concept": "1-sentence visual concept for the thumbnail (subject, text overlay, emotion, color cue).",
       "suggested_hook_type": "Which of the channel's hook formulas to open with — reuse the exact hook name the channel/SOP already uses, in the channel's own language.",
       "risk_factors": "1-2 sentences flagging why this idea could underperform (sensitive topic, low search volume, dated reference, off-brand)."
@@ -141,6 +142,6 @@ Return ONLY valid JSON. Generate exactly ${args.numIdeas} ideas.
   if (args.language !== "zh") return inner;
   return (
     CHINESE_WRAPPER(inner) +
-    '\n\nIMPORTANT: JSON keys must remain in English (ideas, story_angle, facts_and_data, why_similar, cover_concept, suggested_hook_type, risk_factors). Only the VALUES should be in Simplified Chinese.'
+    '\n\nIMPORTANT: JSON keys must remain in English (ideas, story_angle, facts_and_data, why_similar, viral_trigger, cover_concept, suggested_hook_type, risk_factors). Only the VALUES should be in Simplified Chinese.'
   );
 }

@@ -481,6 +481,7 @@ export const monitorCompetitors = task({
       }
 
       let ideasGenerated = 0;
+      let globalIdeaNumber = 0;
       if (relevantRows.length > 0) {
         await metadata.set("progress", {
           current: 0,
@@ -536,14 +537,14 @@ export const monitorCompetitors = task({
             }
 
             await db.insert(museIdeas).values(
-              ideasResult.ideas.map((idea, ix) => ({
+              ideasResult.ideas.map((idea) => ({
                 channelId: channel.id,
                 sourceVideoId: row.monitorVideoId,
-                ideaNumber: ix + 1,
+                ideaNumber: ++globalIdeaNumber,
                 storyAngle: safeText(idea.story_angle),
                 factsAndData: safeText(idea.facts_and_data),
                 whySimilar: safeText(idea.why_similar),
-                viralTrigger: safeText(viralTrigger),
+                viralTrigger: safeText(idea.viral_trigger) ?? safeText(viralTrigger),
                 coverConcept: safeText(idea.cover_concept),
                 suggestedHookType: safeText(idea.suggested_hook_type),
                 riskFactors: safeText(idea.risk_factors),
