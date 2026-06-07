@@ -1,10 +1,8 @@
-import { createReadStream, createWriteStream, readFileSync, statSync, unlinkSync } from "node:fs";
+import { createWriteStream, readFileSync, statSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-
-import Groq from "groq-sdk";
 
 import { classifyError, ProxyPool, type ProxySession } from "../proxy";
 import {
@@ -21,24 +19,12 @@ const CAPTION_PREFER_LANGS = ["en", "zh-Hans"];
 // is treated as "no captions, fall through to audio ASR".
 const CAPTION_MIN_CHARS = 80;
 
-// Cap audio ASR fallback: above this duration the audio file usually exceeds
-// Groq's 25MB limit and Deepgram billing becomes unhappy.
+// Cap audio ASR fallback: above this duration the audio file gets unwieldy and
+// Deepgram billing becomes unhappy.
 const MAX_AUDIO_DURATION_SEC = 3600;
 
-const GROQ_FILE_LIMIT_BYTES = 25 * 1024 * 1024;
+const QWEN_FILE_LIMIT_BYTES = 10 * 1024 * 1024; // Qwen3-ASR OpenAI-compatible mode cap
 const DOWNLOAD_TIMEOUT_MS = 900_000;
-
-let _groq: Groq | null = null;
-
-function getGroq(): Groq {
-  if (!_groq) {
-    if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY not set in env");
-    // maxRetries makes the SDK back off on 429 — XHS now leans entirely on Groq
-    // at higher concurrency, so absorb rate-limit bursts instead of failing to text.
-    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY, maxRetries: 3 });
-  }
-  return _groq;
-}
 
 function extensionForMime(mime?: string): string {
   if (!mime) return "m4a";
@@ -155,39 +141,11 @@ async function transcribeWithDeepgram(
   };
 }
 
-async function transcribeWithGroq(
-  tempPath: string,
-): Promise<{
-  text: string;
-  durationSec?: number;
-  detectedLanguage?: string;
-  words: Array<{ w: string; t: number }>;
-} | null> {
-  const result = await getGroq().audio.transcriptions.create({
-    file: createReadStream(tempPath),
-    model: "whisper-large-v3",
-    response_format: "verbose_json",
-    timestamp_granularities: ["word"],
-  });
-  const v = result as unknown as {
-    text?: string;
-    language?: string;
-    duration?: number;
-    words?: Array<{ word?: string; start?: number }>;
-  };
-  const text = (v.text ?? "").trim();
-  if (!text) return null;
-  const words = (v.words ?? [])
-    .filter((w) => w.word && typeof w.start === "number")
-    .map((w) => ({ w: (w.word ?? "").trim(), t: Math.floor(w.start ?? 0) }));
-  return { text, detectedLanguage: v.language, durationSec: v.duration, words };
-}
-
 export type AsrResult = {
   text: string;
   detectedLanguage?: string;
   durationSec?: number;
-  provider: "deepgram" | "groq" | "youtube_auto";
+  provider: "deepgram" | "youtube_auto" | "qwen";
   words: Array<{ w: string; t: number }>;
 };
 
@@ -256,56 +214,111 @@ export type TranscribeOpts = {
   tag?: string;
 };
 
+// Qwen3-ASR-Flash (Alibaba Model Studio, Singapore) — Chinese-native ASR. Handles
+// XHS h265 video/mp4 directly, far better Mandarin than Deepgram, ~1-5s. OpenAI-
+// compatible chat endpoint, base64 data-URI input (10MB cap). Pass language to
+// force it (XHS -> "zh"); omit for auto-detect (enable_lid).
+async function transcribeWithQwen(
+  tempPath: string,
+  mime: string,
+  language?: string,
+): Promise<{ text: string; detectedLanguage?: string; words: Array<{ w: string; t: number }> } | null> {
+  const key = process.env.DASHSCOPE_API_KEY;
+  const base = process.env.DASHSCOPE_ASR_BASE_URL;
+  if (!key || !base) return null; // not configured
+  const b64 = readFileSync(tempPath).toString("base64");
+  const mediaType = /^(audio|video)\//.test(mime) ? mime : "audio/mp4";
+  const asrOptions: Record<string, unknown> = { enable_lid: true, enable_itn: false };
+  if (language) asrOptions.language = language;
+  const res = await fetch(`${base}/compatible-mode/v1/chat/completions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "qwen3-asr-flash",
+      messages: [{ role: "user", content: [{ type: "input_audio", input_audio: { data: `data:${mediaType};base64,${b64}` } }] }],
+      stream: false,
+      asr_options: asrOptions,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Qwen ASR HTTP ${res.status}: ${(await res.text()).slice(0, 160)}`);
+  }
+  const j = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const text = (j.choices?.[0]?.message?.content ?? "").trim();
+  if (!text) return null;
+  return { text, words: [], detectedLanguage: language ?? "auto" };
+}
+
 async function transcribeAtPath(
   tempPath: string,
   mime: string,
   sizeBytes: number,
   opts: TranscribeOpts,
-  directGroq = false,
+  preferQwen = false,
 ): Promise<AsrResult | null> {
   const { onPhase, logger, durationSec, tag = "ASR" } = opts;
-  // XHS audio (h265-in-mp4) reliably yields no usable Deepgram output, so the
-  // XHS path skips straight to Groq instead of burning a guaranteed-failed call.
-  if (!directGroq) {
-    onPhase?.("transcribing", { bytes: sizeBytes, provider: "deepgram" });
-    try {
-      const bytes = readFileSync(tempPath);
-      const dg = await transcribeWithDeepgram(bytes, mime);
-      if (dg) {
-        const effectiveDur = durationSec ?? dg.durationSec;
-        const ratio = effectiveDur && effectiveDur > 0 ? dg.text.length / effectiveDur : Infinity;
-        if (effectiveDur && effectiveDur > 30 && ratio < MIN_CHARS_PER_SEC) {
-          logger?.warn(
-            `${tag}: Deepgram returned ${dg.text.length} chars for ${effectiveDur}s audio (${ratio.toFixed(2)} chars/sec, likely garbled), trying Groq`,
-          );
-        } else {
-          logger?.info(`${tag}: Deepgram OK (${dg.text.length} chars, ${dg.words.length} words)`);
-          return { ...dg, provider: "deepgram" };
-        }
-      } else {
-        logger?.warn(`${tag}: Deepgram returned empty, trying Groq`);
-      }
-    } catch (err) {
-      logger?.warn(
-        `${tag}: Deepgram failed (${(err as Error).message?.slice(0, 120)}), trying Groq`,
-      );
-    }
-  }
+  const qwenFits = sizeBytes <= QWEN_FILE_LIMIT_BYTES;
 
-  if (sizeBytes > GROQ_FILE_LIMIT_BYTES) {
-    logger?.warn(`${tag}: file ${sizeBytes}B exceeds Groq 25MB cap`);
+  if (preferQwen) {
+    // XHS / Chinese: Qwen3-ASR-Flash only (force zh). Deepgram returns gibberish on
+    // Chinese, so there's no audio fallback — on failure return null and let the
+    // caller fall back to title-only text.
+    if (!qwenFits) {
+      logger?.warn(`${tag}: file ${sizeBytes}B exceeds Qwen 10MB cap, skipping ASR`);
+      return null;
+    }
+    onPhase?.("transcribing", { bytes: sizeBytes, provider: "qwen" });
+    try {
+      const qwen = await transcribeWithQwen(tempPath, mime, "zh");
+      if (qwen) {
+        logger?.info(`${tag}: Qwen OK (${qwen.text.length} chars)`);
+        return { ...qwen, provider: "qwen" };
+      }
+      logger?.warn(`${tag}: Qwen returned empty`);
+    } catch (err) {
+      logger?.warn(`${tag}: Qwen failed (${(err as Error).message?.slice(0, 160)})`);
+    }
     return null;
   }
-  onPhase?.("transcribing", { bytes: sizeBytes, provider: "groq" });
+
+  // YouTube / English: Deepgram primary (fast, handles long audio); Qwen as a
+  // ≤10MB fallback (auto language).
+  onPhase?.("transcribing", { bytes: sizeBytes, provider: "deepgram" });
   try {
-    const groq = await transcribeWithGroq(tempPath);
-    if (groq) {
-      logger?.info(`${tag}: Groq OK (${groq.text.length} chars, ${groq.words.length} words)`);
-      return { ...groq, provider: "groq" };
+    const bytes = readFileSync(tempPath);
+    const dg = await transcribeWithDeepgram(bytes, mime);
+    if (dg) {
+      const effectiveDur = durationSec ?? dg.durationSec;
+      const ratio = effectiveDur && effectiveDur > 0 ? dg.text.length / effectiveDur : Infinity;
+      if (effectiveDur && effectiveDur > 30 && ratio < MIN_CHARS_PER_SEC) {
+        logger?.warn(
+          `${tag}: Deepgram returned ${dg.text.length} chars for ${effectiveDur}s audio (${ratio.toFixed(2)} chars/sec, likely garbled), trying Qwen`,
+        );
+      } else {
+        logger?.info(`${tag}: Deepgram OK (${dg.text.length} chars, ${dg.words.length} words)`);
+        return { ...dg, provider: "deepgram" };
+      }
+    } else {
+      logger?.warn(`${tag}: Deepgram returned empty, trying Qwen`);
     }
-    logger?.warn(`${tag}: Groq returned empty`);
   } catch (err) {
-    logger?.warn(`${tag}: Groq failed (${(err as Error).message?.slice(0, 120)})`);
+    logger?.warn(`${tag}: Deepgram failed (${(err as Error).message?.slice(0, 120)}), trying Qwen`);
+  }
+
+  if (!qwenFits) {
+    logger?.warn(`${tag}: file ${sizeBytes}B exceeds Qwen 10MB cap, no fallback`);
+    return null;
+  }
+  onPhase?.("transcribing", { bytes: sizeBytes, provider: "qwen" });
+  try {
+    const qwen = await transcribeWithQwen(tempPath, mime);
+    if (qwen) {
+      logger?.info(`${tag}: Qwen fallback OK (${qwen.text.length} chars)`);
+      return { ...qwen, provider: "qwen" };
+    }
+    logger?.warn(`${tag}: Qwen fallback returned empty`);
+  } catch (err) {
+    logger?.warn(`${tag}: Qwen fallback failed (${(err as Error).message?.slice(0, 160)})`);
   }
   return null;
 }
@@ -359,7 +372,8 @@ export async function transcribeFromStreams(
       `${tag}: downloaded ${actualSize} bytes${chosen.label ? ` (${chosen.label})` : ""}`,
     );
     const mime = (chosen.mimeType ?? "audio/mp4").split(";")[0] ?? "audio/mp4";
-    // XHS → Groq directly (Deepgram can't decode XHS h265 audio).
+    // XHS → Qwen3-ASR-Flash (Chinese-native); no audio fallback (Deepgram returns
+    // gibberish on Chinese) — caller uses title-only text if this returns null.
     return await transcribeAtPath(tempPath, mime, actualSize, opts, true);
   } catch (err) {
     logger?.warn(`${tag} failed: ${(err as Error).message?.slice(0, 200) ?? err}`);

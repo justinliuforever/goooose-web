@@ -199,9 +199,6 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.0)(postgres@3.4.9)
-      groq-sdk:
-        specifier: ^1.2.0
-        version: 1.2.0
       jsonrepair:
         specifier: ^3.14.0
         version: 3.14.0
@@ -233,9 +230,6 @@ importers:
       ai:
         specifier: ^6.0.184
         version: 6.0.184(zod@4.4.3)
-      groq-sdk:
-        specifier: ^1.2.0
-        version: 1.2.0
       jsonrepair:
         specifier: ^3.14.0
         version: 3.14.0
@@ -3425,10 +3419,6 @@ packages:
   graphql@16.14.0:
     resolution: {integrity: sha512-BBvQ/406p+4CZbTpCbVPSxfzrZrbnuWSP1ELYgyS6B+hNeKzgrdB4JczCa5VZUBQrDa9hUngm0KnexY6pJRN5Q==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
-
-  groq-sdk@1.2.0:
-    resolution: {integrity: sha512-pMhSYXWcjiqvbOeKdv2zjci1BYjGdp04a40hnmQmJpKJyB6oa+gRndAqE128gwR0NLgYO+Wt1fIF46KNHcplsw==}
-    hasBin: true
 
   has-bigints@1.1.0:
     resolution: {integrity: sha512-R3pbpkcIqv2Pm3dUwgjclDRVmWpTJW2DcMzcIhEXEx1oh/CEMObMm3KLmRJOdvhM7o4uQBnwr8pzRK2sJWIqfg==}
@@ -8447,8 +8437,6 @@ snapshots:
       tinygradient: 1.1.5
 
   graphql@16.14.0: {}
-
-  groq-sdk@1.2.0: {}
 
   has-bigints@1.1.0: {}
 
