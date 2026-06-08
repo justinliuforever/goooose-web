@@ -42,9 +42,9 @@ export default async function ProjectHubPage({ params }: Props) {
 
   const encodedSlug = encodeURIComponent(channel.slug);
   const tools = [
-    { label: "Clerk · 分析师", href: `/clerk/${encodedSlug}`, desc: "拆解对标视频，沉淀 SOP" },
-    { label: "Muse · 选题官", href: `/muse/${encodedSlug}`, desc: "巡视对标，生成选题" },
-    { label: "Poet · 写手", href: `/poet/${encodedSlug}`, desc: "按圣经与 SOP 写稿" },
+    { label: "Clerk · 分析师", href: `/projects/${encodedSlug}/clerk`, desc: "拆解对标视频，沉淀 SOP" },
+    { label: "Muse · 选题官", href: `/projects/${encodedSlug}/muse`, desc: "巡视对标，生成选题" },
+    { label: "Poet · 写手", href: `/projects/${encodedSlug}/poet`, desc: "按圣经与 SOP 写稿" },
   ];
 
   return (
