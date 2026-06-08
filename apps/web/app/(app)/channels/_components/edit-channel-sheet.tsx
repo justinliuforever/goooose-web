@@ -36,7 +36,6 @@ import {
 } from "@/server/trpc/schemas/channels";
 
 import { ChannelUrlPreview } from "./channel-url-preview";
-import { CompetitorListPreview } from "./competitor-list-preview";
 
 type Props = {
   channel: Channel;
@@ -51,9 +50,6 @@ export function EditChannelSheet({ channel }: Props) {
   const [platform, setPlatform] = useState<"youtube" | "xhs">(channel.platform);
   const [platformUrl, setPlatformUrl] = useState(channel.platformUrl);
   const [description, setDescription] = useState(channel.description ?? "");
-  const [competitorsText, setCompetitorsText] = useState(
-    (channel.competitors ?? []).map((c) => c.url).join("\n"),
-  );
   const [error, setError] = useState<string | null>(null);
 
   const updateMutation = trpc.channels.update.useMutation({
@@ -84,31 +80,12 @@ export function EditChannelSheet({ channel }: Props) {
       return;
     }
 
-    const compLines = competitorsText
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-    const competitors: Array<{ platform: "youtube" | "xhs"; url: string }> = [];
-    for (let i = 0; i < compLines.length; i++) {
-      const url = compLines[i]!;
-      const inferred: "youtube" | "xhs" = url.includes("xiaohongshu") ? "xhs" : "youtube";
-      const valid = inferred === "xhs" ? isValidXhsProfileUrl(url) : isValidYoutubeChannelUrl(url);
-      if (!valid) {
-        setError(
-          `对标频道第 ${i + 1} 行 URL 格式不对（${inferred === "xhs" ? "应为小红书 /user/profile/{24位hex}" : "应为 YouTube /@handle 或 /channel/UCxxx"}）：${url.slice(0, 60)}`,
-        );
-        return;
-      }
-      competitors.push({ platform: inferred, url });
-    }
-
     const result = updateChannelInput.safeParse({
       id: channel.id,
       name,
       platform,
       platformUrl,
       description: description || null,
-      competitors,
     });
     if (!result.success) {
       setError(result.error.issues[0]?.message ?? "Invalid input");
@@ -234,20 +211,6 @@ export function EditChannelSheet({ channel }: Props) {
               />
             </Field>
 
-            <Field>
-              <FieldLabel htmlFor="edit-competitors">对标频道</FieldLabel>
-              <Textarea
-                id="edit-competitors"
-                value={competitorsText}
-                onChange={(e) => setCompetitorsText(e.target.value)}
-                placeholder="每行一个频道主页 URL&#10;YouTube 例如 https://www.youtube.com/@mkbhd&#10;XHS 例如 https://www.xiaohongshu.com/user/profile/..."
-                rows={5}
-              />
-              <p className="text-xs text-muted-foreground">
-                Muse 会定期巡视这些频道，提取爆款机制并生成选题
-              </p>
-              <CompetitorListPreview competitorsText={competitorsText} />
-            </Field>
           </FieldGroup>
 
           {error ? <p className="text-sm text-destructive">{error}</p> : null}

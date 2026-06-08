@@ -530,6 +530,33 @@ export const appRouter = router({
         .orderBy(desc(competitorAccounts.createdAt));
     }),
 
+    listForProject: protectedProcedure
+      .input(z.object({ projectId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        await assertProjectOwner(ctx.user.id, input.projectId);
+        return db
+          .select({
+            id: competitorAccounts.id,
+            platform: competitorAccounts.platform,
+            url: competitorAccounts.url,
+            name: competitorAccounts.name,
+            subscriberCount: competitorAccounts.subscriberCount,
+            needsResolution: competitorAccounts.needsResolution,
+          })
+          .from(projectCompetitors)
+          .innerJoin(
+            competitorAccounts,
+            eq(competitorAccounts.id, projectCompetitors.competitorAccountId),
+          )
+          .where(
+            and(
+              eq(projectCompetitors.projectId, input.projectId),
+              isNull(competitorAccounts.deletedAt),
+            ),
+          )
+          .orderBy(desc(projectCompetitors.createdAt));
+      }),
+
     import: protectedProcedure.input(importCompetitorsInput).mutation(async ({ ctx, input }) => {
       if (input.projectId) await assertProjectOwner(ctx.user.id, input.projectId);
       const results: Array<{

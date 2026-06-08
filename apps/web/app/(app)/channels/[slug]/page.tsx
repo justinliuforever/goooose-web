@@ -29,6 +29,7 @@ import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
 import { EditChannelSheet } from "../_components/edit-channel-sheet";
+import { ProjectCompetitorsCard } from "../_components/project-competitors-card";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -216,6 +217,8 @@ export default async function ChannelDetailPage({ params }: Props) {
           );
         })}
       </section>
+
+      <ProjectCompetitorsCard projectId={channel.id} />
 
       {topClerkVideos.length > 0 ? (
         <section className="flex flex-col gap-3">
