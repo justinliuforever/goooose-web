@@ -5,11 +5,13 @@ import postgres from "postgres";
 
 import {
   channels,
+  competitorAccounts,
   flushProxyPool,
   loadProxyPool,
   museIdeas,
   museMonitorVideos,
   pipelineRuns,
+  projectCompetitors,
   type CompetitorRef,
 } from "@singularity/db";
 import {
@@ -97,7 +99,40 @@ export const monitorCompetitors = task({
         .limit(1);
       if (!channel) throw new Error(`channel ${payload.channelId} not found`);
 
-      const competitors = (channel.competitors ?? []) as CompetitorRef[];
+      // Live competitors come from project_competitors (project.id == channel.id). Fall back to
+      // the legacy channels.competitors JSONB only when a project has none (single source — no
+      // union). Existing channels were backfilled, so this is a zero-regression cutover for them;
+      // the write-path sync that keeps project_competitors fed lands in INC5.
+      const bound = await db
+        .select({
+          competitorAccountId: competitorAccounts.id,
+          platform: competitorAccounts.platform,
+          url: competitorAccounts.url,
+        })
+        .from(projectCompetitors)
+        .innerJoin(
+          competitorAccounts,
+          eq(competitorAccounts.id, projectCompetitors.competitorAccountId),
+        )
+        .where(
+          and(eq(projectCompetitors.projectId, channel.id), isNull(competitorAccounts.deletedAt)),
+        );
+      const competitors: Array<{
+        competitorAccountId: string | null;
+        platform: "youtube" | "xhs";
+        url: string;
+      }> =
+        bound.length > 0
+          ? bound.map((b) => ({
+              competitorAccountId: b.competitorAccountId,
+              platform: b.platform as "youtube" | "xhs",
+              url: b.url,
+            }))
+          : ((channel.competitors ?? []) as CompetitorRef[]).map((c) => ({
+              competitorAccountId: null,
+              platform: c.platform,
+              url: c.url,
+            }));
       if (competitors.length === 0) {
         throw new Error("This channel has no competitors configured");
       }
@@ -128,6 +163,7 @@ export const monitorCompetitors = task({
       type Candidate = {
         competitorIndex: number;
         competitorUrl: string;
+        competitorAccountId: string | null;
         platform: "youtube" | "xhs";
         videoId: string;
         title: string;
@@ -152,6 +188,7 @@ export const monitorCompetitors = task({
               candidates.push({
                 competitorIndex: ci,
                 competitorUrl: comp.url,
+                competitorAccountId: comp.competitorAccountId,
                 platform: "xhs",
                 videoId: n.noteId,
                 title: n.title,
@@ -178,6 +215,7 @@ export const monitorCompetitors = task({
                   candidates.push({
                     competitorIndex: ci,
                     competitorUrl: comp.url,
+                    competitorAccountId: comp.competitorAccountId,
                     platform: "youtube",
                     videoId: v.video_id,
                     title: v.title,
@@ -371,6 +409,8 @@ export const monitorCompetitors = task({
             .insert(museMonitorVideos)
             .values({
               channelId: channel.id,
+              projectId: channel.id,
+              competitorAccountId: ref.competitorAccountId,
               platformVideoId: ref.videoId,
               title,
               url,
@@ -385,6 +425,8 @@ export const monitorCompetitors = task({
             .onConflictDoUpdate({
               target: [museMonitorVideos.channelId, museMonitorVideos.platformVideoId],
               set: {
+                projectId: channel.id,
+                competitorAccountId: ref.competitorAccountId,
                 relevant: cls.relevant,
                 topicClassification: safeText(cls.topic_classification),
                 rejectionReason: safeText(cls.rejection_reason),
@@ -539,6 +581,7 @@ export const monitorCompetitors = task({
             await db.insert(museIdeas).values(
               ideasResult.ideas.map((idea) => ({
                 channelId: channel.id,
+                projectId: channel.id,
                 sourceVideoId: row.monitorVideoId,
                 ideaNumber: ++globalIdeaNumber,
                 storyAngle: safeText(idea.story_angle),

@@ -12,6 +12,7 @@ import {
   poetBible,
   poetCustomTopics,
   poetScripts,
+  projects,
   resolvePrimarySop,
   type CheckedFact,
   type CustomTopicReference,
@@ -44,8 +45,6 @@ export const generateScript = task({
   maxDuration: 3600,
   run: async (payload: Payload) => {
     const language = payload.language ?? "zh";
-    const targetWordCount = computeTargetWordCount(payload.durationSeconds, language);
-    const willGoLong = isLongForm(targetWordCount, language);
     const client = postgres(process.env.DATABASE_URL!, { prepare: false });
     const db = drizzle(client);
 
@@ -57,13 +56,20 @@ export const generateScript = task({
         .limit(1);
       if (!channel) throw new Error(`channel ${payload.channelId} not found`);
 
+      // Duration default source (§6): project.id == channel.id during the expand phase.
+      const [project] = await db
+        .select({ targetDurationSeconds: projects.targetDurationSeconds })
+        .from(projects)
+        .where(eq(projects.id, channel.id))
+        .limit(1);
+
       await db
         .update(pipelineRuns)
         .set({ status: "running" })
         .where(eq(pipelineRuns.id, payload.runId));
 
-      // total is conservative until outline returns; bumped once section count is known.
-      let total = willGoLong ? 4 : 3;
+      // total is conservative until duration/outline are known; corrected below + after outline.
+      let total = 4;
       let step = 0;
       const setProgress = async (phase: string, detail: string) => {
         await metadata.set("progress", { current: step, total, phase, detail });
@@ -88,6 +94,7 @@ export const generateScript = task({
       let factChecks: CheckedFact[] | null = null;
       let museIdeaId: string | null = null;
       let customTopicIdFinal: string | null = null;
+      let rowDurationSeconds: number | null = null;
 
       if (payload.ideaId) {
         const [ideaRow] = await db
@@ -164,6 +171,7 @@ export const generateScript = task({
           throw new Error("请先分析该自定义选题再开始写稿");
         }
         customTopicIdFinal = topicRow.id;
+        rowDurationSeconds = topicRow.durationSeconds ?? null;
         idea = {
           storyAngle: topicRow.storyAngle ?? "",
           factsAndData: topicRow.factsAndData ?? "",
@@ -188,6 +196,13 @@ export const generateScript = task({
           })
           .filter((r): r is ScriptReference => r !== null);
       }
+
+      // Duration priority (§6): explicit request > row-stored value > project default.
+      const resolvedDuration =
+        payload.durationSeconds ?? rowDurationSeconds ?? project?.targetDurationSeconds ?? null;
+      const targetWordCount = computeTargetWordCount(resolvedDuration ?? undefined, language);
+      const willGoLong = isLongForm(targetWordCount, language);
+      total = willGoLong ? 4 : 3;
 
       const [bible] = await db
         .select()
@@ -264,7 +279,7 @@ export const generateScript = task({
 
       const wordCount =
         language === "zh" ? scriptText.length : scriptText.trim().split(/\s+/).length;
-      const durationSeconds = payload.durationSeconds ?? null;
+      const durationSeconds = resolvedDuration;
 
       const [scriptRow] = await db
         .insert(poetScripts)
