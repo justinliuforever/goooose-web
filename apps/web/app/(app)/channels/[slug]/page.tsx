@@ -118,7 +118,7 @@ export default async function ChannelDetailPage({ params }: Props) {
   const stats = [
     {
       label: "Clerk · 分析师",
-      href: `/clerk/${encodedSlug}`,
+      href: `/projects/${encodedSlug}/clerk`,
       hasData: (clerkVideoCount?.c ?? 0) > 0,
       lines: [
         `${clerkVideoCount?.c ?? 0} ${itemNoun}`,
@@ -127,7 +127,7 @@ export default async function ChannelDetailPage({ params }: Props) {
     },
     {
       label: "Muse · 选题官",
-      href: `/muse/${encodedSlug}`,
+      href: `/projects/${encodedSlug}/muse`,
       hasData: (museIdeaCount?.c ?? 0) > 0 || (museVideoCount?.c ?? 0) > 0,
       lines: [
         `${museVideoCount?.c ?? 0} ${channel.platform === "xhs" ? "篇监控笔记" : "个监控视频"}`,
@@ -136,7 +136,7 @@ export default async function ChannelDetailPage({ params }: Props) {
     },
     {
       label: "Poet · 写手",
-      href: `/poet/${encodedSlug}`,
+      href: `/projects/${encodedSlug}/poet`,
       hasData: (poetBibleCount?.c ?? 0) > 0 || (poetTopicCount?.c ?? 0) > 0,
       lines: [
         `${poetBibleCount?.c ?? 0} 本圣经`,
