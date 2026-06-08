@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "competitor_accounts_user_platform_key_unique" ON "competitor_accounts" USING btree ("user_id","platform","platform_key") WHERE "competitor_accounts"."deleted_at" IS NULL;

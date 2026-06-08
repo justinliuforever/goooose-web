@@ -1,6 +1,7 @@
 import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { channels } from "./channels";
+import { ownAccounts } from "./own-account";
 
 export type SeriesVideoRef = {
   video_id: string;
@@ -15,6 +16,7 @@ export const channelSeries = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
+    ownAccountId: uuid("own_account_id").references(() => ownAccounts.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description"),
     videoCount: integer("video_count").notNull().default(0),

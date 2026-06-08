@@ -1,6 +1,8 @@
 import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { channels } from "./channels";
+import { ownAccounts } from "./own-account";
+import { projects } from "./project";
 
 export const agentEnum = pgEnum("agent", ["clerk", "muse", "poet"]);
 export const runStatusEnum = pgEnum("run_status", ["pending", "running", "done", "failed"]);
@@ -10,6 +12,8 @@ export const pipelineRuns = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    ownAccountId: uuid("own_account_id").references(() => ownAccounts.id, { onDelete: "set null" }),
     agent: agentEnum("agent").notNull(),
     command: text("command").notNull(),
     status: runStatusEnum("status").notNull().default("pending"),

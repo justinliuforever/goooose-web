@@ -1,6 +1,8 @@
 import { boolean, index, integer, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 import { channels } from "./channels";
+import { competitorAccounts } from "./competitor";
+import { projects } from "./project";
 import { pipelineRuns } from "./runs";
 
 export const museMonitorVideos = pgTable(
@@ -8,6 +10,8 @@ export const museMonitorVideos = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    competitorAccountId: uuid("competitor_account_id").references(() => competitorAccounts.id, { onDelete: "set null" }),
     platformVideoId: text("platform_video_id").notNull(),
     title: text("title").notNull(),
     url: text("url").notNull(),
@@ -35,6 +39,7 @@ export const museIdeas = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
     sourceVideoId: uuid("source_video_id").references(() => museMonitorVideos.id, { onDelete: "set null" }),
     ideaNumber: integer("idea_number").notNull(),
     storyAngle: text("story_angle"),

@@ -12,6 +12,8 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { channels } from "./channels";
+import { competitorAccounts } from "./competitor";
+import { ownAccounts } from "./own-account";
 import { pipelineRuns } from "./runs";
 
 export type VerbatimFact = {
@@ -24,6 +26,7 @@ export const clerkVideos = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
+    ownAccountId: uuid("own_account_id").references(() => ownAccounts.id, { onDelete: "cascade" }),
     platformVideoId: text("platform_video_id").notNull(),
     title: text("title").notNull(),
     url: text("url").notNull(),
@@ -71,6 +74,8 @@ export const clerkSops = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
+    ownAccountId: uuid("own_account_id").references(() => ownAccounts.id, { onDelete: "cascade" }),
+    competitorAccountId: uuid("competitor_account_id").references(() => competitorAccounts.id, { onDelete: "set null" }),
     sopType: sopTypeEnum("sop_type").notNull(),
     language: text("language").notNull().default("zh"),
     contentMd: text("content_md").notNull(),
