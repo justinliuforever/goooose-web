@@ -14,6 +14,7 @@
     "./schemas/muse": "./src/schemas/muse.ts",
     "./schemas/poet": "./src/schemas/poet.ts",
     "./services/muse": "./src/services/muse.ts",
+    "./services/competitors": "./src/services/competitors.ts",
     "./services/grounding": "./src/services/grounding.ts",
     "./services/poet/bible": "./src/services/poet/bible.ts",
     "./services/poet/script-writer": "./src/services/poet/scriptWriter.ts",

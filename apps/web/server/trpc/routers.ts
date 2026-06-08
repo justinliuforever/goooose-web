@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { auth, runs, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
@@ -9,11 +9,15 @@ import {
   channels,
   channelSeries,
   clerkSops,
+  competitorAccounts,
   museIdeas,
+  ownAccounts,
   pipelineRuns,
   poetBible,
   poetCustomTopics,
   poetScripts,
+  projectCompetitors,
+  projects,
 } from "@singularity/db";
 import {
   getChannelInfo,
@@ -29,6 +33,7 @@ import {
   fetchChannelMetaByHandle,
   parseYoutubeChannelUrl,
 } from "@singularity/shared/clients/youtube-data";
+import { provisionalCompetitorKey } from "@singularity/shared/services/competitors";
 
 import { db } from "@/lib/db";
 import { protectedProcedure, router } from "./init";
@@ -38,6 +43,11 @@ import {
   regenerateSlugInput,
   updateChannelInput,
 } from "./schemas/channels";
+import {
+  bindCompetitorInput,
+  competitorIdInput,
+  importCompetitorsInput,
+} from "./schemas/competitors";
 import {
   deleteSopInput,
   detectSeriesInput,
@@ -136,6 +146,157 @@ async function triggerOrFailRun(
   }
 }
 
+// D3 spine: each channel owns a same-id own_account + default project. Idempotent so it
+// can also heal channels created before the project layer existed.
+async function ensureProjectSpine(c: {
+  id: string;
+  userId: string;
+  name: string;
+  slug: string;
+  platform: "youtube" | "xhs";
+  platformUrl: string;
+  description: string | null;
+}) {
+  await db
+    .insert(ownAccounts)
+    .values({
+      id: c.id,
+      userId: c.userId,
+      name: c.name,
+      slug: c.slug,
+      platform: c.platform,
+      platformUrl: c.platformUrl,
+      description: c.description,
+    })
+    .onConflictDoNothing();
+  await db
+    .insert(projects)
+    .values({
+      id: c.id,
+      ownAccountId: c.id,
+      userId: c.userId,
+      name: c.name,
+      slug: c.slug,
+      platform: c.platform,
+    })
+    .onConflictDoNothing();
+}
+
+type CompetitorImportStatus = "added" | "duplicate" | "invalid" | "unresolved";
+
+// Two-stage competitor upsert: Stage A provisional key, Stage B resolve YouTube
+// handle/legacy → canonical UC for dedup against backfilled rows, then upsert respecting
+// the partial-unique index (un-deletes a soft-deleted match instead of duplicating).
+async function upsertCompetitor(
+  userId: string,
+  platform: "youtube" | "xhs",
+  url: string,
+): Promise<{ status: CompetitorImportStatus; id: string | null }> {
+  const pk = provisionalCompetitorKey(platform, url);
+  if (!pk) return { status: "invalid", id: null };
+  let key = pk.key;
+  let needsResolution = pk.needsResolution;
+  if (needsResolution) {
+    try {
+      const uc = await resolveChannelId(url);
+      if (uc && uc.startsWith("UC")) {
+        key = uc;
+        needsResolution = false;
+      }
+    } catch {
+      /* keep provisional key; reported as unresolved */
+    }
+  }
+  const [live] = await db
+    .select({ id: competitorAccounts.id })
+    .from(competitorAccounts)
+    .where(
+      and(
+        eq(competitorAccounts.userId, userId),
+        eq(competitorAccounts.platform, platform),
+        eq(competitorAccounts.platformKey, key),
+        isNull(competitorAccounts.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (live) return { status: "duplicate", id: live.id };
+  const [dead] = await db
+    .select({ id: competitorAccounts.id })
+    .from(competitorAccounts)
+    .where(
+      and(
+        eq(competitorAccounts.userId, userId),
+        eq(competitorAccounts.platform, platform),
+        eq(competitorAccounts.platformKey, key),
+      ),
+    )
+    .limit(1);
+  if (dead) {
+    await db
+      .update(competitorAccounts)
+      .set({ deletedAt: null, url, updatedAt: new Date() })
+      .where(eq(competitorAccounts.id, dead.id));
+    return { status: "added", id: dead.id };
+  }
+  let name: string | null = null;
+  let avatarUrl: string | null = null;
+  let subscriberCount: number | null = null;
+  try {
+    if (platform === "xhs") {
+      const u = await resolveXhsUser(url);
+      name = u.nickname || null;
+      avatarUrl = u.avatarUrl || null;
+      subscriberCount = u.fansCount || null;
+    } else if (!needsResolution) {
+      const info = await getChannelInfo(key);
+      name = info.channel_name || null;
+      avatarUrl = info.thumbnail_url;
+      subscriberCount = info.subscriberCount;
+    }
+  } catch {
+    /* metadata best-effort; monitor fetches by url regardless */
+  }
+  const [created] = await db
+    .insert(competitorAccounts)
+    .values({
+      userId,
+      platform,
+      platformKey: key,
+      url,
+      name,
+      avatarUrl,
+      subscriberCount,
+      needsResolution,
+      lastVerifiedAt: name ? new Date() : null,
+    })
+    .onConflictDoNothing()
+    .returning({ id: competitorAccounts.id });
+  if (created) return { status: needsResolution ? "unresolved" : "added", id: created.id };
+  const [raced] = await db
+    .select({ id: competitorAccounts.id })
+    .from(competitorAccounts)
+    .where(
+      and(
+        eq(competitorAccounts.userId, userId),
+        eq(competitorAccounts.platform, platform),
+        eq(competitorAccounts.platformKey, key),
+        isNull(competitorAccounts.deletedAt),
+      ),
+    )
+    .limit(1);
+  return { status: "duplicate", id: raced?.id ?? null };
+}
+
+async function assertProjectOwner(userId: string, projectId: string) {
+  const [p] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
+    .limit(1);
+  if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+  return p;
+}
+
 export const appRouter = router({
   channels: router({
     list: protectedProcedure.query(async ({ ctx }) => {
@@ -172,7 +333,9 @@ export const appRouter = router({
             description: input.description ?? null,
           })
           .returning();
-        return created!;
+        if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        await ensureProjectSpine(created);
+        return created;
       }),
 
     update: protectedProcedure
@@ -192,6 +355,37 @@ export const appRouter = router({
           .where(and(eq(channels.id, id), eq(channels.userId, ctx.user.id)))
           .returning();
         if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+        // Mirror the submitted competitor set into project_competitors (project.id == channel.id),
+        // the source the monitor now reads, so the legacy edit sheet stays in sync.
+        if (input.competitors !== undefined) {
+          await ensureProjectSpine(updated);
+          const desired = new Set<string>();
+          for (const c of input.competitors) {
+            const r = await upsertCompetitor(ctx.user.id, c.platform, c.url);
+            if (r.id) {
+              desired.add(r.id);
+              await db
+                .insert(projectCompetitors)
+                .values({ projectId: id, competitorAccountId: r.id })
+                .onConflictDoNothing();
+            }
+          }
+          const current = await db
+            .select({ cid: projectCompetitors.competitorAccountId })
+            .from(projectCompetitors)
+            .where(eq(projectCompetitors.projectId, id));
+          const stale = current.map((r) => r.cid).filter((cid) => !desired.has(cid));
+          if (stale.length > 0) {
+            await db
+              .delete(projectCompetitors)
+              .where(
+                and(
+                  eq(projectCompetitors.projectId, id),
+                  inArray(projectCompetitors.competitorAccountId, stale),
+                ),
+              );
+          }
+        }
         return updated;
       }),
 
@@ -315,6 +509,108 @@ export const appRouter = router({
         if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         return updated;
       }),
+  }),
+
+  competitors: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return db
+        .select({
+          id: competitorAccounts.id,
+          platform: competitorAccounts.platform,
+          url: competitorAccounts.url,
+          name: competitorAccounts.name,
+          avatarUrl: competitorAccounts.avatarUrl,
+          subscriberCount: competitorAccounts.subscriberCount,
+          needsResolution: competitorAccounts.needsResolution,
+          lastVerifiedAt: competitorAccounts.lastVerifiedAt,
+          usedBy: sql<number>`(SELECT count(*)::int FROM project_competitors pc WHERE pc.competitor_account_id = ${competitorAccounts.id})`,
+        })
+        .from(competitorAccounts)
+        .where(and(eq(competitorAccounts.userId, ctx.user.id), isNull(competitorAccounts.deletedAt)))
+        .orderBy(desc(competitorAccounts.createdAt));
+    }),
+
+    import: protectedProcedure.input(importCompetitorsInput).mutation(async ({ ctx, input }) => {
+      if (input.projectId) await assertProjectOwner(ctx.user.id, input.projectId);
+      const results: Array<{
+        url: string;
+        platform: "youtube" | "xhs";
+        status: CompetitorImportStatus;
+        id: string | null;
+      }> = [];
+      for (const c of input.competitors) {
+        const r = await upsertCompetitor(ctx.user.id, c.platform, c.url);
+        if (r.id && input.projectId) {
+          await db
+            .insert(projectCompetitors)
+            .values({ projectId: input.projectId, competitorAccountId: r.id })
+            .onConflictDoNothing();
+        }
+        results.push({ url: c.url, platform: c.platform, status: r.status, id: r.id });
+      }
+      return { results };
+    }),
+
+    remove: protectedProcedure.input(competitorIdInput).mutation(async ({ ctx, input }) => {
+      const [owned] = await db
+        .select({ id: competitorAccounts.id })
+        .from(competitorAccounts)
+        .where(
+          and(
+            eq(competitorAccounts.id, input.competitorAccountId),
+            eq(competitorAccounts.userId, ctx.user.id),
+          ),
+        )
+        .limit(1);
+      if (!owned) throw new TRPCError({ code: "NOT_FOUND" });
+      const used = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(projectCompetitors)
+        .where(eq(projectCompetitors.competitorAccountId, input.competitorAccountId));
+      const unlinked = used[0]?.n ?? 0;
+      await db
+        .delete(projectCompetitors)
+        .where(eq(projectCompetitors.competitorAccountId, input.competitorAccountId));
+      await db
+        .update(competitorAccounts)
+        .set({ deletedAt: new Date(), updatedAt: new Date() })
+        .where(eq(competitorAccounts.id, input.competitorAccountId));
+      return { id: input.competitorAccountId, unlinked };
+    }),
+
+    bind: protectedProcedure.input(bindCompetitorInput).mutation(async ({ ctx, input }) => {
+      await assertProjectOwner(ctx.user.id, input.projectId);
+      const [owned] = await db
+        .select({ id: competitorAccounts.id })
+        .from(competitorAccounts)
+        .where(
+          and(
+            eq(competitorAccounts.id, input.competitorAccountId),
+            eq(competitorAccounts.userId, ctx.user.id),
+            isNull(competitorAccounts.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!owned) throw new TRPCError({ code: "NOT_FOUND" });
+      await db
+        .insert(projectCompetitors)
+        .values({ projectId: input.projectId, competitorAccountId: input.competitorAccountId })
+        .onConflictDoNothing();
+      return { ok: true };
+    }),
+
+    unbind: protectedProcedure.input(bindCompetitorInput).mutation(async ({ ctx, input }) => {
+      await assertProjectOwner(ctx.user.id, input.projectId);
+      await db
+        .delete(projectCompetitors)
+        .where(
+          and(
+            eq(projectCompetitors.projectId, input.projectId),
+            eq(projectCompetitors.competitorAccountId, input.competitorAccountId),
+          ),
+        );
+      return { ok: true };
+    }),
   }),
 
   pipeline: router({
@@ -596,7 +892,23 @@ export const appRouter = router({
           .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
-        if (!channel.competitors || channel.competitors.length === 0) {
+        // Same source as the monitor job: live project_competitors, JSONB fallback when empty.
+        const bound = await db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(projectCompetitors)
+          .innerJoin(
+            competitorAccounts,
+            eq(competitorAccounts.id, projectCompetitors.competitorAccountId),
+          )
+          .where(
+            and(
+              eq(projectCompetitors.projectId, channel.id),
+              isNull(competitorAccounts.deletedAt),
+            ),
+          );
+        const boundCount = bound[0]?.n ?? 0;
+        const liveCount = boundCount > 0 ? boundCount : channel.competitors?.length ?? 0;
+        if (liveCount === 0) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message: "请先为该频道配置至少一个对标账号",
