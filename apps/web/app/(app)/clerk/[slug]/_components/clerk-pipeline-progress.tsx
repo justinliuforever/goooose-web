@@ -57,6 +57,7 @@ type Props = {
   detail: string | undefined;
   current: number;
   total: number;
+  fracDone?: number;
   estSecondsRemaining?: number;
   startedAt: number;
   log: LogEntry[];
@@ -80,6 +81,7 @@ export function ClerkPipelineProgress({
   detail,
   current,
   total,
+  fracDone,
   estSecondsRemaining,
   startedAt,
   log,
@@ -98,7 +100,9 @@ export function ClerkPipelineProgress({
   const currentIdx = phase ? CLERK_STAGES.findIndex((s) => s.matches(phase)) : -1;
 
   const elapsed = now - startedAt;
-  const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+  // Duration-weighted fill when the job emits it (a 60-min video ≠ a 30s note); count fallback.
+  const fraction = fracDone ?? (total > 0 ? current / total : 0);
+  const pct = Math.round(Math.min(fraction, 1) * 100);
   const isAnalyzeStage = currentIdx === 2;
   const showTracks = isAnalyzeStage && Object.keys(videoTracks).length > 0;
 
@@ -120,7 +124,12 @@ export function ClerkPipelineProgress({
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {!allDone ? (
-            <EtaHint jobKey="clerk.analyze" count={total} liveSec={estSecondsRemaining} />
+            <EtaHint
+              jobKey="clerk.analyze"
+              count={total}
+              liveSec={estSecondsRemaining}
+              fraction={fraction}
+            />
           ) : null}
           <span className="font-mono text-xs text-muted-foreground">{fmtElapsed(elapsed)}</span>
           {onCancel && !allDone ? (
@@ -141,16 +150,22 @@ export function ClerkPipelineProgress({
       {total > 0 ? (
         <div className="flex flex-col gap-1.5">
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full bg-clerk transition-all duration-500"
-              style={{ width: `${pct}%` }}
-            />
+            {current === 0 && !allDone ? (
+              // Heartbeat for the cold window (e.g. 3-5min until the first parallel SOP lands):
+              // an honest indeterminate shimmer instead of a frozen 0% bar.
+              <div className="h-full w-1/3 animate-pulse bg-clerk" />
+            ) : (
+              <div
+                className="h-full bg-clerk transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
+            )}
           </div>
           <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
             <span>
               {current}/{total}
             </span>
-            <span>{pct}%</span>
+            <span>{current === 0 && !allDone ? "进行中…" : `${pct}%`}</span>
           </div>
         </div>
       ) : null}

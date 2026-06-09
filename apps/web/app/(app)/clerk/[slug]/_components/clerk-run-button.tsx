@@ -97,6 +97,7 @@ type ProgressPayload = {
   phase?: string;
   phaseLabel?: string;
   detail?: string;
+  fracDone?: number;
   estSecondsRemaining?: number;
 };
 
@@ -176,6 +177,7 @@ function ClerkRunProgress({
       detail={progress?.detail}
       current={progress?.current ?? 0}
       total={progress?.total ?? 0}
+      fracDone={progress?.fracDone}
       estSecondsRemaining={progress?.estSecondsRemaining}
       startedAt={startedAt}
       log={log}

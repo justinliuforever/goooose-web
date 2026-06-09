@@ -88,6 +88,21 @@ export function ActiveRunsBanner({ channelId }: Props) {
                   待启动
                 </Badge>
               )}
+              {r.status === "running" && (r.total ?? 0) > 0 ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1 w-16 overflow-hidden rounded-full bg-muted">
+                    <span
+                      className="block h-full rounded-full bg-amber-500 transition-all duration-500"
+                      style={{
+                        width: `${Math.min(100, Math.round(((r.progress ?? 0) / (r.total ?? 1)) * 100))}%`,
+                      }}
+                    />
+                  </span>
+                  <span className="font-mono text-[10px] text-muted-foreground">
+                    {r.progress ?? 0}/{r.total}
+                  </span>
+                </span>
+              ) : null}
               <span className="font-mono text-[10px] text-muted-foreground">
                 {elapsed(now, r.startedAt)}
               </span>

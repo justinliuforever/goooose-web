@@ -240,16 +240,22 @@ function ProgressCard({
       {total > 0 ? (
         <div className="flex flex-col gap-1">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full bg-poet transition-all duration-500"
-              style={{ width: `${pct}%` }}
-            />
+            {current === 0 ? (
+              // Heartbeat for single-LLM windows (bible: total=1, current=0 the whole way) —
+              // an honest shimmer instead of a frozen 0% bar.
+              <div className="h-full w-1/3 animate-pulse bg-poet" />
+            ) : (
+              <div
+                className="h-full bg-poet transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
+            )}
           </div>
           <div className="flex items-center justify-between font-mono text-[10px] text-muted-foreground">
             <span>
               {current}/{total}
             </span>
-            <span>{pct}%</span>
+            <span>{current === 0 ? "进行中…" : `${pct}%`}</span>
           </div>
         </div>
       ) : (
