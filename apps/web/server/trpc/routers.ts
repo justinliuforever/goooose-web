@@ -36,6 +36,7 @@ import {
 import { provisionalCompetitorKey } from "@singularity/shared/services/competitors";
 
 import { db } from "@/lib/db";
+import { ETA_JOB_COMMANDS } from "@/lib/eta-jobs";
 import { protectedProcedure, router } from "./init";
 import {
   createChannelInput,
@@ -703,6 +704,33 @@ export const appRouter = router({
             ),
           )
           .orderBy(desc(pipelineRuns.startedAt));
+      }),
+
+    // Historical run-duration percentiles for a job type, used for the cold-start ETA range
+    // (§ PROG P1). Global (duration depends on job + input size, not the user) and outlier-
+    // trimmed; jobKey maps to deduplicated command strings to avoid bucket fragmentation.
+    etaHints: protectedProcedure
+      .input(z.object({ jobKey: z.enum(["clerk.analyze", "muse.monitor", "poet.script", "poet.bible"]) }))
+      .query(async ({ input }) => {
+        const { commands } = ETA_JOB_COMMANDS[input.jobKey];
+        const durationExpr = sql`extract(epoch from (${pipelineRuns.completedAt} - ${pipelineRuns.startedAt}))`;
+        const [row] = await db
+          .select({
+            n: sql<number>`count(*)::int`,
+            p50: sql<number>`coalesce(percentile_cont(0.5) within group (order by ${durationExpr}), 0)`,
+            p90: sql<number>`coalesce(percentile_cont(0.9) within group (order by ${durationExpr}), 0)`,
+          })
+          .from(pipelineRuns)
+          .where(
+            and(
+              inArray(pipelineRuns.command, commands),
+              eq(pipelineRuns.status, "done"),
+              sql`${pipelineRuns.completedAt} is not null`,
+              // Outlier guard: drop sub-5s noise and stuck-completed runs (> 4h).
+              sql`${durationExpr} between 5 and 14400`,
+            ),
+          );
+        return { n: row?.n ?? 0, p50Sec: Math.round(row?.p50 ?? 0), p90Sec: Math.round(row?.p90 ?? 0) };
       }),
 
     cancelRun: protectedProcedure

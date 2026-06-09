@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
 import { AgentTimeline, type Stage } from "@/components/agent-timeline";
+import { EtaHint } from "@/components/eta-hint";
 import { trpc } from "@/lib/trpc";
 
 const MUSE_STAGES: Stage[] = [
@@ -180,7 +181,10 @@ export function MuseRunProgressPanel({
             <Loader2 className="size-3.5 animate-spin text-muse" />
             {phaseLabel}
           </span>
-          <span className="font-mono text-xs text-muted-foreground">{elapsed}</span>
+          <span className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
+            <EtaHint jobKey="muse.monitor" />
+            <span>{elapsed}</span>
+          </span>
         </div>
 
         <AgentTimeline stages={MUSE_STAGES} currentPhase={phase} accentClass="text-muse" />

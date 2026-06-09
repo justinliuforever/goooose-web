@@ -4,6 +4,7 @@ import { Check, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { EtaHint } from "@/components/eta-hint";
 
 import { ActivityLog, type LogEntry } from "./activity-log";
 import { LiveVideoTracks, type VideoTrack } from "./live-video-tracks";
@@ -116,6 +117,7 @@ export function ClerkPipelineProgress({
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-3">
+          {!allDone ? <EtaHint jobKey="clerk.analyze" count={total} /> : null}
           <span className="font-mono text-xs text-muted-foreground">{fmtElapsed(elapsed)}</span>
           {onCancel && !allDone ? (
             <Button
