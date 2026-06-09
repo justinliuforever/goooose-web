@@ -6,5 +6,5 @@ export default async function PoetScriptRedirect({
   params: Promise<{ slug: string; scriptId: string }>;
 }) {
   const { slug, scriptId } = await params;
-  permanentRedirect(`/projects/${encodeURIComponent(slug)}/poet/scripts/${encodeURIComponent(scriptId)}`);
+  permanentRedirect(`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(slug)}/poet/scripts/${encodeURIComponent(scriptId)}`);
 }

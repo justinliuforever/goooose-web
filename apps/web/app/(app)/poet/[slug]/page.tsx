@@ -6,5 +6,5 @@ export default async function PoetSlugRedirect({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  permanentRedirect(`/projects/${encodeURIComponent(slug)}/poet`);
+  permanentRedirect(`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(slug)}/poet`);
 }

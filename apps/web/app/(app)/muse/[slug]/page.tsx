@@ -6,5 +6,5 @@ export default async function MuseSlugRedirect({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  permanentRedirect(`/projects/${encodeURIComponent(slug)}/muse`);
+  permanentRedirect(`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(slug)}/muse`);
 }

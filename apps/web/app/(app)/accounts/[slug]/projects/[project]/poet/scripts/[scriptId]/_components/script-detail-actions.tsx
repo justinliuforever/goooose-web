@@ -11,10 +11,11 @@ import { trpc } from "@/lib/trpc";
 type Props = {
   scriptId: string;
   scriptText: string;
-  channelSlug: string;
+  accountSlug: string;
+  projectSlug: string;
 };
 
-export function ScriptDetailActions({ scriptId, scriptText, channelSlug }: Props) {
+export function ScriptDetailActions({ scriptId, scriptText, accountSlug, projectSlug }: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
   const [copied, setCopied] = useState(false);
@@ -24,7 +25,7 @@ export function ScriptDetailActions({ scriptId, scriptText, channelSlug }: Props
     onSuccess: () => {
       toast.success("已删除脚本");
       utils.invalidate();
-      router.push(`/poet/${encodeURIComponent(channelSlug)}`);
+      router.push(`/accounts/${encodeURIComponent(accountSlug)}/projects/${encodeURIComponent(projectSlug)}/poet`);
     },
     onError: (err) => toast.error(`删除失败：${err.message}`),
     onSettled: () => setPendingDelete(false),

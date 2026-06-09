@@ -6,5 +6,5 @@ export default async function PoetTopicRedirect({
   params: Promise<{ slug: string; topicId: string }>;
 }) {
   const { slug, topicId } = await params;
-  permanentRedirect(`/projects/${encodeURIComponent(slug)}/poet/topics/${encodeURIComponent(topicId)}`);
+  permanentRedirect(`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(slug)}/poet/topics/${encodeURIComponent(topicId)}`);
 }
