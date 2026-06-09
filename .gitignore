@@ -70,3 +70,6 @@ next-env.d.ts
 # Proxy session backups (provider lists with credentials — synced to DB via seed-proxy-sessions)
 residential-proxies-*.txt
 proxy-backup-*.txt
+
+# INC6 pre-contract surgical backups (prod data dumps)
+packages/db/backups/
