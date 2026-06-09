@@ -102,7 +102,10 @@ export function MuseRunProgressPanel({
 }: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
-  const { run, error } = useRealtimeRun(triggerRunId, { accessToken });
+  const { run, error } = useRealtimeRun(triggerRunId, {
+    accessToken,
+    throttleInMs: 500,
+  });
 
   const [now, setNow] = useState(() => Date.now());
   const startedMs = startedAt ? new Date(startedAt).getTime() : now;
@@ -207,7 +210,7 @@ export function MuseRunProgressPanel({
           <Stat label="已抓取" value={liveStats.monitored} />
           <Stat
             label="已分类"
-            value={liveStats.monitored}
+            value={liveStats.relevant + liveStats.irrelevant}
             sub={`${liveStats.relevant} 相关 / ${liveStats.irrelevant} 排除`}
           />
           <Stat label="已出选题" value={liveStats.ideas} />

@@ -139,6 +139,7 @@ function ProgressCard({
 }) {
   const { run, error } = useRealtimeRun(active.triggerRunId, {
     accessToken: active.publicAccessToken,
+    throttleInMs: 500,
   });
   const [now, setNow] = useState(() => Date.now());
 

@@ -117,7 +117,10 @@ function ClerkRunProgress({
   onCancel?: () => void;
   canceling?: boolean;
 }) {
-  const { run, error } = useRealtimeRun(triggerRunId, { accessToken });
+  const { run, error } = useRealtimeRun(triggerRunId, {
+    accessToken,
+    throttleInMs: 500,
+  });
 
   // Fire onProgressTick ONLY when phase actually changes. Inline arrow callbacks
   // create new references each render — depending on them causes a refresh loop.
