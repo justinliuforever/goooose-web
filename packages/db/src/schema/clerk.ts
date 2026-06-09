@@ -26,7 +26,7 @@ export const clerkVideos = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
-    ownAccountId: uuid("own_account_id").references(() => ownAccounts.id, { onDelete: "cascade" }),
+    ownAccountId: uuid("own_account_id").notNull().references(() => ownAccounts.id, { onDelete: "cascade" }),
     platformVideoId: text("platform_video_id").notNull(),
     title: text("title").notNull(),
     url: text("url").notNull(),
@@ -63,6 +63,8 @@ export const clerkVideos = pgTable(
   },
   (table) => ({
     channelVideoUnique: unique("clerk_videos_channel_video_unique").on(table.channelId, table.platformVideoId),
+    // Owner-keyed twin of the channel unique; channel-scoped index retires with channel_id (契约末轮).
+    ownerVideoUnique: unique("clerk_videos_owner_video_unique").on(table.ownAccountId, table.platformVideoId),
     channelIdx: index("clerk_videos_channel_id_idx").on(table.channelId),
   })
 );
@@ -74,7 +76,7 @@ export const clerkSops = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
-    ownAccountId: uuid("own_account_id").references(() => ownAccounts.id, { onDelete: "cascade" }),
+    ownAccountId: uuid("own_account_id").notNull().references(() => ownAccounts.id, { onDelete: "cascade" }),
     competitorAccountId: uuid("competitor_account_id").references(() => competitorAccounts.id, { onDelete: "set null" }),
     sopType: sopTypeEnum("sop_type").notNull(),
     language: text("language").notNull().default("zh"),

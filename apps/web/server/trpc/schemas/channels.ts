@@ -15,18 +15,6 @@ const PLATFORM_URL_HINT: Record<"youtube" | "xhs", string> = {
   xhs: "小红书主页 URL 必须是 https://www.xiaohongshu.com/user/profile/{24位hex}",
 };
 
-export const competitorRefSchema = z
-  .object({
-    platform: platformSchema,
-    url: z.string().url(),
-  })
-  .refine((v) => validateChannelUrl(v.platform, v.url), {
-    message: "URL 格式不匹配所选平台",
-    path: ["url"],
-  });
-
-export type CompetitorRefInput = z.infer<typeof competitorRefSchema>;
-
 export const createChannelInput = z
   .object({
     name: z.string().min(1, "Required").max(80),
@@ -58,7 +46,6 @@ export const updateChannelInput = z
     platform: platformSchema,
     platformUrl: z.string().url("Must be a valid URL"),
     description: z.string().max(500).nullable().optional(),
-    competitors: z.array(competitorRefSchema).max(20).optional(),
   })
   .refine((v) => validateChannelUrl(v.platform, v.platformUrl), {
     message: PLATFORM_URL_HINT.youtube,

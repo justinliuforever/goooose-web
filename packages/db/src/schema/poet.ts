@@ -15,7 +15,7 @@ export const poetBible = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
-    ownAccountId: uuid("own_account_id").references(() => ownAccounts.id, { onDelete: "cascade" }),
+    ownAccountId: uuid("own_account_id").notNull().references(() => ownAccounts.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     content: text("content").notNull(),
     sourceIdea: text("source_idea"),
@@ -36,7 +36,7 @@ export const driftReasonEnum = pgEnum("drift_reason", ["no_overlap", "ai_markers
 export const poetDriftEvents = pgTable("poet_drift_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
-  ownAccountId: uuid("own_account_id").references(() => ownAccounts.id, { onDelete: "cascade" }),
+  ownAccountId: uuid("own_account_id").notNull().references(() => ownAccounts.id, { onDelete: "cascade" }),
   bibleId: uuid("bible_id").references(() => poetBible.id, { onDelete: "set null" }),
   reason: driftReasonEnum("reason").notNull(),
   claimedTopic: text("claimed_topic"),
@@ -70,7 +70,7 @@ export const customTopicStatusEnum = pgEnum("custom_topic_status", [
 export const poetCustomTopics = pgTable("poet_custom_topics", {
   id: uuid("id").primaryKey().defaultRandom(),
   channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
-  projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   topic: text("topic").notNull(),
   references: jsonb("references").$type<CustomTopicReference[]>().default([]).notNull(),
   storyAngle: text("story_angle"),
@@ -83,7 +83,6 @@ export const poetCustomTopics = pgTable("poet_custom_topics", {
   bibleId: uuid("bible_id").references(() => poetBible.id, { onDelete: "set null" }),
   sopId: uuid("sop_id").references(() => clerkSops.id, { onDelete: "set null" }),
   language: languageEnum("language").notNull().default("zh"),
-  durationMinutes: integer("duration_minutes"), // legacy — superseded by durationSeconds
   durationSeconds: integer("duration_seconds"),
   targetWordCount: integer("target_word_count"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -95,7 +94,7 @@ export const poetScripts = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
-    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
     ideaId: uuid("idea_id").references(() => museIdeas.id, { onDelete: "set null" }),
     customTopicId: uuid("custom_topic_id").references(() => poetCustomTopics.id, { onDelete: "set null" }),
     bibleId: uuid("bible_id").references(() => poetBible.id, { onDelete: "set null" }),
@@ -103,7 +102,6 @@ export const poetScripts = pgTable(
     scriptText: text("script_text").notNull(),
     language: languageEnum("language").notNull(),
     wordCount: integer("word_count"),
-    durationMinutes: integer("duration_minutes"), // legacy — superseded by durationSeconds
     durationSeconds: integer("duration_seconds"),
     generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

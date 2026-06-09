@@ -390,43 +390,14 @@ export const appRouter = router({
             platform: patch.platform,
             platformUrl: patch.platformUrl,
             description: patch.description ?? null,
-            competitors: patch.competitors ?? undefined,
             updatedAt: new Date(),
           })
           .where(and(eq(channels.id, id), eq(channels.userId, ctx.user.id)))
           .returning();
         if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
-        // Mirror the submitted competitor set into project_competitors (project.id == channel.id),
-        // the source the monitor now reads, so the legacy edit sheet stays in sync.
-        if (input.competitors !== undefined) {
-          await ensureProjectSpine(updated);
-          const desired = new Set<string>();
-          for (const c of input.competitors) {
-            const r = await upsertCompetitor(ctx.user.id, c.platform, c.url);
-            if (r.id) {
-              desired.add(r.id);
-              await db
-                .insert(projectCompetitors)
-                .values({ projectId: id, competitorAccountId: r.id })
-                .onConflictDoNothing();
-            }
-          }
-          const current = await db
-            .select({ cid: projectCompetitors.competitorAccountId })
-            .from(projectCompetitors)
-            .where(eq(projectCompetitors.projectId, id));
-          const stale = current.map((r) => r.cid).filter((cid) => !desired.has(cid));
-          if (stale.length > 0) {
-            await db
-              .delete(projectCompetitors)
-              .where(
-                and(
-                  eq(projectCompetitors.projectId, id),
-                  inArray(projectCompetitors.competitorAccountId, stale),
-                ),
-              );
-          }
-        }
+        // Competitor binding lives exclusively in project_competitors (competitors router);
+        // the legacy channels.competitors JSONB write path was contracted away in INC6.
+        await ensureProjectSpine(updated);
         return updated;
       }),
 
@@ -692,6 +663,8 @@ export const appRouter = router({
             command: pipelineRuns.command,
             status: pipelineRuns.status,
             startedAt: pipelineRuns.startedAt,
+            progress: pipelineRuns.progress,
+            total: pipelineRuns.total,
             configJson: pipelineRuns.configJson,
           })
           .from(pipelineRuns)
@@ -1001,8 +974,7 @@ export const appRouter = router({
               isNull(competitorAccounts.deletedAt),
             ),
           );
-        const boundCount = bound[0]?.n ?? 0;
-        const liveCount = boundCount > 0 ? boundCount : channel.competitors?.length ?? 0;
+        const liveCount = bound[0]?.n ?? 0;
         if (liveCount === 0) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",

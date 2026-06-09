@@ -10,7 +10,7 @@ export const museMonitorVideos = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
-    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
     competitorAccountId: uuid("competitor_account_id").references(() => competitorAccounts.id, { onDelete: "set null" }),
     platformVideoId: text("platform_video_id").notNull(),
     title: text("title").notNull(),
@@ -30,6 +30,11 @@ export const museMonitorVideos = pgTable(
       table.channelId,
       table.platformVideoId,
     ),
+    // Owner-keyed twin of the channel unique; channel-scoped index retires with channel_id (契约末轮).
+    projectVideoUnique: unique("muse_monitor_videos_project_video_unique").on(
+      table.projectId,
+      table.platformVideoId,
+    ),
     channelIdx: index("muse_monitor_videos_channel_id_idx").on(table.channelId),
   })
 );
@@ -39,7 +44,7 @@ export const museIdeas = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
-    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
     sourceVideoId: uuid("source_video_id").references(() => museMonitorVideos.id, { onDelete: "set null" }),
     ideaNumber: integer("idea_number").notNull(),
     storyAngle: text("story_angle"),

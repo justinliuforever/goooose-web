@@ -12,7 +12,6 @@ import {
   museMonitorVideos,
   pipelineRuns,
   projectCompetitors,
-  type CompetitorRef,
 } from "@singularity/db";
 import {
   renderTranscriptWithTimestamps,
@@ -99,10 +98,8 @@ export const monitorCompetitors = task({
         .limit(1);
       if (!channel) throw new Error(`channel ${payload.channelId} not found`);
 
-      // Live competitors come from project_competitors (project.id == channel.id). Fall back to
-      // the legacy channels.competitors JSONB only when a project has none (single source — no
-      // union). Existing channels were backfilled, so this is a zero-regression cutover for them;
-      // the write-path sync that keeps project_competitors fed lands in INC5.
+      // Competitors come exclusively from project_competitors (project.id == channel.id);
+      // the legacy channels.competitors JSONB fallback was contracted away in INC6.
       const bound = await db
         .select({
           competitorAccountId: competitorAccounts.id,
@@ -121,18 +118,11 @@ export const monitorCompetitors = task({
         competitorAccountId: string | null;
         platform: "youtube" | "xhs";
         url: string;
-      }> =
-        bound.length > 0
-          ? bound.map((b) => ({
-              competitorAccountId: b.competitorAccountId,
-              platform: b.platform as "youtube" | "xhs",
-              url: b.url,
-            }))
-          : ((channel.competitors ?? []) as CompetitorRef[]).map((c) => ({
-              competitorAccountId: null,
-              platform: c.platform,
-              url: c.url,
-            }));
+      }> = bound.map((b) => ({
+        competitorAccountId: b.competitorAccountId,
+        platform: b.platform as "youtube" | "xhs",
+        url: b.url,
+      }));
       if (competitors.length === 0) {
         throw new Error("This channel has no competitors configured");
       }

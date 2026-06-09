@@ -392,7 +392,7 @@ async function main() {
         bibleId,
         sopId,
         language: (str(r[col.language]) ?? "zh") as "zh" | "en",
-        durationMinutes: num(r[col.durationMin]),
+        durationSeconds: (() => { const m = num(r[col.durationMin]); return m == null ? null : m * 60; })(),
         targetWordCount: num(r[col.targetWords]),
         createdAt: tsOrNow(r[col.createdAt]),
         updatedAt: tsOrNow(r[col.updatedAt]),
