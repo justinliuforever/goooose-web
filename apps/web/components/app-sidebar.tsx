@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Crosshair, Home, Tv } from "lucide-react";
+import { Crosshair, Home, Library, ScanSearch, Tv } from "lucide-react";
 
 import {
   Sidebar,
@@ -16,23 +16,20 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-const GENERAL = [
+const GLOBAL = [
   { label: "工作台", href: "/", icon: Home, end: true },
-  { label: "账号", href: "/accounts", icon: Tv },
-  { label: "对标库", href: "/competitors", icon: Crosshair },
+  { label: "Clerk", href: "/clerk", icon: ScanSearch },
+  { label: "SOP 库", href: "/sops", icon: Library },
+  { label: "对标账号池", href: "/competitors", icon: Crosshair },
 ];
 
-const AGENTS = [
-  { label: "Clerk · 分析师", href: "/clerk", dot: "bg-clerk" },
-  { label: "Muse · 选题官", href: "/muse", dot: "bg-muse" },
-  { label: "Poet · 写手", href: "/poet", dot: "bg-poet" },
-];
+const ACCOUNTS = [{ label: "账号", href: "/accounts", icon: Tv }];
 
 export function AppSidebar() {
   const pathname = usePathname();
 
   const isActive = (href: string, end?: boolean) =>
-    end ? pathname === href : pathname.startsWith(href.split("/")[1] ? `/${href.split("/")[1]}` : href);
+    end ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <Sidebar>
@@ -44,10 +41,10 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>常用</SidebarGroupLabel>
+          <SidebarGroupLabel>全局</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {GENERAL.map((item) => (
+              {GLOBAL.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     render={<Link href={item.href} />}
@@ -63,16 +60,16 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>智能体</SidebarGroupLabel>
+          <SidebarGroupLabel>我的账号</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {AGENTS.map((item) => (
+              {ACCOUNTS.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     render={<Link href={item.href} />}
                     isActive={isActive(item.href)}
                   >
-                    <span className={`size-[9px] rounded-full ${item.dot}`} />
+                    <item.icon />
                     <span>{item.label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
