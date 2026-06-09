@@ -71,7 +71,7 @@ async function main() {
   console.log(`  ${trigger.slice(0, 400)}${trigger.length > 400 ? "…" : ""}`);
 
   console.log("\n═══ Test 5: idea_generation (zh, 3 ideas)");
-  const ideas = await generateIdeas({
+  const { ideas } = await generateIdeas({
     channelDescription: TARGET_CHANNEL_DESCRIPTION,
     title: "算法到底是怎么决定你看到什么的？",
     channelName: "AlgoLab 测试频道",
