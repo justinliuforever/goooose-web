@@ -107,10 +107,6 @@ function GlobalRunsIndicatorInner() {
     }
   }, [listQuery.data, router]);
 
-  useEffect(() => {
-    if (runs.length === 0) setOpen(false);
-  }, [runs.length]);
-
   if (runs.length === 0) return null;
 
   return (
