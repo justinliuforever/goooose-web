@@ -1,7 +1,7 @@
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
-import { channels, clerkSops } from "@singularity/db";
+import { channels, clerkSops, projectSops } from "@singularity/db";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,13 @@ export default async function SopsLibraryPage() {
     .where(eq(channels.userId, user.id))
     .orderBy(desc(clerkSops.generatedAt));
 
+  const usage = await db
+    .select({ sopId: projectSops.sopId, n: count() })
+    .from(projectSops)
+    .where(eq(projectSops.role, "primary"))
+    .groupBy(projectSops.sopId);
+  const usedByMap = new Map(usage.map((u) => [u.sopId, u.n]));
+
   // Group SOPs by account, preserving generatedAt-desc order of first appearance.
   const groups = new Map<string, { name: string; slug: string; platform: "youtube" | "xhs"; sops: SopRow[] }>();
   for (const row of rows) {
@@ -67,6 +74,9 @@ export default async function SopsLibraryPage() {
     <div className="flex w-full min-w-0 flex-1 flex-col gap-6 p-6 sm:p-8">
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">SOP 库</h1>
+        <p className="text-sm text-muted-foreground">
+          SOP 是 Clerk 从频道拆解出的可复用写稿方法论 — 任何项目都可以在项目页选用任意一份用于写稿。
+        </p>
       </header>
 
       {groups.size === 0 ? (
@@ -104,18 +114,18 @@ export default async function SopsLibraryPage() {
 
               <div className="flex flex-col gap-4">
                 {primarySops.map((sop) => (
-                  <SopCard key={sop.id} sop={sop} />
+                  <SopCard key={sop.id} sop={sop} usedBy={usedByMap.get(sop.id) ?? 0} />
                 ))}
               </div>
 
               {aiReferenceSops.length > 0 ? (
                 <details className="flex flex-col gap-3 rounded-lg border bg-card/50 p-4 text-sm">
                   <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-                    AI 参考稿（默认隐藏 · 给 AI 用，非给人读）
+                    AI 参考稿（默认隐藏 · 给 AI 用，非给人读 · 写稿选用的就是这类）
                   </summary>
                   <div className="mt-3 flex flex-col gap-4">
                     {aiReferenceSops.map((sop) => (
-                      <SopCard key={sop.id} sop={sop} />
+                      <SopCard key={sop.id} sop={sop} usedBy={usedByMap.get(sop.id) ?? 0} />
                     ))}
                   </div>
                 </details>
@@ -128,7 +138,7 @@ export default async function SopsLibraryPage() {
   );
 }
 
-function SopCard({ sop }: { sop: SopRow }) {
+function SopCard({ sop, usedBy = 0 }: { sop: SopRow; usedBy?: number }) {
   const label = sop.sopType.replace(/_/g, " ");
   return (
     <details className="flex flex-col gap-3 rounded-lg border bg-card p-5">
@@ -141,6 +151,11 @@ function SopCard({ sop }: { sop: SopRow }) {
           <span className="font-mono text-xs text-muted-foreground">
             {(sop.contentMd?.length ?? 0).toLocaleString("en-US")} chars
           </span>
+          {usedBy > 0 ? (
+            <Badge variant="outline" className="text-[10px]">
+              已用于 {usedBy} 个项目
+            </Badge>
+          ) : null}
         </div>
         <span className="font-mono text-xs text-muted-foreground">
           {formatDateTime(sop.generatedAt)}

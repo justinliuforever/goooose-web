@@ -18,6 +18,7 @@ import {
   poetScripts,
   projectCompetitors,
   projects,
+  projectSops,
 } from "@singularity/db";
 import {
   getChannelInfo,
@@ -651,6 +652,57 @@ export const appRouter = router({
         );
       return { ok: true };
     }),
+  }),
+
+  sops: router({
+    // Picker data for cross-project SOP selection (P-B). Only ai_reference SOPs are
+    // offered: that's the machine-facing document the script writer consumes.
+    pickerList: protectedProcedure
+      .input(z.object({ projectId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        await assertProjectOwner(ctx.user.id, input.projectId);
+        const rows = await db
+          .select({
+            id: clerkSops.id,
+            language: clerkSops.language,
+            generatedAt: clerkSops.generatedAt,
+            sourceName: channels.name,
+            sourceSlug: channels.slug,
+            usedBy: sql<number>`(SELECT count(*)::int FROM project_sops ps WHERE ps.sop_id = ${clerkSops.id} AND ps.role = 'primary')`,
+            isCurrent: sql<boolean>`EXISTS (SELECT 1 FROM project_sops ps WHERE ps.sop_id = ${clerkSops.id} AND ps.project_id = ${input.projectId} AND ps.role = 'primary')`,
+          })
+          .from(clerkSops)
+          .innerJoin(channels, eq(channels.id, clerkSops.channelId))
+          .where(and(eq(channels.userId, ctx.user.id), eq(clerkSops.sopType, "ai_reference")))
+          .orderBy(desc(clerkSops.generatedAt));
+        return rows;
+      }),
+
+    setPrimary: protectedProcedure
+      .input(z.object({ projectId: z.string().uuid(), sopId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        await assertProjectOwner(ctx.user.id, input.projectId);
+        const [sop] = await db
+          .select({ id: clerkSops.id })
+          .from(clerkSops)
+          .innerJoin(channels, eq(channels.id, clerkSops.channelId))
+          .where(and(eq(clerkSops.id, input.sopId), eq(channels.userId, ctx.user.id)))
+          .limit(1);
+        if (!sop) throw new TRPCError({ code: "NOT_FOUND", message: "SOP not found" });
+        await db.transaction(async (tx) => {
+          await tx
+            .delete(projectSops)
+            .where(and(eq(projectSops.projectId, input.projectId), eq(projectSops.role, "primary")));
+          await tx
+            .insert(projectSops)
+            .values({ projectId: input.projectId, sopId: input.sopId, role: "primary" })
+            .onConflictDoUpdate({
+              target: [projectSops.projectId, projectSops.sopId],
+              set: { role: "primary" },
+            });
+        });
+        return { ok: true };
+      }),
   }),
 
   pipeline: router({

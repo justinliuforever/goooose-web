@@ -1,5 +1,6 @@
 import { count, desc, eq, max } from "drizzle-orm";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { channels, clerkVideos } from "@singularity/db";
 
@@ -34,6 +35,12 @@ export default async function ClerkLandingPage() {
     .where(eq(channels.userId, user.id))
     .groupBy(channels.id, channels.slug, channels.name, channels.platform)
     .orderBy(desc(max(clerkVideos.analyzedAt)), desc(channels.createdAt));
+
+  // Single-channel phase: the landing table is a chooser with one choice — skip it.
+  // (P-C's own/competitor selector absorbs this as the n=1 fast path.)
+  if (rows.length === 1) {
+    redirect(`/clerk/${encodeURIComponent(rows[0]!.channelSlug)}`);
+  }
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-6 p-6 sm:p-8">

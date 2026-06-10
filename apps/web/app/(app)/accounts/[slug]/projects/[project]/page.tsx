@@ -1,4 +1,4 @@
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -13,6 +13,7 @@ import {
   poetScripts,
   projectCompetitors,
   projects,
+  projectSops,
 } from "@singularity/db";
 import { formatDurationLabel } from "@singularity/shared/schemas/poet";
 
@@ -26,6 +27,7 @@ import { ensureCurrentUser } from "@/lib/users";
 import { EditChannelSheet } from "../../../_components/edit-channel-sheet";
 import { ProjectCompetitorsCard } from "../../../_components/project-competitors-card";
 
+import { ProjectSopRow, type CurrentSop } from "./_components/project-sop-row";
 import { SetupChecklist } from "./_components/setup-checklist";
 
 type Props = { params: Promise<{ slug: string; project: string }> };
@@ -85,6 +87,30 @@ export default async function ProjectHubPage({ params }: Props) {
   const p = encodeURIComponent(project.slug);
   const itemNoun = project.platform === "xhs" ? "篇监控笔记" : "个监控视频";
   const activeBible = pinnedBible[0] ?? null;
+
+  // Current writing SOP: explicit primary binding wins, else mirror the resolver's
+  // fallback (this account's latest ai_reference) so the row shows what writing will use.
+  const [pinnedSop] = await db
+    .select({ generatedAt: clerkSops.generatedAt, sourceName: channels.name })
+    .from(projectSops)
+    .innerJoin(clerkSops, eq(clerkSops.id, projectSops.sopId))
+    .innerJoin(channels, eq(channels.id, clerkSops.channelId))
+    .where(and(eq(projectSops.projectId, project.id), eq(projectSops.role, "primary")))
+    .limit(1);
+  let currentSop: CurrentSop = pinnedSop
+    ? { sourceName: pinnedSop.sourceName, generatedAt: pinnedSop.generatedAt, pinned: true }
+    : null;
+  if (!currentSop) {
+    const [fallbackSop] = await db
+      .select({ generatedAt: clerkSops.generatedAt })
+      .from(clerkSops)
+      .where(and(eq(clerkSops.channelId, channel.id), eq(clerkSops.sopType, "ai_reference")))
+      .orderBy(desc(clerkSops.generatedAt))
+      .limit(1);
+    if (fallbackSop) {
+      currentSop = { sourceName: channel.name, generatedAt: fallbackSop.generatedAt, pinned: false };
+    }
+  }
 
   const tools = [
     {
@@ -148,6 +174,8 @@ export default async function ProjectHubPage({ params }: Props) {
       </header>
 
       <SetupChecklist steps={setupSteps} />
+
+      <ProjectSopRow projectId={project.id} current={currentSop} />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {tools.map((t) => (
