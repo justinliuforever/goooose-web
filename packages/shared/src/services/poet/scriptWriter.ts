@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 
-import { llm } from "../../clients/llm";
+import { generateTextWithFallback, llm } from "../../clients/llm";
 import { redactUngrounded } from "../grounding";
 import {
   buildLongFormOutlinePrompt,
@@ -355,6 +355,17 @@ export async function writeScript(
       wordCount: args.language === "zh" ? grounded.length : grounded.trim().split(/\s+/).length,
     };
   }
+
+  // Budget gate sits AFTER grounding so it catches overshoot from either the draft
+  // or the grounding rewrite; humanize (in the job) has its own cap with draft fallback.
+  if (
+    result.path === "short" &&
+    args.targetWordCount <= 600 &&
+    result.wordCount > args.targetWordCount * 1.35
+  ) {
+    const squeezed = await compressToBudget(result.scriptText, result.wordCount, args);
+    result = { ...result, ...squeezed };
+  }
   return result;
 }
 
@@ -390,35 +401,46 @@ export async function writeScriptShort(args: WriteScriptArgs): Promise<ScriptRes
   const wordCount =
     args.language === "zh" ? scriptText.length : scriptText.trim().split(/\s+/).length;
 
-  // Short-form duration is a product promise (30s must be speakable in ~30s). The
-  // prompt window alone gets ignored often enough that overshoots > 1.35× get up to
-  // two compress passes. Keep the shortest valid version even when it misses the
-  // window — rejecting a 1.4× compress in favor of the 1.8× draft helps nobody.
-  if (args.targetWordCount <= 600 && wordCount > args.targetWordCount * 1.35) {
-    const ceiling = Math.round(args.targetWordCount * 1.25);
-    const floor = Math.round(args.targetWordCount * 0.5);
-    let bestText = scriptText;
-    let bestCount = wordCount;
-    for (let attempt = 0; attempt < 2 && bestCount > ceiling; attempt++) {
-      const compressed = await generateText({
-        model: llm("pro"),
-        prompt: buildScriptCompressPrompt({
-          scriptText: bestText,
-          language: args.language,
-          targetWordCount: args.targetWordCount,
-        }),
-        temperature: 0.3,
-        maxOutputTokens: 8192,
-        maxRetries: 2,
-      });
-      const ct = compressed.text.trim();
-      const cc = args.language === "zh" ? ct.length : ct.split(/\s+/).length;
-      if (!ct || compressed.finishReason === "length" || cc < floor || cc >= bestCount) break;
-      bestText = ct;
-      bestCount = cc;
-    }
-    return { scriptText: bestText, wordCount: bestCount };
-  }
-
   return { scriptText, wordCount };
+}
+
+// Short-form duration is a product promise (30s must be speakable in ~30s). The prompt
+// window alone gets ignored often enough that overshoots > 1.35× get up to two compress
+// passes. Keeps the shortest valid version even when it misses the window — rejecting a
+// 1.4× compress in favor of the 1.8× draft helps nobody.
+async function compressToBudget(
+  scriptText: string,
+  wordCount: number,
+  args: Pick<WriteScriptArgs, "language" | "targetWordCount">,
+): Promise<ScriptResult> {
+  const ceiling = Math.round(args.targetWordCount * 1.25);
+  const floor = Math.round(args.targetWordCount * 0.5);
+  let bestText = scriptText;
+  let bestCount = wordCount;
+  for (let attempt = 0; attempt < 2 && bestCount > ceiling; attempt++) {
+    // Pro→Flash fallback: Pro's reasoning intermittently burns the whole budget and
+    // returns empty, which silently skipped compression entirely.
+    const compressed = await generateTextWithFallback({
+      prompt: buildScriptCompressPrompt({
+        scriptText: bestText,
+        language: args.language,
+        targetWordCount: args.targetWordCount,
+      }),
+      temperature: 0.3,
+      maxOutputTokens: 16384,
+      maxRetries: 2,
+    });
+    const ct = compressed.text.trim();
+    const cc = args.language === "zh" ? ct.length : ct.split(/\s+/).length;
+    if (!ct || compressed.finishReason === "length" || cc < floor || cc >= bestCount) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[poet:compress] attempt ${attempt + 1} rejected (tier=${compressed.usedTier}, finish=${compressed.finishReason}, count=${cc}/${bestCount})`,
+      );
+      break;
+    }
+    bestText = ct;
+    bestCount = cc;
+  }
+  return { scriptText: bestText, wordCount: bestCount };
 }
