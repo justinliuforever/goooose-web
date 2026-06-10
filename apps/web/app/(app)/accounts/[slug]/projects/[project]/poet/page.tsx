@@ -264,10 +264,21 @@ export default async function PoetChannelPage({ params }: Props) {
           <CustomTopicCreateSheet channelId={channel.id} hasActiveBible={!!activeBible} />
         </div>
         {customTopics.length === 0 ? (
-          <div className="rounded-lg border border-dashed bg-card/40 p-6 text-center text-xs text-muted-foreground">
-            {activeBible
-              ? "想到什么写什么 — 新建一个自定义选题，AI 会根据当前圣经分析并写稿"
-              : "先生成圣经，才能新建自定义选题"}
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed bg-card/40 p-6 text-center text-xs text-muted-foreground">
+            <span>
+              {activeBible
+                ? "想到什么写什么 — 新建一个自定义选题，AI 会根据当前圣经分析并写稿"
+                : "先生成圣经，才能新建自定义选题"}
+            </span>
+            {!activeBible ? (
+              <BibleGenerateSheet
+                channelId={channel.id}
+                channelName={channel.name}
+                channelDescription={channel.description}
+                buttonLabel="生成圣经"
+                buttonVariant="outline"
+              />
+            ) : null}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -427,6 +438,25 @@ export default async function PoetChannelPage({ params }: Props) {
           <span className="text-xs">
             先生成圣经 → 通过 Muse 选题 → 回到这里点「写稿」
           </span>
+          <div className="flex items-center gap-2">
+            <BibleGenerateSheet
+              channelId={channel.id}
+              channelName={channel.name}
+              channelDescription={channel.description}
+              buttonLabel="生成圣经"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              render={
+                <Link
+                  href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project)}/muse`}
+                />
+              }
+            >
+              去 Muse 出选题
+            </Button>
+          </div>
         </div>
       ) : null}
     </div>

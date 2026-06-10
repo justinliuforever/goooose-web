@@ -205,6 +205,8 @@ export default async function MuseChannelPage({ params }: Props) {
           channelName={channel.name}
           competitorCount={activeCompetitorCount}
           isActive={!!activeRun}
+          accountSlug={slug}
+          projectSlug={project}
         />
       </header>
 
@@ -387,7 +389,20 @@ export default async function MuseChannelPage({ params }: Props) {
           {activeCompetitorCount > 0 ? (
             <span className="text-xs">点击右上角「开始巡视」，分析对标频道的爆款并生成选题</span>
           ) : (
-            <span className="text-xs">先在项目里绑定对标账号（项目页「管理对标」）</span>
+            <>
+              <span className="text-xs">Muse 需要至少一个对标账号才能巡视</span>
+              <Button
+                size="sm"
+                variant="outline"
+                render={
+                  <Link
+                    href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project)}`}
+                  />
+                }
+              >
+                去绑定对标
+              </Button>
+            </>
           )}
         </div>
       ) : null}

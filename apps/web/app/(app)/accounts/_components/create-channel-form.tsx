@@ -38,8 +38,9 @@ export function CreateChannelForm() {
   const createMutation = trpc.channels.create.useMutation({
     onSuccess: (channel) => {
       utils.channels.list.invalidate();
-      toast.success(`已创建「${channel.name}」`);
-      router.push("/accounts");
+      toast.success(`已创建「${channel.name}」· 接下来在项目里绑定对标账号`);
+      const s = encodeURIComponent(channel.slug);
+      router.push(`/accounts/${s}/projects/${s}`);
     },
     onError: (err) => {
       setError(err.message);

@@ -31,7 +31,7 @@ const CARDS: CardSpec[] = [
     agent: "clerk",
     code: "CLERK-091",
     title: "分析师",
-    subtitle: "拆解对标频道结构与套路",
+    subtitle: "拆解频道结构与套路",
     countLabel: "视频已分析",
     href: "/clerk",
     Icon: BarChart3,

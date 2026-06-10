@@ -21,11 +21,18 @@ type ActiveRun = {
 type Props = {
   channelId: string;
   channelName: string;
+  channelSlug: string;
   platform: "youtube" | "xhs";
   initialActive?: (ActiveRun & { startedAt?: Date | string }) | null;
 };
 
-export function ClerkRunButton({ channelId, channelName, platform, initialActive }: Props) {
+export function ClerkRunButton({
+  channelId,
+  channelName,
+  channelSlug,
+  platform,
+  initialActive,
+}: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
   const [active, setActive] = useState<ActiveRun | null>(initialActive ?? null);
@@ -80,7 +87,13 @@ export function ClerkRunButton({ channelId, channelName, platform, initialActive
         setActive(null);
         setStartedAt(null);
         if (ok) {
-          toast.success(message ?? "分析完成");
+          toast.success(message ?? "分析完成", {
+            action: {
+              label: "去生成圣经",
+              onClick: () =>
+                router.push(`/accounts/${encodeURIComponent(channelSlug)}/bible`),
+            },
+          });
           utils.invalidate();
           router.refresh();
         } else {

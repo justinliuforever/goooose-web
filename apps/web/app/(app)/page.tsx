@@ -1,7 +1,3 @@
-import Link from "next/link";
-import { Plus } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
 import { cnHour } from "@/lib/cn-time";
 import { ensureCurrentUser } from "@/lib/users";
 import { getDashboardSnapshot } from "@/lib/dashboard-data";
@@ -11,6 +7,7 @@ import { ActivityFeed } from "./_components/activity-feed";
 import { AgentStatCards } from "./_components/agent-stat-cards";
 import { DashboardRefresher } from "./_components/dashboard-refresher";
 import { NextStepCard } from "./_components/next-step-card";
+import { OnboardingOverview } from "./_components/onboarding-overview";
 
 function greeting(): string {
   const h = cnHour();
@@ -53,15 +50,12 @@ export default async function DashboardPage() {
 
   if (snapshot.channelCount === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
         <h1 className="font-display text-4xl italic">{hello}</h1>
         <p className="text-sm text-muted-foreground">
-          Singularity 围绕你自己的频道运转，先建一个再回来。
+          Singularity 围绕你自己的频道运转，四步从对标走到成稿。
         </p>
-        <Button render={<Link href="/accounts/new" />} size="lg" className="mt-2">
-          <Plus data-icon="inline-start" />
-          创建第一个频道
-        </Button>
+        <OnboardingOverview />
       </div>
     );
   }

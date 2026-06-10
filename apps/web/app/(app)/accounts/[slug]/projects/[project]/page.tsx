@@ -1,15 +1,18 @@
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
 import {
   channels,
+  clerkSops,
+  competitorAccounts,
   museIdeas,
   museMonitorVideos,
   poetBible,
   poetCustomTopics,
   poetScripts,
+  projectCompetitors,
   projects,
 } from "@singularity/db";
 import { formatDurationLabel } from "@singularity/shared/schemas/poet";
@@ -21,6 +24,8 @@ import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
 import { ProjectCompetitorsCard } from "../../../_components/project-competitors-card";
+
+import { SetupChecklist } from "./_components/setup-checklist";
 
 type Props = { params: Promise<{ slug: string; project: string }> };
 
@@ -56,6 +61,8 @@ export default async function ProjectHubPage({ params }: Props) {
     [poetTopicCount],
     [poetScriptCount],
     pinnedBible,
+    [clerkSopCount],
+    [boundCount],
   ] = await Promise.all([
     db.select({ c: count() }).from(museMonitorVideos).where(eq(museMonitorVideos.channelId, channel.id)),
     db.select({ c: count() }).from(museIdeas).where(eq(museIdeas.channelId, channel.id)),
@@ -65,6 +72,12 @@ export default async function ProjectHubPage({ params }: Props) {
     project.activeBibleId
       ? db.select().from(poetBible).where(eq(poetBible.id, project.activeBibleId)).limit(1)
       : Promise.resolve([]),
+    db.select({ c: count() }).from(clerkSops).where(eq(clerkSops.channelId, channel.id)),
+    db
+      .select({ c: count() })
+      .from(projectCompetitors)
+      .innerJoin(competitorAccounts, eq(competitorAccounts.id, projectCompetitors.competitorAccountId))
+      .where(and(eq(projectCompetitors.projectId, project.id), isNull(competitorAccounts.deletedAt))),
   ]);
 
   const a = encodeURIComponent(channel.slug);
@@ -73,6 +86,12 @@ export default async function ProjectHubPage({ params }: Props) {
   const activeBible = pinnedBible[0] ?? null;
 
   const tools = [
+    {
+      label: "Clerk · 分析师",
+      href: `/clerk/${a}`,
+      dot: "bg-clerk",
+      lines: [`${clerkSopCount?.c ?? 0} 份 SOP`],
+    },
     {
       label: "Muse · 选题官",
       href: `/accounts/${a}/projects/${p}/muse`,
@@ -85,6 +104,14 @@ export default async function ProjectHubPage({ params }: Props) {
       dot: "bg-poet",
       lines: [`${poetTopicCount?.c ?? 0} 个自定义选题`, `${poetScriptCount?.c ?? 0} 篇脚本`],
     },
+  ];
+
+  const setupSteps = [
+    { label: "绑定对标账号", href: "#competitors", done: (boundCount?.c ?? 0) > 0 },
+    { label: "用 Clerk 拆解频道生成 SOP", href: `/clerk/${a}`, done: (clerkSopCount?.c ?? 0) > 0 },
+    { label: "生成并选用频道圣经", href: `/accounts/${a}/bible`, done: !!activeBible },
+    { label: "Muse 出选题", href: `/accounts/${a}/projects/${p}/muse`, done: (museIdeaCount?.c ?? 0) > 0 },
+    { label: "Poet 写稿", href: `/accounts/${a}/projects/${p}/poet`, done: (poetScriptCount?.c ?? 0) > 0 },
   ];
 
   return (
@@ -111,7 +138,9 @@ export default async function ProjectHubPage({ params }: Props) {
         </div>
       </header>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <SetupChecklist steps={setupSteps} />
+
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {tools.map((t) => (
           <Link key={t.label} href={t.href}>
             <Card className="transition-colors hover:bg-muted/50">
@@ -161,7 +190,9 @@ export default async function ProjectHubPage({ params }: Props) {
         </CardContent>
       </Card>
 
-      <ProjectCompetitorsCard projectId={project.id} />
+      <div id="competitors" className="scroll-mt-20">
+        <ProjectCompetitorsCard projectId={project.id} />
+      </div>
     </div>
   );
 }

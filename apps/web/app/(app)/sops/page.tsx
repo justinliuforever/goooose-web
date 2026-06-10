@@ -71,8 +71,8 @@ export default async function SopsLibraryPage() {
 
       {groups.size === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-card/40 p-10 text-sm text-muted-foreground">
-          <span>还没有任何 SOP（待你定）</span>
-          <Button render={<Link href="/clerk" />}>去分析对标</Button>
+          <span>还没有任何 SOP</span>
+          <Button render={<Link href="/clerk" />}>去 Clerk 分析视频</Button>
         </div>
       ) : (
         [...groups.values()].map((group) => {

@@ -58,6 +58,9 @@ export function Splash({ redirectTo, duration = 1500 }: Props) {
         <h1 className="font-display text-7xl leading-none select-none sm:text-8xl">
           Singularity.
         </h1>
+        <p className="-mt-8 text-sm tracking-wide text-muted-foreground select-none">
+          看对标 → 出选题 → 写稿
+        </p>
         <svg
           viewBox="0 0 200 100"
           className="w-56 overflow-visible sm:w-64"

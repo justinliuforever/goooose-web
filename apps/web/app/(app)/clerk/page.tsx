@@ -37,12 +37,17 @@ export default async function ClerkLandingPage() {
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-6 p-6 sm:p-8">
-      <header className="flex flex-wrap items-center gap-3">
-        <span className="size-2 shrink-0 rounded-full bg-clerk" />
-        <h1 className="text-2xl font-semibold tracking-tight">Clerk · 分析师</h1>
-        <span className="text-sm text-muted-foreground">
-          分析视频结构、钩子、节奏，生成可复用的脚本撰写 SOP
-        </span>
+      <header className="flex flex-col gap-1.5">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="size-2 shrink-0 rounded-full bg-clerk" />
+          <h1 className="text-2xl font-semibold tracking-tight">Clerk · 分析师</h1>
+          <span className="text-sm text-muted-foreground">
+            分析视频结构、钩子、节奏，生成可复用的脚本撰写 SOP
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Clerk 拆解你添加的频道，沉淀脚本 SOP；巡视对标账号出选题的是 Muse。
+        </p>
       </header>
 
       {rows.length === 0 ? (

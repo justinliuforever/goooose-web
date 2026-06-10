@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -14,9 +15,18 @@ type Props = {
   channelName: string;
   competitorCount: number;
   isActive: boolean;
+  accountSlug: string;
+  projectSlug: string;
 };
 
-export function MuseRunButton({ channelId, channelName, competitorCount, isActive }: Props) {
+export function MuseRunButton({
+  channelId,
+  channelName,
+  competitorCount,
+  isActive,
+  accountSlug,
+  projectSlug,
+}: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
 
@@ -64,7 +74,12 @@ export function MuseRunButton({ channelId, channelName, competitorCount, isActiv
         )}
       </div>
       {competitorCount === 0 ? (
-        <span className="text-xs text-muted-foreground">先添加对标频道再启动</span>
+        <Link
+          href={`/accounts/${encodeURIComponent(accountSlug)}/projects/${encodeURIComponent(projectSlug)}`}
+          className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+        >
+          先去绑定对标
+        </Link>
       ) : null}
     </div>
   );
