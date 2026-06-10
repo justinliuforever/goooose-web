@@ -43,6 +43,10 @@ type Payload = {
   maxVideosPerCompetitor?: number;
   numIdeasPerVideo?: number;
   language?: "en" | "zh";
+  // Subset of bound competitor_accounts ids to monitor; omitted = all bound.
+  competitorAccountIds?: string[];
+  // XHS-only content filter; YouTube competitors are unaffected.
+  xhsContentType?: "all" | "video" | "image";
 };
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -114,17 +118,26 @@ export const monitorCompetitors = task({
         .where(
           and(eq(projectCompetitors.projectId, channel.id), isNull(competitorAccounts.deletedAt)),
         );
+      const idFilter =
+        payload.competitorAccountIds && payload.competitorAccountIds.length > 0
+          ? new Set(payload.competitorAccountIds)
+          : null;
       const competitors: Array<{
         competitorAccountId: string | null;
         platform: "youtube" | "xhs";
         url: string;
-      }> = bound.map((b) => ({
-        competitorAccountId: b.competitorAccountId,
-        platform: b.platform as "youtube" | "xhs",
-        url: b.url,
-      }));
+      }> = bound
+        .map((b) => ({
+          competitorAccountId: b.competitorAccountId,
+          platform: b.platform as "youtube" | "xhs",
+          url: b.url,
+        }))
+        .filter((c) => !idFilter || (c.competitorAccountId && idFilter.has(c.competitorAccountId)));
       if (competitors.length === 0) {
         throw new Error("This channel has no competitors configured");
+      }
+      if (idFilter) {
+        logger.info(`Competitor selection: ${competitors.length}/${bound.length} bound accounts`);
       }
 
       // Muse touches both XHS and YouTube competitors; pool is YouTube-only.
@@ -173,7 +186,13 @@ export const monitorCompetitors = task({
         });
         try {
           if (comp.platform === "xhs") {
-            const notes = await getXhsUserNotes(comp.url, maxVideosPerCompetitor);
+            const xhsContentType = payload.xhsContentType ?? "all";
+            let notes = await getXhsUserNotes(comp.url, maxVideosPerCompetitor);
+            if (xhsContentType !== "all") {
+              notes = notes.filter((n) =>
+                xhsContentType === "video" ? n.type === "video" : n.type !== "video",
+              );
+            }
             for (const n of notes) {
               candidates.push({
                 competitorIndex: ci,

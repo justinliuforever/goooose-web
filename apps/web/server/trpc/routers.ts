@@ -986,9 +986,9 @@ export const appRouter = router({
           .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
-        // Same source as the monitor job: live project_competitors, JSONB fallback when empty.
+        // Same source as the monitor job: live project_competitors.
         const bound = await db
-          .select({ n: sql<number>`count(*)::int` })
+          .select({ id: competitorAccounts.id })
           .from(projectCompetitors)
           .innerJoin(
             competitorAccounts,
@@ -1000,11 +1000,18 @@ export const appRouter = router({
               isNull(competitorAccounts.deletedAt),
             ),
           );
-        const liveCount = bound[0]?.n ?? 0;
-        if (liveCount === 0) {
+        if (bound.length === 0) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message: "请先为该频道配置至少一个对标账号",
+          });
+        }
+        const boundIds = new Set(bound.map((b) => b.id));
+        const selectedIds = input.competitorAccountIds?.filter((id) => boundIds.has(id));
+        if (input.competitorAccountIds && (!selectedIds || selectedIds.length === 0)) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "所选对标账号不在本项目的绑定列表里",
           });
         }
 
@@ -1021,6 +1028,8 @@ export const appRouter = router({
               maxVideosPerCompetitor: input.maxVideosPerCompetitor,
               numIdeasPerVideo: input.numIdeasPerVideo,
               language: input.language,
+              ...(selectedIds ? { competitorAccountIds: selectedIds } : {}),
+              xhsContentType: input.xhsContentType,
             },
           })
           .returning();
@@ -1032,6 +1041,8 @@ export const appRouter = router({
           maxVideosPerCompetitor: input.maxVideosPerCompetitor,
           numIdeasPerVideo: input.numIdeasPerVideo,
           language: input.language,
+          competitorAccountIds: selectedIds,
+          xhsContentType: input.xhsContentType,
         });
 
         await db
@@ -1041,6 +1052,8 @@ export const appRouter = router({
               maxVideosPerCompetitor: input.maxVideosPerCompetitor,
               numIdeasPerVideo: input.numIdeasPerVideo,
               language: input.language,
+              ...(selectedIds ? { competitorAccountIds: selectedIds } : {}),
+              xhsContentType: input.xhsContentType,
               triggerRunId: handle.id,
             },
           })

@@ -14,6 +14,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/ui/button";
+import { CompetitorAvatar } from "@/components/competitor-avatar";
+import { followerNoun, formatFollowerCount } from "@/lib/format-count";
 import {
   Table,
   TableBody,
@@ -61,7 +63,7 @@ export default async function MuseChannelPage({ params }: Props) {
 
   if (!channel || channel.userId !== user.id) notFound();
 
-  const [monitored, ideas, activeRun, [boundCompetitorRow]] = await Promise.all([
+  const [monitored, ideas, activeRun, boundCompetitors] = await Promise.all([
     db
       .select()
       .from(museMonitorVideos)
@@ -92,13 +94,20 @@ export default async function MuseChannelPage({ params }: Props) {
     // Bound competitors are project_competitors (the source the monitor reads), not the
     // legacy channel.competitors JSONB; project.id == channel.id during expand.
     db
-      .select({ c: count() })
+      .select({
+        id: competitorAccounts.id,
+        name: competitorAccounts.name,
+        url: competitorAccounts.url,
+        platform: competitorAccounts.platform,
+        avatarUrl: competitorAccounts.avatarUrl,
+        subscriberCount: competitorAccounts.subscriberCount,
+      })
       .from(projectCompetitors)
       .innerJoin(competitorAccounts, eq(competitorAccounts.id, projectCompetitors.competitorAccountId))
       .where(and(eq(projectCompetitors.projectId, channel.id), isNull(competitorAccounts.deletedAt))),
   ]);
 
-  const activeCompetitorCount = boundCompetitorRow?.c ?? 0;
+  const activeCompetitorCount = boundCompetitors.length;
   const approvedUnscripted = ideas.filter((i) => i.approved && !i.scripted).length;
 
   let liveStats: LiveStats | null = null;
@@ -210,12 +219,39 @@ export default async function MuseChannelPage({ params }: Props) {
         <MuseRunButton
           channelId={channel.id}
           channelName={channel.name}
-          competitorCount={activeCompetitorCount}
+          competitors={boundCompetitors}
           isActive={!!activeRun}
           accountSlug={slug}
           projectSlug={project}
         />
       </header>
+
+      {boundCompetitors.length > 0 ? (
+        <section className="flex flex-col gap-2 rounded-lg border bg-card/50 p-4">
+          <h2 className="text-xs font-medium text-muted-foreground">
+            巡视对象 — Muse 监控的是这些对标账号的内容，不是你自己的账号
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {boundCompetitors.map((c) => (
+              <span
+                key={c.id}
+                className="inline-flex items-center gap-2 rounded-full border bg-card py-1 pr-3 pl-1 text-xs"
+              >
+                <CompetitorAvatar name={c.name} avatarUrl={c.avatarUrl} className="size-6" />
+                <span className="flex flex-col leading-tight">
+                  <span className="max-w-[160px] truncate font-medium">{c.name ?? c.url}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {c.platform === "xhs" ? "小红书" : "YouTube"}
+                    {c.subscriberCount != null
+                      ? ` · ${formatFollowerCount(c.subscriberCount)} ${followerNoun(c.platform)}`
+                      : ""}
+                  </span>
+                </span>
+              </span>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <ActiveRunsBanner channelId={channel.id} />
 
@@ -394,7 +430,9 @@ export default async function MuseChannelPage({ params }: Props) {
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-sm text-muted-foreground">
           <span>还没有选题</span>
           {activeCompetitorCount > 0 ? (
-            <span className="text-xs">点击右上角「开始巡视」，分析对标账号的爆款并生成选题</span>
+            <span className="text-xs">
+              点击右上角「开始巡视」— Muse 会扫描上方对标账号的最新内容，提取爆款机制，为你的频道生成选题
+            </span>
           ) : (
             <>
               <span className="text-xs">Muse 需要至少一个对标账号才能巡视</span>

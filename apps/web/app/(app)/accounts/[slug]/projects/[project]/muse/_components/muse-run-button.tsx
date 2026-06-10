@@ -8,12 +8,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 
-import { MuseStartSheet } from "./muse-start-sheet";
+import { MuseStartSheet, type MuseCompetitor } from "./muse-start-sheet";
 
 type Props = {
   channelId: string;
   channelName: string;
-  competitorCount: number;
+  competitors: MuseCompetitor[];
   isActive: boolean;
   accountSlug: string;
   projectSlug: string;
@@ -22,11 +22,12 @@ type Props = {
 export function MuseRunButton({
   channelId,
   channelName,
-  competitorCount,
+  competitors,
   isActive,
   accountSlug,
   projectSlug,
 }: Props) {
+  const competitorCount = competitors.length;
   const router = useRouter();
   const utils = trpc.useUtils();
 
@@ -68,7 +69,7 @@ export function MuseRunButton({
           <MuseStartSheet
             channelId={channelId}
             channelName={channelName}
-            competitorCount={competitorCount}
+            competitors={competitors}
             disabled={competitorCount === 0}
           />
         )}

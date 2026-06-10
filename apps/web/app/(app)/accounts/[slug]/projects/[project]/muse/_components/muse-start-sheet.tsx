@@ -1,11 +1,12 @@
 "use client";
 
-import { Loader2, Play } from "lucide-react";
+import { Check, Loader2, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { CompetitorAvatar } from "@/components/competitor-avatar";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import {
   Sheet,
@@ -16,14 +17,25 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { followerNoun, formatFollowerCount } from "@/lib/format-count";
 import { trpc } from "@/lib/trpc";
 
 type Language = "zh" | "en";
+type XhsContentType = "all" | "video" | "image";
+
+export type MuseCompetitor = {
+  id: string;
+  name: string | null;
+  url: string;
+  platform: "youtube" | "xhs";
+  avatarUrl: string | null;
+  subscriberCount: number | null;
+};
 
 type Props = {
   channelId: string;
   channelName: string;
-  competitorCount: number;
+  competitors: MuseCompetitor[];
   disabled: boolean;
 };
 
@@ -35,14 +47,40 @@ const LANGUAGE_OPTIONS: Array<{ value: Language; label: string; hint: string }> 
   { value: "en", label: "English ideas", hint: "适合英文目标频道" },
 ];
 
-export function MuseStartSheet({ channelId, channelName, competitorCount, disabled }: Props) {
+const XHS_CONTENT_OPTIONS: Array<{ value: XhsContentType; label: string; hint: string }> = [
+  { value: "all", label: "全部内容", hint: "视频 + 图文笔记" },
+  { value: "video", label: "仅视频", hint: "音频转写后分析" },
+  { value: "image", label: "仅图文", hint: "标题 + 正文分析" },
+];
+
+export function MuseStartSheet({ channelId, channelName, competitors, disabled }: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const [maxVideos, setMaxVideos] = useState<(typeof VIDEOS_PER_COMPETITOR)[number]>(10);
   const [numIdeas, setNumIdeas] = useState<(typeof IDEAS_PER_VIDEO)[number]>(5);
   const [language, setLanguage] = useState<Language>("zh");
+  const [xhsContentType, setXhsContentType] = useState<XhsContentType>("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set(competitors.map((c) => c.id)),
+  );
   const [error, setError] = useState<string | null>(null);
+
+  const selected = useMemo(
+    () => competitors.filter((c) => selectedIds.has(c.id)),
+    [competitors, selectedIds],
+  );
+  const hasXhs = selected.some((c) => c.platform === "xhs");
+  const hasYt = selected.some((c) => c.platform === "youtube");
+
+  const toggle = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const startMutation = trpc.muse.startMonitor.useMutation({
     onSuccess: () => {
@@ -57,15 +95,24 @@ export function MuseStartSheet({ channelId, channelName, competitorCount, disabl
 
   const handleSubmit = () => {
     setError(null);
+    const allSelected = selected.length === competitors.length;
     startMutation.mutate({
       channelId,
       maxVideosPerCompetitor: maxVideos,
       numIdeasPerVideo: numIdeas,
       language,
+      ...(allSelected ? {} : { competitorAccountIds: selected.map((c) => c.id) }),
+      xhsContentType,
     });
   };
 
-  const totalIdeas = competitorCount * maxVideos * numIdeas;
+  const totalIdeas = selected.length * maxVideos * numIdeas;
+  const contentNoun =
+    hasXhs && hasYt
+      ? "最新内容（YouTube 视频 + 小红书笔记）"
+      : hasXhs
+        ? "最新笔记（视频 + 图文）"
+        : "最新视频";
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -77,14 +124,54 @@ export function MuseStartSheet({ channelId, channelName, competitorCount, disabl
         <SheetHeader>
           <SheetTitle>巡视对标账号</SheetTitle>
           <SheetDescription>
-            扫描 {competitorCount} 个对标账号的最新视频，提取爆款机制并为本频道生成选题
+            Muse 会扫描下面所选对标账号的{contentNoun}，提取爆款机制，为「{channelName}」生成选题。
           </SheetDescription>
         </SheetHeader>
 
         <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
           <FieldGroup>
             <Field>
-              <FieldLabel>每个对标账号拉取视频数</FieldLabel>
+              <FieldLabel>巡视哪些对标账号</FieldLabel>
+              <div className="flex flex-col gap-1.5">
+                {competitors.map((c) => {
+                  const isOn = selectedIds.has(c.id);
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => toggle(c.id)}
+                      className={`flex items-center gap-2.5 rounded-md border p-2 text-left text-xs transition-colors ${
+                        isOn ? "border-foreground bg-foreground/5" : "opacity-60 hover:bg-muted/50"
+                      }`}
+                    >
+                      <CompetitorAvatar name={c.name} avatarUrl={c.avatarUrl} className="size-7" />
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate font-medium">{c.name ?? c.url}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {c.platform === "xhs" ? "小红书" : "YouTube"}
+                          {c.subscriberCount != null
+                            ? ` · ${formatFollowerCount(c.subscriberCount)} ${followerNoun(c.platform)}`
+                            : ""}
+                        </span>
+                      </span>
+                      <span
+                        className={`flex size-4 shrink-0 items-center justify-center rounded border ${
+                          isOn ? "border-foreground bg-foreground text-background" : "border-border"
+                        }`}
+                      >
+                        {isOn ? <Check className="size-3" /> : null}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {selected.length === 0 ? (
+                <p className="text-xs text-destructive">至少选择一个对标账号</p>
+              ) : null}
+            </Field>
+
+            <Field>
+              <FieldLabel>每个对标账号拉取内容数</FieldLabel>
               <div className="flex gap-2">
                 {VIDEOS_PER_COMPETITOR.map((n) => (
                   <button
@@ -102,9 +189,32 @@ export function MuseStartSheet({ channelId, channelName, competitorCount, disabl
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                推荐 10 个，每条视频 30-90s 处理时间
+                推荐 10 个；视频每条约 30-90s 处理，图文更快
               </p>
             </Field>
+
+            {hasXhs ? (
+              <Field>
+                <FieldLabel>小红书内容类型</FieldLabel>
+                <div className="flex gap-2">
+                  {XHS_CONTENT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setXhsContentType(opt.value)}
+                      className={`flex flex-1 flex-col items-start gap-0.5 rounded-md border p-2 text-left text-xs transition-colors ${
+                        xhsContentType === opt.value
+                          ? "border-foreground bg-foreground/5"
+                          : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <span className="font-medium">{opt.label}</span>
+                      <span className="text-[10px] text-muted-foreground">{opt.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </Field>
+            ) : null}
 
             <Field>
               <FieldLabel>每个相关视频生成选题数</FieldLabel>
@@ -153,10 +263,10 @@ export function MuseStartSheet({ channelId, channelName, competitorCount, disabl
             <div className="rounded-md border bg-muted/30 p-3 text-xs">
               <span className="font-medium text-foreground">预估上限：</span>
               <span className="font-mono">
-                {competitorCount} × {maxVideos} × {numIdeas} = 最多 {totalIdeas.toLocaleString()} 选题
+                {selected.length} × {maxVideos} × {numIdeas} = 最多 {totalIdeas.toLocaleString()} 选题
               </span>
               <p className="mt-1 text-muted-foreground">
-                实际产出取决于相关性筛选 — 不是所有视频都有可借鉴的爆款机制。
+                实际产出取决于相关性筛选 — 只有与你频道定位相关、且有可借鉴爆款机制的内容才会生成选题。
               </p>
             </div>
           </FieldGroup>
@@ -166,13 +276,16 @@ export function MuseStartSheet({ channelId, channelName, competitorCount, disabl
 
         <SheetFooter>
           <div className="flex items-center gap-3">
-            <Button onClick={handleSubmit} disabled={startMutation.isPending}>
+            <Button
+              onClick={handleSubmit}
+              disabled={startMutation.isPending || selected.length === 0}
+            >
               {startMutation.isPending ? (
                 <Loader2 data-icon="inline-start" className="animate-spin" />
               ) : (
                 <Play data-icon="inline-start" />
               )}
-              {startMutation.isPending ? "启动中…" : "开始巡视"}
+              {startMutation.isPending ? "启动中…" : `巡视 ${selected.length} 个对标`}
             </Button>
             <Button
               variant="ghost"

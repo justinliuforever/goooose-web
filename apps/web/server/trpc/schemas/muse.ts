@@ -5,6 +5,10 @@ export const startMonitorInput = z.object({
   maxVideosPerCompetitor: z.number().int().min(1).max(50).default(10),
   numIdeasPerVideo: z.number().int().min(1).max(10).default(5),
   language: z.enum(["en", "zh"]).default("zh"),
+  // Subset of bound competitors to monitor; omitted = all bound.
+  competitorAccountIds: z.array(z.string().uuid()).min(1).max(50).optional(),
+  // XHS-only content filter (YouTube competitors are unaffected).
+  xhsContentType: z.enum(["all", "video", "image"]).default("all"),
 });
 
 export type StartMonitorInput = z.infer<typeof startMonitorInput>;
