@@ -86,27 +86,28 @@ function slugify(name: string): string {
   return `ch-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-async function assertNoActiveRun(channelId: string, agent: "clerk" | "muse" | "poet") {
+type RunOwner = { channelId: string } | { competitorAccountId: string };
+
+async function assertNoActiveRun(owner: string | RunOwner, agent: "clerk" | "muse" | "poet") {
   // Ignore "pending" rows older than 30 min — they're orphans (e.g. a smoke
   // script staged the row but never triggered the task). Without this filter,
-  // a single orphan would block all future runs for the channel + agent.
+  // a single orphan would block all future runs for the owner + agent.
+  const ownerObj: RunOwner = typeof owner === "string" ? { channelId: owner } : owner;
+  const ownerCond =
+    "channelId" in ownerObj
+      ? eq(pipelineRuns.channelId, ownerObj.channelId)
+      : eq(pipelineRuns.competitorAccountId, ownerObj.competitorAccountId);
   const orphanCutoff = new Date(Date.now() - 30 * 60 * 1000);
   const [active] = await db
     .select({ id: pipelineRuns.id, startedAt: pipelineRuns.startedAt })
     .from(pipelineRuns)
-    .where(
-      and(
-        eq(pipelineRuns.channelId, channelId),
-        eq(pipelineRuns.agent, agent),
-        inArray(pipelineRuns.status, ["pending", "running"]),
-      ),
-    )
+    .where(and(ownerCond, eq(pipelineRuns.agent, agent), inArray(pipelineRuns.status, ["pending", "running"])))
     .orderBy(desc(pipelineRuns.startedAt))
     .limit(1);
   if (active && active.startedAt > orphanCutoff) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: "该频道当前已有运行中的任务，请等其完成后再启动",
+      message: "该目标当前已有运行中的任务，请等其完成后再启动",
     });
   }
 }
@@ -819,19 +820,38 @@ export const appRouter = router({
     startAnalysis: protectedProcedure
       .input(startAnalysisInput)
       .mutation(async ({ ctx, input }) => {
-        const [channel] = await db
-          .select()
-          .from(channels)
-          .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
-          .limit(1);
-        if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
+        // Exactly one target (zod xor): own channel or competitor account.
+        let owner: { channelId: string } | { competitorAccountId: string };
+        if (input.channelId) {
+          const [channel] = await db
+            .select({ id: channels.id })
+            .from(channels)
+            .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
+            .limit(1);
+          if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
+          owner = { channelId: channel.id };
+        } else {
+          const [comp] = await db
+            .select({ id: competitorAccounts.id })
+            .from(competitorAccounts)
+            .where(
+              and(
+                eq(competitorAccounts.id, input.competitorAccountId!),
+                eq(competitorAccounts.userId, ctx.user.id),
+                isNull(competitorAccounts.deletedAt),
+              ),
+            )
+            .limit(1);
+          if (!comp) throw new TRPCError({ code: "NOT_FOUND", message: "Competitor not found" });
+          owner = { competitorAccountId: comp.id };
+        }
 
-        await assertNoActiveRun(channel.id, "clerk");
+        await assertNoActiveRun(owner, "clerk");
 
         const [run] = await db
           .insert(pipelineRuns)
           .values({
-            channelId: channel.id,
+            ...owner,
             agent: "clerk",
             command: "clerk-analyze-channel",
             status: "pending",
@@ -848,7 +868,7 @@ export const appRouter = router({
         if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
         const handle = await triggerOrFailRun(run.id,"clerk-analyze-channel", {
-          channelId: channel.id,
+          ...owner,
           runId: run.id,
           limit: input.limit,
           language: input.language,

@@ -2,7 +2,9 @@ import { z } from "zod";
 
 export const startAnalysisInput = z
   .object({
-    channelId: z.string().uuid(),
+    // Exactly one analysis target (P-C): own channel or competitor account.
+    channelId: z.string().uuid().optional(),
+    competitorAccountId: z.string().uuid().optional(),
     limit: z.number().int().min(1).max(50).default(10),
     language: z.enum(["en", "zh"]).default("zh"),
     mode: z.enum(["overwrite", "incremental"]).default("overwrite"),
@@ -13,6 +15,10 @@ export const startAnalysisInput = z
   .refine((v) => v.source !== "urls" || v.videoIds.length > 0, {
     message: "指定链接模式下至少需要 1 个视频 URL",
     path: ["videoIds"],
+  })
+  .refine((v) => (v.channelId == null) !== (v.competitorAccountId == null), {
+    message: "必须且只能指定一个分析目标（自有账号或对标账号）",
+    path: ["channelId"],
   });
 
 export type StartAnalysisInput = z.infer<typeof startAnalysisInput>;
