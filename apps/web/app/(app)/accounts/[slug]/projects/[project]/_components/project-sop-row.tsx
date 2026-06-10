@@ -76,13 +76,21 @@ export function ProjectSopRow({
     );
   };
 
-  // Group picker rows by source account for scannability.
-  const groups = new Map<string, NonNullable<typeof picker.data>>();
-  for (const row of picker.data ?? []) {
-    const list = groups.get(row.sourceName) ?? [];
-    list.push(row);
-    groups.set(row.sourceName, list);
-  }
+  // Two-level grouping: source kind section (对标 / 我的) → source account.
+  const buildGroups = (kind: "own" | "competitor") => {
+    const groups = new Map<string, NonNullable<typeof picker.data>>();
+    for (const row of picker.data ?? []) {
+      if (row.sourceKind !== kind) continue;
+      const list = groups.get(row.sourceName) ?? [];
+      list.push(row);
+      groups.set(row.sourceName, list);
+    }
+    return [...groups.entries()];
+  };
+  const sections: Array<{ label: string; groups: ReturnType<typeof buildGroups> }> = [
+    { label: "🎯 来自对标账号", groups: buildGroups("competitor") },
+    { label: "📺 来自我的账号", groups: buildGroups("own") },
+  ].filter((s) => s.groups.length > 0);
 
   return (
     <div className="flex items-center gap-2.5 rounded-lg border bg-card/50 px-4 py-2.5 text-sm">
@@ -124,9 +132,12 @@ export function ProjectSopRow({
                 还没有任何可选 SOP — 先去 Clerk 拆解一个频道。
               </p>
             ) : (
-              [...groups.entries()].map(([sourceName, rows]) => (
+              sections.map((section) => (
+                <div key={section.label} className="flex flex-col gap-2">
+                  <p className="text-xs font-semibold">{section.label}</p>
+                  {section.groups.map(([sourceName, rows]) => (
                 <div key={sourceName} className="flex flex-col gap-1.5">
-                  <p className="text-xs font-medium text-muted-foreground">来自「{sourceName}」</p>
+                  <p className="text-xs font-medium text-muted-foreground">「{sourceName}」</p>
                   {rows.map((r) => (
                     <button
                       key={r.id}
@@ -161,6 +172,8 @@ export function ProjectSopRow({
                         <span className="shrink-0 text-[10px] text-muted-foreground">选用</span>
                       )}
                     </button>
+                  ))}
+                </div>
                   ))}
                 </div>
               ))

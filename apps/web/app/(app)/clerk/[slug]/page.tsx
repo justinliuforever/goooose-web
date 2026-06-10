@@ -131,7 +131,7 @@ export default async function ClerkChannelPage({ params }: Props) {
       ) : null}
 
       <ClerkRunButton
-        channelId={channel.id}
+        target={{ kind: "own", channelId: channel.id }}
         channelName={channel.name}
         channelSlug={channel.slug}
         platform={channel.platform}

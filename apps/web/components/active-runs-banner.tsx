@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 
 type Props = {
-  channelId: string;
+  channelId?: string;
+  competitorAccountId?: string;
 };
 
 const AGENT_LABEL: Record<"clerk" | "muse" | "poet", string> = {
@@ -35,23 +36,24 @@ function elapsed(now: number, startedAt: Date | string): string {
   return `${h}h${min % 60}m 前`;
 }
 
-export function ActiveRunsBanner({ channelId }: Props) {
+export function ActiveRunsBanner({ channelId, competitorAccountId }: Props) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, []);
 
-  const listQuery = trpc.pipeline.listActive.useQuery(
-    { channelId },
-    { refetchInterval: 8_000, refetchOnWindowFocus: true },
-  );
+  const ownerInput = channelId ? { channelId } : { competitorAccountId };
+  const listQuery = trpc.pipeline.listActive.useQuery(ownerInput, {
+    refetchInterval: 8_000,
+    refetchOnWindowFocus: true,
+  });
 
   const utils = trpc.useUtils();
   const cancel = trpc.pipeline.cancelRun.useMutation({
     onSuccess: () => {
       toast.success("已取消任务");
-      void utils.pipeline.listActive.invalidate({ channelId });
+      void utils.pipeline.listActive.invalidate(ownerInput);
     },
     onError: (err) => toast.error(err.message),
   });

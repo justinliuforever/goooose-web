@@ -8,7 +8,7 @@ import { useRealtimeRun } from "@trigger.dev/react-hooks";
 import { trpc } from "@/lib/trpc";
 
 import { ClerkPipelineProgress } from "./clerk-pipeline-progress";
-import { ClerkStartSheet } from "./clerk-start-sheet";
+import { ClerkStartSheet, type ClerkTarget } from "./clerk-start-sheet";
 import type { LogEntry } from "./activity-log";
 import type { VideoTrack } from "./live-video-tracks";
 
@@ -19,15 +19,16 @@ type ActiveRun = {
 };
 
 type Props = {
-  channelId: string;
+  target: ClerkTarget;
   channelName: string;
-  channelSlug: string;
+  // Own targets only — powers the「去生成圣经」finish action.
+  channelSlug?: string;
   platform: "youtube" | "xhs";
   initialActive?: (ActiveRun & { startedAt?: Date | string }) | null;
 };
 
 export function ClerkRunButton({
-  channelId,
+  target,
   channelName,
   channelSlug,
   platform,
@@ -59,7 +60,7 @@ export function ClerkRunButton({
     return (
       <div className="flex justify-end">
         <ClerkStartSheet
-          channelId={channelId}
+          target={target}
           channelName={channelName}
           platform={platform}
           disabled={false}
@@ -88,11 +89,17 @@ export function ClerkRunButton({
         setStartedAt(null);
         if (ok) {
           toast.success(message ?? "分析完成", {
-            action: {
-              label: "去生成圣经",
-              onClick: () =>
-                router.push(`/accounts/${encodeURIComponent(channelSlug)}/bible`),
-            },
+            action:
+              target.kind === "own" && channelSlug
+                ? {
+                    label: "去生成圣经",
+                    onClick: () =>
+                      router.push(`/accounts/${encodeURIComponent(channelSlug)}/bible`),
+                  }
+                : {
+                    label: "去 SOP 库",
+                    onClick: () => router.push("/sops"),
+                  },
           });
           utils.invalidate();
           router.refresh();

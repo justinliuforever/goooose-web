@@ -27,6 +27,7 @@ import { ensureCurrentUser } from "@/lib/users";
 import { EditChannelSheet } from "../../../_components/edit-channel-sheet";
 import { ProjectCompetitorsCard } from "../../../_components/project-competitors-card";
 
+import { ConvertToCompetitorButton } from "./_components/convert-to-competitor-button";
 import { ProjectSopRow, type CurrentSop } from "./_components/project-sop-row";
 import { SetupChecklist } from "./_components/setup-checklist";
 
@@ -166,7 +167,10 @@ export default async function ProjectHubPage({ params }: Props) {
               </a>
             </div>
           </div>
-          <EditChannelSheet channel={channel} />
+          <div className="flex shrink-0 items-center gap-1">
+            <ConvertToCompetitorButton channelId={channel.id} channelName={channel.name} />
+            <EditChannelSheet channel={channel} />
+          </div>
         </div>
         {channel.description ? (
           <p className="max-w-2xl text-sm text-muted-foreground">{channel.description}</p>

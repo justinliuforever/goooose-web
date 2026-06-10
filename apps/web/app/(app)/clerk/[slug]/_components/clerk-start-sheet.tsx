@@ -30,8 +30,12 @@ type ActiveRun = {
   publicAccessToken: string;
 };
 
+export type ClerkTarget =
+  | { kind: "own"; channelId: string }
+  | { kind: "competitor"; competitorAccountId: string };
+
 type Props = {
-  channelId: string;
+  target: ClerkTarget;
   channelName: string;
   platform: "youtube" | "xhs";
   disabled: boolean;
@@ -68,7 +72,7 @@ const MODE_OPTIONS: Array<{ value: Mode; label: string; hint: string }> = [
 ];
 
 export function ClerkStartSheet({
-  channelId,
+  target,
   channelName,
   platform,
   disabled,
@@ -117,7 +121,9 @@ export function ClerkStartSheet({
     const recencyMonths =
       recency === "all" ? null : (Number.parseInt(recency, 10) as 1 | 3 | 6);
     startMutation.mutate({
-      channelId,
+      ...(target.kind === "own"
+        ? { channelId: target.channelId }
+        : { competitorAccountId: target.competitorAccountId }),
       limit: source === "urls" ? videoIds.length : limitNum,
       mode,
       source,
@@ -135,11 +141,25 @@ export function ClerkStartSheet({
       </SheetTrigger>
       <SheetContent className="flex w-full flex-col gap-0 sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>分析{itemLabel}</SheetTitle>
+          <SheetTitle>{target.kind === "competitor" ? "拆解对标账号" : `分析${itemLabel}`}</SheetTitle>
           <SheetDescription>选择{itemLabel}范围和模式，然后开始分析</SheetDescription>
         </SheetHeader>
 
         <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
+          {/* Context confirm bar (HCI 防错): restate WHO is being analyzed before launch. */}
+          <div
+            className={`rounded-md border p-2.5 text-xs ${
+              target.kind === "competitor"
+                ? "border-muse/40 bg-muse/5"
+                : "border-clerk/40 bg-clerk/5"
+            }`}
+          >
+            {target.kind === "competitor" ? (
+              <>🎯 你正在拆解【对标账号】<span className="font-medium">{channelName}</span> — 产出的 SOP 进入 SOP 库，可被任意项目选用</>
+            ) : (
+              <>📺 你正在复盘【我的账号】<span className="font-medium">{channelName}</span></>
+            )}
+          </div>
           <FieldGroup>
             <Field>
               <FieldLabel>{itemLabel}来源</FieldLabel>

@@ -9,6 +9,7 @@ import {
   channels,
   channelSeries,
   clerkSops,
+  clerkVideos,
   competitorAccounts,
   museIdeas,
   ownAccounts,
@@ -653,6 +654,105 @@ export const appRouter = router({
         );
       return { ok: true };
     }),
+  }),
+
+  channelsMaintenance: router({
+    // 伪账号收口 (P-C §5.6): a study target added as an own account converts to a real
+    // competitor_account, re-owning its clerk history; spine rows are deleted explicitly
+    // (own_accounts/projects have NO FK to channels — nothing cascades from channels).
+    convertToCompetitor: protectedProcedure
+      .input(z.object({ channelId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const [channel] = await db
+          .select()
+          .from(channels)
+          .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
+          .limit(1);
+        if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
+
+        // Guard: only pure clerk-study channels convert (any bible/script/topic/idea/
+        // monitor content means this is a real working account — refuse).
+        const [guard] = await db
+          .select({
+            bibles: sql<number>`(SELECT count(*)::int FROM poet_bible b WHERE b.channel_id = ${channel.id})`,
+            scripts: sql<number>`(SELECT count(*)::int FROM poet_scripts s WHERE s.channel_id = ${channel.id})`,
+            topics: sql<number>`(SELECT count(*)::int FROM poet_custom_topics t WHERE t.channel_id = ${channel.id})`,
+            ideas: sql<number>`(SELECT count(*)::int FROM muse_ideas i WHERE i.channel_id = ${channel.id})`,
+            monitored: sql<number>`(SELECT count(*)::int FROM muse_monitor_videos m WHERE m.channel_id = ${channel.id})`,
+          })
+          .from(sql`(SELECT 1) AS one`);
+        const blockers: string[] = [];
+        if (guard!.bibles > 0) blockers.push(`${guard!.bibles} 本圣经`);
+        if (guard!.scripts > 0) blockers.push(`${guard!.scripts} 篇脚本`);
+        if (guard!.topics > 0) blockers.push(`${guard!.topics} 个自定义选题`);
+        if (guard!.ideas > 0) blockers.push(`${guard!.ideas} 个选题`);
+        if (guard!.monitored > 0) blockers.push(`${guard!.monitored} 条巡视记录`);
+        if (blockers.length > 0) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `该账号有自己的内容（${blockers.join("、")}），不是纯学习对象，不能转为对标`,
+          });
+        }
+        await assertNoActiveRun({ channelId: channel.id }, "clerk");
+
+        const keyInfo = provisionalCompetitorKey(channel.platform, channel.platformUrl);
+        if (!keyInfo) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "无法从该账号主页链接解析对标标识",
+          });
+        }
+
+        const competitorId = await db.transaction(async (tx) => {
+          // Reuse an existing active competitor with the same identity (跨表重影).
+          const [existing] = await tx
+            .select({ id: competitorAccounts.id })
+            .from(competitorAccounts)
+            .where(
+              and(
+                eq(competitorAccounts.userId, ctx.user.id),
+                eq(competitorAccounts.platform, channel.platform),
+                eq(competitorAccounts.platformKey, keyInfo.key),
+                isNull(competitorAccounts.deletedAt),
+              ),
+            )
+            .limit(1);
+          let compId = existing?.id;
+          if (!compId) {
+            const [created] = await tx
+              .insert(competitorAccounts)
+              .values({
+                userId: ctx.user.id,
+                platform: channel.platform,
+                platformKey: keyInfo.key,
+                url: channel.platformUrl,
+                name: channel.name,
+                needsResolution: keyInfo.needsResolution,
+              })
+              .returning({ id: competitorAccounts.id });
+            compId = created!.id;
+          }
+          // Re-own clerk content + clerk run history, then delete the spine explicitly.
+          await tx
+            .update(clerkVideos)
+            .set({ competitorAccountId: compId, channelId: null, ownAccountId: null })
+            .where(eq(clerkVideos.channelId, channel.id));
+          await tx
+            .update(clerkSops)
+            .set({ competitorAccountId: compId, channelId: null, ownAccountId: null })
+            .where(eq(clerkSops.channelId, channel.id));
+          await tx
+            .update(pipelineRuns)
+            .set({ competitorAccountId: compId, channelId: null })
+            .where(and(eq(pipelineRuns.channelId, channel.id), eq(pipelineRuns.agent, "clerk")));
+          await tx.delete(projects).where(eq(projects.id, channel.id));
+          await tx.delete(ownAccounts).where(eq(ownAccounts.id, channel.id));
+          await tx.delete(channels).where(eq(channels.id, channel.id));
+          return compId;
+        });
+
+        return { competitorAccountId: competitorId };
+      }),
   }),
 
   sops: router({
