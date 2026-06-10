@@ -1,6 +1,7 @@
 import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { channels } from "./channels";
+import { competitorAccounts } from "./competitor";
 import { ownAccounts } from "./own-account";
 import { projects } from "./project";
 
@@ -11,7 +12,10 @@ export const pipelineRuns = pgTable(
   "pipeline_runs",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
+    // Exactly-one-owner (0018): clerk runs may target a competitor instead of a channel;
+    // muse/poet runs always carry channel_id. CHECK pipeline_runs_one_owner enforces it.
+    channelId: uuid("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+    competitorAccountId: uuid("competitor_account_id").references(() => competitorAccounts.id, { onDelete: "cascade" }),
     projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
     ownAccountId: uuid("own_account_id").references(() => ownAccounts.id, { onDelete: "set null" }),
     agent: agentEnum("agent").notNull(),
