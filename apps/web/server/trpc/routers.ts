@@ -679,6 +679,31 @@ export const appRouter = router({
           .orderBy(desc(pipelineRuns.startedAt));
       }),
 
+    // All active runs across the user's channels — powers the global header indicator.
+    listActiveAll: protectedProcedure.query(async ({ ctx }) => {
+      return db
+        .select({
+          id: pipelineRuns.id,
+          agent: pipelineRuns.agent,
+          command: pipelineRuns.command,
+          status: pipelineRuns.status,
+          startedAt: pipelineRuns.startedAt,
+          progress: pipelineRuns.progress,
+          total: pipelineRuns.total,
+          channelSlug: channels.slug,
+          channelName: channels.name,
+        })
+        .from(pipelineRuns)
+        .innerJoin(channels, eq(channels.id, pipelineRuns.channelId))
+        .where(
+          and(
+            eq(channels.userId, ctx.user.id),
+            inArray(pipelineRuns.status, ["pending", "running"]),
+          ),
+        )
+        .orderBy(desc(pipelineRuns.startedAt));
+    }),
+
     // Historical run-duration percentiles for a job type, used for the cold-start ETA range
     // (§ PROG P1). Global (duration depends on job + input size, not the user) and outlier-
     // trimmed; jobKey maps to deduplicated command strings to avoid bucket fragmentation.

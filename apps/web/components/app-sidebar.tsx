@@ -16,14 +16,16 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-const GLOBAL = [
+const START = [
   { label: "工作台", href: "/", icon: Home, end: true },
-  { label: "Clerk", href: "/clerk", icon: ScanSearch },
-  { label: "SOP 库", href: "/sops", icon: Library },
-  { label: "对标账号池", href: "/competitors", icon: Crosshair },
+  { label: "我的账号", href: "/accounts", icon: Tv },
 ];
 
-const ACCOUNTS = [{ label: "账号", href: "/accounts", icon: Tv }];
+const ANALYSIS = [
+  { label: "Clerk · 分析师", href: "/clerk", icon: ScanSearch },
+  { label: "SOP 库", href: "/sops", icon: Library },
+  { label: "对标账号", href: "/competitors", icon: Crosshair },
+];
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -41,10 +43,10 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>全局</SidebarGroupLabel>
+          <SidebarGroupLabel>开始</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {GLOBAL.map((item) => (
+              {START.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     render={<Link href={item.href} />}
@@ -60,10 +62,10 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>我的账号</SidebarGroupLabel>
+          <SidebarGroupLabel>分析与素材</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {ACCOUNTS.map((item) => (
+              {ANALYSIS.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     render={<Link href={item.href} />}

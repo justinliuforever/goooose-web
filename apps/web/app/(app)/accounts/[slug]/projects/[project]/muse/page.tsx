@@ -231,9 +231,9 @@ export default async function MuseChannelPage({ params }: Props) {
               <TableRow>
                 <TableHead>标题</TableHead>
                 <TableHead className="w-40">对标频道</TableHead>
-                <TableHead className="w-20">时长</TableHead>
+                <TableHead className="hidden w-20 md:table-cell">时长</TableHead>
                 <TableHead className="w-24">相关性</TableHead>
-                <TableHead className="w-32">分类</TableHead>
+                <TableHead className="hidden w-32 md:table-cell">分类</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -253,7 +253,7 @@ export default async function MuseChannelPage({ params }: Props) {
                   <TableCell className="truncate text-sm text-muted-foreground">
                     {v.sourceChannelName ?? "—"}
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
+                  <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">
                     {formatDuration(v.durationSec)}
                   </TableCell>
                   <TableCell>
@@ -269,7 +269,7 @@ export default async function MuseChannelPage({ params }: Props) {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="truncate text-xs text-muted-foreground">
+                  <TableCell className="hidden truncate text-xs text-muted-foreground md:table-cell">
                     {v.topicClassification ?? "—"}
                   </TableCell>
                 </TableRow>

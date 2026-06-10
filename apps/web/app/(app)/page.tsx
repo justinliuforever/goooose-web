@@ -69,15 +69,20 @@ export default async function DashboardPage() {
             <span className="rounded-full border bg-card px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
               {snapshot.channelCount} 个频道
             </span>
-            {snapshot.activeRunCount > 0 ? (
-              <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-blue-600 dark:text-blue-400">
-                {snapshot.activeRunCount} 个任务进行中
-              </span>
-            ) : null}
           </div>
         </div>
         <DashboardRefresher />
       </header>
+
+      <NextStepCard
+        channelCount={snapshot.channelCount}
+        clerkTotal={snapshot.stats.clerk.total}
+        museTotal={snapshot.stats.muse.total}
+        poetTotal={snapshot.stats.poet.total}
+        pendingMuseIdeas={snapshot.pendingMuseIdeas}
+        competitorCount={snapshot.competitorCount}
+        links={links}
+      />
 
       <AgentStatCards
         stats={snapshot.stats}
@@ -87,18 +92,7 @@ export default async function DashboardPage() {
 
       <AccountsOverview accounts={snapshot.accounts} />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
-        <ActivityFeed activity={snapshot.activity} />
-        <NextStepCard
-          channelCount={snapshot.channelCount}
-          clerkTotal={snapshot.stats.clerk.total}
-          museTotal={snapshot.stats.muse.total}
-          poetTotal={snapshot.stats.poet.total}
-          pendingMuseIdeas={snapshot.pendingMuseIdeas}
-          competitorCount={snapshot.competitorCount}
-          links={links}
-        />
-      </div>
+      <ActivityFeed activity={snapshot.activity} />
     </div>
   );
 }

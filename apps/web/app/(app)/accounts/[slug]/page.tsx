@@ -132,6 +132,9 @@ export default async function AccountDetailPage({ params }: Props) {
               <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <span className="size-[9px] rounded-full bg-clerk" />
                 Clerk · 分析师
+                <span className="text-[11px] font-normal text-muted-foreground/70">
+                  ① 先拆解视频出 SOP
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -139,6 +142,9 @@ export default async function AccountDetailPage({ params }: Props) {
                 <span>{clerkVideoCount?.c ?? 0} {itemNoun}</span>
                 <span>{clerkSopCount?.c ?? 0} 份 SOP</span>
               </div>
+              {(clerkVideoCount?.c ?? 0) === 0 ? (
+                <p className="mt-2 text-xs text-muted-foreground">还没有分析，点击进入开始</p>
+              ) : null}
             </CardContent>
           </Card>
         </Link>
@@ -148,6 +154,9 @@ export default async function AccountDetailPage({ params }: Props) {
               <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <span className="size-[9px] rounded-full bg-poet" />
                 频道圣经
+                <span className="text-[11px] font-normal text-muted-foreground/70">
+                  ② 据 SOP 生成
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -161,13 +170,30 @@ export default async function AccountDetailPage({ params }: Props) {
                   <span className="font-mono text-sm">{poetBibleCount?.c ?? 0} 本</span>
                 )}
               </div>
+              {(poetBibleCount?.c ?? 0) === 0 ? (
+                <p className="mt-2 text-xs text-muted-foreground">先用 Clerk 出 SOP，再生成圣经</p>
+              ) : null}
             </CardContent>
           </Card>
         </Link>
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-muted-foreground">项目</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-muted-foreground">项目</h2>
+          <Button
+            size="sm"
+            variant="outline"
+            render={<Link href={`/accounts/${a}/projects/new`} />}
+          >
+            新建项目
+          </Button>
+        </div>
+        {projectList.length === 0 ? (
+          <div className="rounded-lg border border-dashed bg-card/40 p-6 text-center text-xs text-muted-foreground">
+            先建项目，再绑定对标账号、出选题、写稿
+          </div>
+        ) : null}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {projectList.map((proj) => (
             <Link key={proj.id} href={`/accounts/${a}/projects/${encodeURIComponent(proj.slug)}`}>

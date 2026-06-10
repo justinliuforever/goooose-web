@@ -45,9 +45,9 @@ const STATUS_DOT: Record<ActivityRow["status"], string> = {
 function describeCommand(command: string): string {
   switch (command) {
     case "clerk-analyze-channel":
-      return "分析了对标频道";
+      return "分析了频道";
     case "muse-monitor-competitors":
-      return "巡视了对标频道";
+      return "巡视了对标账号";
     case "poet-generate-bible":
       return "生成了频道圣经";
     case "poet-generate-script":
@@ -57,6 +57,14 @@ function describeCommand(command: string): string {
     default:
       return command;
   }
+}
+
+// Default project slug == account slug (D3 spine); muse/poet live under the nested
+// project route, so linking there directly avoids the 308 hop off the bare route.
+function agentDeepLink(agent: ActivityRow["agent"], channelSlug: string): string {
+  const s = encodeURIComponent(channelSlug);
+  if (agent === "clerk") return `/clerk/${s}`;
+  return `/accounts/${s}/projects/${s}/${agent}`;
 }
 
 function relativeTime(d: Date): string {
@@ -168,7 +176,7 @@ function ActivityItem({ row, index }: { row: ActivityRow; index: number }) {
           <span className="font-medium">{AGENT_LABEL[row.agent]}</span>
           <span className="text-muted-foreground"> {describeCommand(row.command)} · </span>
           <Link
-            href={`/${row.agent}/${encodeURIComponent(row.channelSlug)}`}
+            href={agentDeepLink(row.agent, row.channelSlug)}
             className="font-medium hover:underline"
           >
             {row.channelName}

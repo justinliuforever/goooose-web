@@ -112,8 +112,31 @@ export default async function ClerkChannelPage({ params }: Props) {
           <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
             {videos.length} {isXhs ? "篇笔记" : "个视频"}
           </Badge>
+          {primarySops.length > 0 ? (
+            <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
+              {primarySops.length} 份 SOP
+            </Badge>
+          ) : null}
         </div>
       </header>
+
+      {videos.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-1">
+          <Button variant="ghost" size="sm" render={<a href="#videos" />}>
+            已分析视频 {videos.length}
+          </Button>
+          {channel.platform === "youtube" ? (
+            <Button variant="ghost" size="sm" render={<a href="#series" />}>
+              系列归类
+            </Button>
+          ) : null}
+          {primarySops.length > 0 ? (
+            <Button variant="ghost" size="sm" render={<a href="#sop" />}>
+              脚本 SOP {primarySops.length}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       <ClerkRunButton
         channelId={channel.id}
@@ -123,17 +146,17 @@ export default async function ClerkChannelPage({ params }: Props) {
         initialActive={activeRun}
       />
 
-      <div className="overflow-x-auto rounded-md border">
+      <div id="videos" className="scroll-mt-20 overflow-x-auto rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>标题</TableHead>
             <TableHead className="w-20">类型</TableHead>
             <TableHead className="w-24">{isXhs ? "文本来源" : "字幕来源"}</TableHead>
-            <TableHead className="w-28">开场钩子</TableHead>
+            <TableHead className="hidden w-28 md:table-cell">开场钩子</TableHead>
             <TableHead className="w-20">{isXhs ? "互动分" : "播放量"}</TableHead>
             <TableHead className="w-20">时长</TableHead>
-            <TableHead className="w-28">分析时间</TableHead>
+            <TableHead className="hidden w-28 md:table-cell">分析时间</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -162,7 +185,7 @@ export default async function ClerkChannelPage({ params }: Props) {
               <TableCell>
                 <TranscriptSourceBadge source={v.transcriptSource} hasTranscript={!!v.transcript} />
               </TableCell>
-              <TableCell className="font-mono text-xs text-muted-foreground">
+              <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">
                 {v.openingHookType ?? "—"}
               </TableCell>
               <TableCell className="font-mono text-xs text-muted-foreground">
@@ -171,7 +194,7 @@ export default async function ClerkChannelPage({ params }: Props) {
               <TableCell className="font-mono text-xs text-muted-foreground">
                 {v.contentType === "xhs_image" ? "图文" : formatDuration(v.durationSec)}
               </TableCell>
-              <TableCell className="font-mono text-xs text-muted-foreground">
+              <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">
                 {formatDateTime(v.analyzedAt)}
               </TableCell>
             </TableRow>
@@ -181,15 +204,17 @@ export default async function ClerkChannelPage({ params }: Props) {
       </div>
 
       {channel.platform === "youtube" ? (
-        <ClerkSeriesPanel channelId={channel.id} initialSeries={seriesRows} />
+        <div id="series" className="scroll-mt-20">
+          <ClerkSeriesPanel channelId={channel.id} initialSeries={seriesRows} />
+        </div>
       ) : null}
 
       {primarySops.length > 0 ? (
-        <section className="flex flex-col gap-4">
+        <section id="sop" className="flex scroll-mt-20 flex-col gap-4">
           <h2 className="text-sm font-medium text-muted-foreground">脚本撰写 SOP</h2>
           <div className="flex flex-col gap-4">
             {primarySops.map((sop) => (
-              <SopCard key={sop.id} sop={sop} />
+              <SopCard key={sop.id} sop={sop} defaultOpen={primarySops.length <= 2} />
             ))}
           </div>
           <div className="flex flex-col gap-3 rounded-lg border-2 border-dashed border-poet/40 bg-poet/5 p-5">
@@ -266,10 +291,16 @@ function ContentTypeBadge({ contentType }: { contentType: string }) {
   return <Badge variant="secondary" className="text-[10px]">视频</Badge>;
 }
 
-function SopCard({ sop }: { sop: typeof clerkSops.$inferSelect }) {
+function SopCard({
+  sop,
+  defaultOpen = false,
+}: {
+  sop: typeof clerkSops.$inferSelect;
+  defaultOpen?: boolean;
+}) {
   const label = sop.sopType.replace(/_/g, " ");
   return (
-    <details className="flex flex-col gap-3 rounded-lg border bg-card p-5">
+    <details open={defaultOpen} className="flex flex-col gap-3 rounded-lg border bg-card p-5">
       <summary className="flex cursor-pointer items-center justify-between gap-3 list-none [&::-webkit-details-marker]:hidden">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="font-mono text-[10px] uppercase">
