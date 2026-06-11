@@ -68,7 +68,17 @@ export default async function ClerkLandingPage() {
       </header>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-muted-foreground">拆解对标账号 — 学别人怎么做爆</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-medium text-muted-foreground">拆解对标账号 — 学别人怎么做爆</h2>
+          {competitors.length > 0 ? (
+            <Link
+              href="/competitors"
+              className="shrink-0 text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              管理对标 →
+            </Link>
+          ) : null}
+        </div>
         {competitors.length === 0 ? (
           <div className="flex items-center justify-between rounded-lg border border-dashed bg-card/40 p-5 text-sm text-muted-foreground">
             <span>还没有对标账号 — 先去导入，再回来拆解</span>

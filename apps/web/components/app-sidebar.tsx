@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Crosshair, Home, Library, ScanSearch, Tv } from "lucide-react";
+import { Home, Library, ScanSearch, Tv } from "lucide-react";
 
 import {
   Sidebar,
@@ -21,10 +21,11 @@ const START = [
   { label: "我的账号", href: "/accounts", icon: Tv },
 ];
 
+// 对标账号 has no nav slot: it's a low-frequency management page, reached from its
+// two consumption points (/clerk competitor group, project binding card).
 const ANALYSIS = [
   { label: "Clerk · 分析师", href: "/clerk", icon: ScanSearch },
   { label: "SOP 库", href: "/sops", icon: Library },
-  { label: "对标账号", href: "/competitors", icon: Crosshair },
 ];
 
 export function AppSidebar() {
