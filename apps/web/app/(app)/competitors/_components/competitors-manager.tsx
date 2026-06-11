@@ -245,7 +245,7 @@ export function CompetitorsManager() {
                     </Badge>
                   ) : null}
                 </TableCell>
-                <TableCell className="text-right font-mono text-xs">{formatFollowerCount(c.subscriberCount)}</TableCell>
+                <TableCell className="text-right font-mono text-xs font-semibold">{formatFollowerCount(c.subscriberCount)}</TableCell>
                 <TableCell className="text-right font-mono text-xs">{c.usedBy}</TableCell>
                 <TableCell className="text-right">
                   <AlertDialog>

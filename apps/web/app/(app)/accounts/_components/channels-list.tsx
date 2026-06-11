@@ -24,10 +24,15 @@ export function ChannelsList() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
+      <div className="flex flex-col rounded-md border">
+        <Skeleton className="h-9 w-full rounded-none rounded-t-md" />
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className="flex items-center gap-4 border-t px-3 py-2.5">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="ml-auto h-4 w-24" />
+          </div>
+        ))}
       </div>
     );
   }

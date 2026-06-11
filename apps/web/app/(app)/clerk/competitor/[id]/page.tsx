@@ -7,6 +7,7 @@ import { ActiveRunsBanner } from "@/components/active-runs-banner";
 import { BackLink } from "@/components/back-link";
 import { Badge } from "@/components/ui/badge";
 import { CompetitorAvatar } from "@/components/competitor-avatar";
+import { CopyButton } from "@/components/copy-button";
 import {
   Table,
   TableBody,
@@ -131,7 +132,7 @@ export default async function ClerkCompetitorPage({ params }: Props) {
         <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-card/40 p-10 text-sm text-muted-foreground">
           <span>还没拆解过这个对标</span>
           <span className="text-xs">
-            点右上角「开始分析」— Clerk 会拆解 TA 的{isXhs ? "笔记" : "视频"}，沉淀出可复用的 SOP
+            点上方「开始分析」— Clerk 会拆解 TA 的{isXhs ? "笔记" : "视频"}，沉淀出可复用的 SOP
           </span>
         </div>
       ) : (
@@ -172,7 +173,7 @@ export default async function ClerkCompetitorPage({ params }: Props) {
                   <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">
                     {v.openingHookType ?? "—"}
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
+                  <TableCell className="font-mono text-xs font-semibold text-foreground">
                     {formatViews(v.views)}
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
@@ -193,7 +194,7 @@ export default async function ClerkCompetitorPage({ params }: Props) {
           <h2 className="text-sm font-medium text-muted-foreground">脚本撰写 SOP</h2>
           <div className="flex flex-col gap-4">
             {primarySops.map((sop) => (
-              <SopCard key={sop.id} sop={sop} sourceName={name} />
+              <SopCard key={sop.id} sop={sop} sourceName={name} defaultOpen={primarySops.length <= 3} />
             ))}
           </div>
           <div className="rounded-lg border-2 border-dashed border-poet/40 bg-poet/5 p-4 text-sm">
@@ -221,10 +222,18 @@ export default async function ClerkCompetitorPage({ params }: Props) {
   );
 }
 
-function SopCard({ sop, sourceName }: { sop: typeof clerkSops.$inferSelect; sourceName: string }) {
+function SopCard({
+  sop,
+  sourceName,
+  defaultOpen = false,
+}: {
+  sop: typeof clerkSops.$inferSelect;
+  sourceName: string;
+  defaultOpen?: boolean;
+}) {
   const label = sop.sopType.replace(/_/g, " ");
   return (
-    <details className="flex flex-col gap-3 rounded-lg border bg-card p-5">
+    <details open={defaultOpen} className="flex flex-col gap-3 rounded-lg border bg-card p-5">
       <summary className="flex cursor-pointer items-center justify-between gap-3 list-none [&::-webkit-details-marker]:hidden">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="font-mono text-[10px] uppercase">
@@ -242,6 +251,7 @@ function SopCard({ sop, sourceName }: { sop: typeof clerkSops.$inferSelect; sour
           <span className="font-mono text-xs text-muted-foreground">
             {formatDateTime(sop.generatedAt)}
           </span>
+          <CopyButton text={sop.contentMd} label="复制" />
           <DeleteSopButton sopId={sop.id} sopLabel={label} />
         </div>
       </summary>
@@ -254,7 +264,7 @@ async function SopContent({ text }: { text: string }) {
   const { default: ReactMarkdown } = await import("react-markdown");
   const { default: remarkGfm } = await import("remark-gfm");
   return (
-    <article className="prose-clerk max-w-none border-t pt-4 text-sm leading-relaxed">
+    <article className="prose-clerk max-w-3xl border-t pt-4 text-sm leading-relaxed">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
     </article>
   );

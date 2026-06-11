@@ -97,14 +97,18 @@ export default async function ClerkLandingPage() {
                 <CompetitorAvatar name={c.name} avatarUrl={c.avatarUrl} className="size-9" />
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-sm font-medium">{c.name ?? c.url}</span>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {c.platform === "xhs" ? "小红书" : "YouTube"}
                     {c.subscriberCount != null
                       ? ` · ${formatFollowerCount(c.subscriberCount)} ${followerNoun(c.platform)}`
                       : ""}
                   </span>
                 </div>
-                <span className="shrink-0 text-right font-mono text-[10px] text-muted-foreground">
+                <span
+                  className={`shrink-0 text-right font-mono text-[11px] ${
+                    c.videoCount > 0 ? "font-medium text-foreground" : "text-muted-foreground"
+                  }`}
+                >
                   {c.videoCount > 0 ? `已拆 ${c.videoCount} 条` : "未拆解"}
                   {c.sopCount > 0 ? ` · ${c.sopCount} 份 SOP` : ""}
                 </span>
@@ -133,13 +137,13 @@ export default async function ClerkLandingPage() {
               >
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-sm font-medium">{r.channelName}</span>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {r.platform === "xhs" ? "小红书" : "YouTube"}
                     {r.lastAnalyzedAt ? ` · 最近分析 ${formatDate(r.lastAnalyzedAt)}` : ""}
                   </span>
                 </div>
                 <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
-                  {r.videoCount > 0 ? `${r.videoCount} 已析` : "未分析"}
+                  {r.videoCount > 0 ? `已拆 ${r.videoCount} 条` : "未拆解"}
                 </Badge>
               </Link>
             ))}

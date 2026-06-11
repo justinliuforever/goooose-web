@@ -7,6 +7,7 @@ import { channels, channelSeries, clerkSops, clerkVideos } from "@singularity/db
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/copy-button";
 import {
   Table,
   TableBody,
@@ -180,7 +181,7 @@ export default async function ClerkChannelPage({ params }: Props) {
               <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">
                 {v.openingHookType ?? "—"}
               </TableCell>
-              <TableCell className="font-mono text-xs text-muted-foreground">
+              <TableCell className="font-mono text-xs font-semibold text-foreground">
                 {formatViews(v.views)}
               </TableCell>
               <TableCell className="font-mono text-xs text-muted-foreground">
@@ -206,7 +207,7 @@ export default async function ClerkChannelPage({ params }: Props) {
           <h2 className="text-sm font-medium text-muted-foreground">脚本撰写 SOP</h2>
           <div className="flex flex-col gap-4">
             {primarySops.map((sop) => (
-              <SopCard key={sop.id} sop={sop} defaultOpen={primarySops.length <= 2} />
+              <SopCard key={sop.id} sop={sop} defaultOpen={primarySops.length <= 3} />
             ))}
           </div>
           <div className="flex flex-col gap-3 rounded-lg border-2 border-dashed border-poet/40 bg-poet/5 p-5">
@@ -307,6 +308,7 @@ function SopCard({
           <span className="font-mono text-xs text-muted-foreground">
             {formatDateTime(sop.generatedAt)}
           </span>
+          <CopyButton text={sop.contentMd} label="复制" />
           <DeleteSopButton sopId={sop.id} sopLabel={label} />
         </div>
       </summary>
@@ -319,7 +321,7 @@ async function SopContent({ text }: { text: string }) {
   const { default: ReactMarkdown } = await import("react-markdown");
   const { default: remarkGfm } = await import("remark-gfm");
   return (
-    <article className="prose-clerk max-w-none border-t pt-4 text-sm leading-relaxed">
+    <article className="prose-clerk max-w-3xl border-t pt-4 text-sm leading-relaxed">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
     </article>
   );
