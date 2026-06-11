@@ -13,8 +13,6 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-// Source citation: badge shows the reference title; if the reference has a URL the badge
-// is the link itself, and a tooltip surfaces title / url / snippet on hover.
 function SourceBadge({ src, reference }: { src: string; reference?: CustomTopicReference }) {
   const base = cn(badgeVariants({ variant: "outline" }), "max-w-[16ch] gap-1 text-[10px]");
   const trigger = reference?.url ? (
@@ -51,8 +49,7 @@ function StatusBadge({ status }: { status: CheckedFact["status"] }) {
   return <span className={cn(badgeVariants({ variant: "success" }), cls)}>✓ 已核实</span>;
 }
 
-// Structured verbatim facts with per-fact source citation + verification status.
-// We mark disputed facts (and surface the suggested correct value) but never edit them.
+// Disputed facts are marked (with the suggested correction) but never edited.
 export function PoetFactList({
   facts,
   references,

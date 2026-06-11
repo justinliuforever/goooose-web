@@ -77,7 +77,6 @@ export function ProjectSopRow({
     );
   };
 
-  // Two-level grouping: source kind section (对标 / 我的) → source account.
   const buildGroups = (kind: "own" | "competitor") => {
     const groups = new Map<string, NonNullable<typeof picker.data>>();
     for (const row of picker.data ?? []) {

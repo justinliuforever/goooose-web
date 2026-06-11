@@ -8,10 +8,8 @@ import { ownAccounts } from "./own-account";
 import { poetBible } from "./poet";
 import { users } from "./users";
 
-// Execution unit (方案一): one platform + a target duration default, belonging to one
-// own_account. Binds SOPs (M:N), one active Bible, competitor accounts (M:N). Muse and
-// Poet are peer tools inside a project. Backfilled with id == channels.id (the D3 spine),
-// so every content row's channel_id value already equals its default project's id.
+// Backfilled with id == channels.id, so every content row's channel_id value already
+// equals its default project's id.
 export const projects = pgTable(
   "projects",
   {

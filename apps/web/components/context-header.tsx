@@ -8,7 +8,7 @@ import { formatDurationLabel } from "@singularity/shared/schemas/poet";
 
 import { trpc } from "@/lib/trpc";
 
-// Route shapes that carry account/project context (§5). Clerk is account-level (no project).
+// Route shapes that carry account/project context. Clerk is account-level (no project).
 function parseContext(
   pathname: string,
 ): { kind: "accounts" | "clerk"; accountSlug: string; projectSlug?: string } | null {

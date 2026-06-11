@@ -329,9 +329,7 @@ export async function writeScript(
     result = { ...short, path: "short" };
   }
 
-  // Brand wrapper is now a soft guideline inside the script prompt itself — no
-  // post-hoc forced rewrite. (Removed: regex that injected any quoted Bible
-  // phrase into the hook, which often shoved an irrelevant line into the open.)
+  // Brand wrapper stays a soft prompt guideline; post-hoc Bible-quote injection was removed (it forced irrelevant lines into the hook).
 
   // Grounding pass (script mode: generalize, never insert tags — it's read aloud).
   // Include the bible so the channel/host identity counts as grounded.

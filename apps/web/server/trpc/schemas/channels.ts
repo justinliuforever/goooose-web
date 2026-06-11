@@ -54,6 +54,5 @@ export const updateChannelInput = z
 
 export type UpdateChannelInput = z.infer<typeof updateChannelInput>;
 
-// Client-side helpers (also exported from the URL utility but re-exported here
-// so the forms can validate without pulling in the full shared/clients path).
+// Re-exported so forms can validate without pulling in the full shared/clients path.
 export { isValidYoutubeChannelUrl, isValidXhsProfileUrl };

@@ -42,8 +42,7 @@ async function get<T>(endpoint: string, params: Record<string, string> = {}): Pr
   throw lastErr ?? new Error(`TikHub ${endpoint} request failed`);
 }
 
-// Validates a YouTube channel landing URL (not a video URL). Accepts:
-//   /@handle  /channel/UCxxx  /c/customname  /user/legacyname
+// Validates a YouTube channel landing URL (not a video URL).
 export function isValidYoutubeChannelUrl(input: string): boolean {
   const s = input.trim();
   if (!s) return false;
@@ -124,7 +123,6 @@ export async function getChannelInfo(channelId: string): Promise<YouTubeChannelM
   const raw = await get<RawChannelInfo>("/api/v1/youtube/web/get_channel_info", {
     channel_id: channelId,
   });
-  // Largest avatar variant (lowest priority for now; UI may not render it).
   const avatars = (raw.avatar ?? []).filter((a) => a.url);
   const biggest = avatars.length
     ? [...avatars].sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0]

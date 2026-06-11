@@ -3,8 +3,7 @@ import { index, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-co
 import { platformEnum } from "./channels";
 import { users } from "./users";
 
-// Asset layer (方案一): a creator's own channel, holding the multi-version Bible pool.
-// Backfilled 1:1 from each existing channel during the Part 2 migration.
+// Asset layer: a creator's own channel, holding the multi-version Bible pool.
 export const ownAccounts = pgTable(
   "own_accounts",
   {

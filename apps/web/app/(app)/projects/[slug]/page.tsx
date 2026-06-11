@@ -1,7 +1,6 @@
 import { permanentRedirect } from "next/navigation";
 
-// §5: the explicit account namespace owns the project hub at /accounts/[slug]/projects/[project].
-// Bare /projects/[slug] 308s to the account hub.
+// §5: project hubs live under /accounts/[slug]/projects/[project]; bare /projects/[slug] 308s to the account hub.
 export default async function ProjectHubRedirect({
   params,
 }: {

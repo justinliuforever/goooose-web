@@ -1,6 +1,5 @@
-// Shared ETA display helpers (PROG plan). The user chose "honest range + step" over a
-// single countdown, so the primary surfaces are formatEtaRange / formatStep. clampEta keeps
-// a live single estimate from visibly jumping (used once jobs emit estSecondsRemaining in P2).
+// Shared ETA display helpers. The user chose "honest range + step" over a single countdown;
+// clampEta keeps a live single estimate from visibly jumping.
 
 // Round to a granularity that matches the magnitude — false precision reads as broken.
 function roundSec(s: number): number {

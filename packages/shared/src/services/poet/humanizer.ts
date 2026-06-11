@@ -1,4 +1,3 @@
-// Chinese script humanizer — rewrites AI-drafted scripts to sound natural.
 // English scripts skip this pass (no English variant in archive).
 
 import { generateText } from "ai";
@@ -16,10 +15,8 @@ export async function humanizeChinese(scriptText: string, maxChars?: number): Pr
       maxRetries: 2,
     });
     const out = result.text.trim();
-    // Never save a truncated humanize: a complete un-humanized script beats a
-    // cut-off one. The prompt forbids dropping content, so a length-capped finish
-    // or a much-shorter result means the tail (climax/close) was lost — fall back
-    // to the full original script in that case.
+    // The prompt forbids dropping content, so a length-capped finish or much-shorter
+    // result means the tail was lost — a complete un-humanized script beats a cut-off one.
     if (!out || result.finishReason === "length" || out.length < scriptText.length * 0.7) {
       return scriptText;
     }

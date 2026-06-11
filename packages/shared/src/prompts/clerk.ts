@@ -19,9 +19,7 @@ export const XHS_VIDEO_PREAMBLE = `NOTE: This is a Xiaohongshu (小红书) short
 - IMPORTANT: for ANY key that asks for [m:ss] (opening_structure, script_structure, rehooks_used, retention_pattern, cta_placement, key_takeaways), use APPROXIMATE ranges like "~0-10s" or "~中段" — never invent precise [m:ss] markers. Ignore instructions below demanding exact [m:ss]; this post has no real timeline.
 `;
 
-// Shared de-translationese style guide. Reused by CHINESE_WRAPPER (Clerk SOP +
-// Bible) and appended to the Poet zh script prompts so the final scripts get the
-// same glossary discipline.
+// De-translationese style guide shared by CHINESE_WRAPPER (Clerk SOP + Bible) and the Poet zh script prompts.
 export const ZH_STYLE_GUIDE = `用简体中文输出全文。这是给中国内容创作者看的实战手册，必须读起来像一个资深中文编导在讲话，不能有翻译腔或 AI 腔。
 
 ## 术语对照（按下面的说法写，禁止直译生造词）

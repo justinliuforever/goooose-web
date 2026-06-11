@@ -91,8 +91,7 @@ export default async function MuseChannelPage({ params }: Props) {
       .where(eq(museIdeas.channelId, channel.id))
       .orderBy(asc(museIdeas.ideaNumber)),
     getActiveAgentRun(channel.id, user.id, "muse"),
-    // Bound competitors are project_competitors (the source the monitor reads), not the
-    // legacy channel.competitors JSONB; project.id == channel.id during expand.
+    // Same source the monitor reads; project.id == channel.id during the 1:1 expand phase.
     db
       .select({
         id: competitorAccounts.id,

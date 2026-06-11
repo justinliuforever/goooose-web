@@ -1,8 +1,6 @@
 import { CHINESE_WRAPPER, ZH_STYLE_GUIDE } from "./clerk";
 
-// Append the de-translationese glossary to zh output. The script/outline/section
-// prompts stay English-instruction (better structure adherence) but get the same
-// term discipline as the Bible so the final user-facing script avoids 翻译腔.
+// Poet prompts stay English-instruction (better structure adherence); zh output gets the glossary appended so the final script avoids 翻译腔.
 function withZhStyle(prompt: string, language: "en" | "zh"): string {
   return language === "zh" ? `${prompt}\n\n${ZH_STYLE_GUIDE}` : prompt;
 }
@@ -95,9 +93,6 @@ export function buildScriptWritingPrompt(args: ScriptWritingArgs): string {
   const maxWordCount = Math.round(args.targetWordCount * 1.2);
   const isShort = args.targetWordCount < 300;
 
-  // Script-writing prompt is intentionally English-instruction even for Chinese
-  // output — the LLM follows English structure better. The `language_name`
-  // variable controls the actual output language.
   return withZhStyle(`You are a scriptwriter for a specific niche channel. Your job is to write a complete, ready-to-film script that sounds like a real human host speaking — not a polished AI document.
 
 ## Step 1: Channel Bible

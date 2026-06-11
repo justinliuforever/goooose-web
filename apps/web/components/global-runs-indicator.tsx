@@ -24,7 +24,7 @@ const COMMAND_LABEL: Record<string, string> = {
   "poet-generate-script": "脚本生成",
 };
 
-// Default project slug == account slug (D3 spine), so agent pages deep-link off channelSlug.
+// Default project slug == account slug, so agent pages deep-link off channelSlug.
 // Competitor-target clerk runs (no slug) link to the competitor analysis page.
 function deepLink(run: { agent: string; channelSlug: string | null; competitorAccountId: string | null }): string {
   if (run.competitorAccountId) return `/clerk/competitor/${run.competitorAccountId}`;

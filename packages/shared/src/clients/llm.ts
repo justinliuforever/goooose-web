@@ -40,7 +40,6 @@ export async function generateTextWithFallback(opts: {
   if (result.text.length > 0) {
     return { text: result.text, usedTier: "pro", finishReason: result.finishReason ?? undefined };
   }
-  // Pro emitted no visible content — downgrade.
   const fallback = await generateText({
     model: llm("flash"),
     prompt: opts.prompt,

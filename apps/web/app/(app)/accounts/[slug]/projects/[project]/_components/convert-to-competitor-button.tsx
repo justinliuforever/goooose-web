@@ -17,8 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 
-// 伪账号收口 (P-C): study targets added as own accounts get a self-serve exit.
-// Server-side guard refuses accounts with any bible/script/topic/idea content.
+// Self-serve exit for study targets added as own accounts; server guard refuses any with bible/script/topic/idea content.
 export function ConvertToCompetitorButton({
   channelId,
   channelName,

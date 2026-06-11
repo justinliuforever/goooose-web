@@ -24,7 +24,6 @@ function formatDuration(ms: number): string {
 export function LiveVideoTracks({ tracks, now }: Props) {
   const entries = Object.entries(tracks);
   if (entries.length === 0) return null;
-  // Show active first, then recently done; all rows visible, container scrolls.
   const visible = entries.sort(([, a], [, b]) => {
     const aActive = ACTIVE_PHASES.has(a.phase) ? 0 : 1;
     const bActive = ACTIVE_PHASES.has(b.phase) ? 0 : 1;

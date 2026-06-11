@@ -149,7 +149,6 @@ export async function generateIdeas(args: GenerateIdeasArgs): Promise<GenerateId
       const complete = valid.data.ideas.filter(
         (i) => i.story_angle.trim().length > 0 && i.facts_and_data.trim().length > 0,
       );
-      // Full set, or whatever complete ideas we have on the final attempt.
       if (complete.length >= numIdeas || (attempt === 1 && complete.length > 0)) {
         return { ideas: complete.slice(0, numIdeas), rawSample: null, parseErrorSample: null };
       }

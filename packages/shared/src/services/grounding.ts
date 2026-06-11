@@ -2,12 +2,9 @@ import { generateText } from "ai";
 
 import { generateTextWithFallback, llm } from "../clients/llm";
 
-// Anti-fabrication / fact-safety pass: a second LLM compares a generated draft to its
-// source and (1) redacts specifics the source doesn't support, (2) cleans garbled ASR
-// quotes the source contains, and (3) fixes clear factual errors about well-known
-// entities. Generators invent prices/specs/quotes when the source is thin, surface raw
-// ASR garble as fact, and occasionally state a wrong date for a real product. Returns
-// the original draft on empty / truncation / error (never breaks the run).
+// Anti-fabrication pass: a second LLM redacts specifics the source doesn't support,
+// cleans garbled ASR quotes, and fixes clear factual errors about well-known entities.
+// Returns the original draft on empty / truncation / error (never breaks the run).
 export async function redactUngrounded(args: {
   draft: string;
   source: string;

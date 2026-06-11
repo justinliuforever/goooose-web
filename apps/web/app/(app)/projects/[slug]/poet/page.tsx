@@ -1,6 +1,6 @@
 import { permanentRedirect } from "next/navigation";
 
-// Poet is a per-project tool (§5). 308 to the canonical nested URL (default project slug == account slug).
+// Poet is a per-project tool (§5); default project slug == account slug.
 export default async function ProjectPoetRedirect({
   params,
 }: {

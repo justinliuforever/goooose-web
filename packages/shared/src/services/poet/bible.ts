@@ -140,10 +140,7 @@ export async function generateChannelBible(
     channelDescription: args.channelDescription,
     language: args.language,
   });
-  // Flash, not Pro: the Bible is a structured strategy brief, not deep reasoning.
-  // A/B shows Flash is 2.4-3.5× faster with equal quality. Stream so the caller
-  // can surface live progress. 16384 token ceiling leaves generous headroom.
-  // Retry once on empty.
+  // Flash, not Pro: structured brief, not deep reasoning — A/B showed 2.4-3.5× faster at equal quality.
   let content = "";
   for (let attempt = 0; attempt < 2; attempt++) {
     const result = streamText({

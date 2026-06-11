@@ -59,9 +59,7 @@ function describeCommand(command: string): string {
   }
 }
 
-// Default project slug == account slug (D3 spine); muse/poet live under the nested
-// project route, so linking there directly avoids the 308 hop off the bare route.
-// Competitor-target clerk runs (no slug) link to the competitor analysis page.
+// Default project slug == account slug; linking muse/poet's nested project route directly avoids the 308 hop off the bare route.
 function agentDeepLink(row: ActivityRow): string {
   if (row.competitorAccountId) return `/clerk/competitor/${row.competitorAccountId}`;
   const s = encodeURIComponent(row.channelSlug ?? "");

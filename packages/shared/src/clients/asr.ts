@@ -554,8 +554,6 @@ export async function transcribeFromStreams(
         `${tag}: downloaded ${actualSize} bytes${stream.label ? ` (${stream.label})` : ""}`,
       );
       const mime = (stream.mimeType ?? "audio/mp4").split(";")[0] ?? "audio/mp4";
-      // XHS → Qwen3-ASR-Flash (Chinese-native); no audio fallback (Deepgram returns
-      // gibberish on Chinese) — caller uses title-only text if all streams return null.
       const result = await transcribeAtPath(tempPath, mime, actualSize, opts, true);
       if (result) return result;
       logger?.warn(

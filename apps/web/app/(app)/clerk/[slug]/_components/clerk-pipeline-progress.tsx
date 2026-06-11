@@ -151,8 +151,7 @@ export function ClerkPipelineProgress({
         <div className="flex flex-col gap-1.5">
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
             {current === 0 && !allDone ? (
-              // Heartbeat for the cold window (e.g. 3-5min until the first parallel SOP lands):
-              // an honest indeterminate shimmer instead of a frozen 0% bar.
+              // Cold-window heartbeat: indeterminate shimmer instead of a frozen 0% bar until the first result lands.
               <div className="h-full w-1/3 animate-pulse bg-clerk" />
             ) : (
               <div

@@ -17,8 +17,7 @@ type Props = {
 export function IdeaApproveToggle({ ideaId, approved, scripted }: Props) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  // Optimistic local state — flip immediately on click so the user gets visual
-  // feedback before router.refresh() completes its server round-trip.
+  // Optimistic flip — visual feedback before router.refresh() completes its round-trip.
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
   const effective = optimistic ?? approved;
 

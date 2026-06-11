@@ -80,8 +80,7 @@ function parseDurationToSec(text: string | number | undefined): number {
 
 export const monitorCompetitors = task({
   id: "muse-monitor-competitors",
-  // Serial per-video pipeline (I/O + LLM bound) — medium-1x is plenty; one audio
-  // buffer at a time fits in 2GB. (large-1x would be wasted here.)
+  // Serial per-video pipeline (I/O + LLM bound); one audio buffer at a time fits medium-1x's 2GB.
   machine: { preset: "medium-1x" },
   // Cap concurrent runs so a burst of users can't exhaust the Trigger/Groq budget.
   queue: { concurrencyLimit: 6 },
@@ -103,8 +102,7 @@ export const monitorCompetitors = task({
         .limit(1);
       if (!channel) throw new Error(`channel ${payload.channelId} not found`);
 
-      // Competitors come exclusively from project_competitors (project.id == channel.id);
-      // the legacy channels.competitors JSONB fallback was contracted away in INC6.
+      // Competitors come exclusively from project_competitors (project.id == channel.id).
       const bound = await db
         .select({
           competitorAccountId: competitorAccounts.id,
@@ -291,7 +289,7 @@ export const monitorCompetitors = task({
         transcript: string;
       }> = [];
 
-      // Stage-weighted live ETA (§ PROG P2): extrapolate remaining time from elapsed /
+      // Stage-weighted live ETA: extrapolate remaining time from elapsed /
       // weighted-progress so the classify→idea-gen boundary doesn't reset. Classify (with ASR)
       // is ~65% of the timeline; serial loop so this is a sound estimator.
       const etaStart = Date.now();

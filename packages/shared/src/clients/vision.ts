@@ -1,5 +1,4 @@
-// Vision-based thumbnail analysis via Anthropic Claude Sonnet.
-// DeepSeek V4 is text-only; we use Claude here purely for image understanding.
+// Thumbnail vision via Claude Sonnet — DeepSeek V4 is text-only.
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
@@ -111,9 +110,7 @@ const EN_STACK_INSTRUCTION = `You are a Xiaohongshu image-post visual analyst. B
 
 Return JSON only, no markdown fences. All descriptions must be based on what you actually see.`;
 
-// Multi-image vision for XHS image-posts (1-10 images). Passes up to 9 images
-// in one call so Claude can synthesize the whole gallery instead of judging
-// only the cover. Falls back to single-image instruction when given just one.
+// XHS image-posts: up to 9 images per call so Claude synthesizes the whole gallery, not just the cover.
 export async function analyzeImageStack(
   urls: string[],
   language: "en" | "zh" = "zh",

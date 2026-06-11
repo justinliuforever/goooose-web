@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const startAnalysisInput = z
   .object({
-    // Exactly one analysis target (P-C): own channel or competitor account.
+    // Exactly one analysis target: own channel or competitor account.
     channelId: z.string().uuid().optional(),
     competitorAccountId: z.string().uuid().optional(),
     limit: z.number().int().min(1).max(50).default(10),

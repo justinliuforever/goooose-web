@@ -143,8 +143,7 @@ function ClerkRunProgress({
     throttleInMs: 500,
   });
 
-  // Fire onProgressTick ONLY when phase actually changes. Inline arrow callbacks
-  // create new references each render — depending on them causes a refresh loop.
+  // Tick only when phase actually changes — depending on inline callback refs (new each render) causes a refresh loop.
   const phase = (run?.metadata?.progress as ProgressPayload | undefined)?.phase;
   const lastPhaseRef = useRef<string | undefined>(undefined);
   const tickRef = useRef(onProgressTick);

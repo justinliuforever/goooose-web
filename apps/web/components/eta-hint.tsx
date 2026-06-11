@@ -6,15 +6,10 @@ import { clampEta, formatEtaRange } from "@/lib/eta";
 import { coldStartRange, type EtaJobKey } from "@/lib/eta-jobs";
 import { trpc } from "@/lib/trpc";
 
-// Honest ETA for a running job (§ PROG P1/P2/P3). The user chose "range + step" over a single
-// countdown, so once a live estimate arrives we show a *tightening band* around it (not a bare
-// countdown). Before live data: historical p50–p90 range. Stays silent when the band would be
-// too wide to be useful — false precision reads as broken.
-//
-// P3 handoff rules (prevents the number visibly jumping when the live estimate takes over):
-// - live is ignored until ~10% of the work is done (when `fraction` is provided);
-// - between 10% and 40%, display blends 70% historical-remaining proxy / 30% live;
-// - the displayed value may never rise above the historical p90 (clampEta ceiling).
+// Honest ETA for a running job. The user chose "range + step" over a single countdown, so a
+// live estimate renders as a *tightening band*; before live data, historical p50–p90 range.
+// Stays silent when the band would be too wide — false precision reads as broken.
+// The fraction gating/blending below keeps the number from visibly jumping when live takes over.
 export function EtaHint({
   jobKey,
   count,

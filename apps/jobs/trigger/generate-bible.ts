@@ -126,7 +126,7 @@ export const generateBible = task({
         })
         .returning();
 
-      // Keep the project's hard pin in sync with the active Bible (INC5d read path).
+      // Keep the project's hard pin in sync with the active Bible.
       if (shouldActivate && inserted) {
         await db
           .update(projects)

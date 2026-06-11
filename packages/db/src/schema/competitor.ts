@@ -4,12 +4,9 @@ import { boolean, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } 
 import { platformEnum } from "./channels";
 import { users } from "./users";
 
-// First-class benchmark account (方案一 decision B): shared by Clerk (SOP source),
-// Muse (monitor target) and Project (bound benchmark). Replaces channels.competitors JSONB.
 // platform_key is the lowercase canonical dedup key (XHS user id / YouTube UC id).
-// needs_resolution flags rows whose key is provisional (YouTube /c/ /user/ handles) until
-// the offline Stage-B resolver canonicalizes them; UNIQUE(user_id,platform,platform_key)
-// is added in INC2 only after Stage B, so it is intentionally absent here.
+// needs_resolution flags rows whose key is provisional (YouTube /c/ /user/ handles)
+// until the offline resolver canonicalizes them.
 export const competitorAccounts = pgTable(
   "competitor_accounts",
   {

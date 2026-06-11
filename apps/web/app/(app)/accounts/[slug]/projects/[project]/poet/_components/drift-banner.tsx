@@ -10,8 +10,7 @@ type Props = {
 
 const DISMISS_KEY = "poet:drift:dismissed";
 
-// Localstorage-backed dismiss so a closed banner stays closed across navigations
-// and refreshes. Keyed per drift event id so a fresh drift event re-surfaces.
+// localStorage-backed dismiss, keyed per drift event id so a fresh drift event re-surfaces.
 export function DriftBanner({ driftEventId, humanMessage }: Props) {
   const [dismissed, setDismissed] = useState(false);
 

@@ -56,7 +56,7 @@ export async function flushProxyPool(
   return { updatedSessions: outcomes.size, newlyDisabled };
 }
 
-// Re-enable disabled sessions; called from cron or admin script.
+// Called from cron or admin script.
 export async function reenableSessions(
   db: PostgresJsDatabase,
   ids: string[],

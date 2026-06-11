@@ -159,9 +159,7 @@ export function fetchChannelMetaByHandle(
   return fetchChannelMetaRaw({ forHandle: h });
 }
 
-// Parse a YouTube channel URL into the right input form for channels.list.
-// /channel/UCxxx → { type: 'id' }; /@handle → { type: 'handle' };
-// /c/name or /user/name → legacy paths the API can't resolve cheaply.
+// /c/name and /user/name are legacy paths the API can't resolve cheaply.
 export function parseYoutubeChannelUrl(
   url: string,
 ): { type: "id"; channelId: string } | { type: "handle"; handle: string } | { type: "legacy" } | null {

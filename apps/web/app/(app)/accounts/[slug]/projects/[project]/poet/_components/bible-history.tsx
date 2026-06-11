@@ -47,8 +47,7 @@ export function BibleHistory({ bibles }: Props) {
   const hasActive = bibles.some((b) => b.isActive);
   // Active version first, then most-recent (page already sorts by updatedAt desc).
   const ordered = [...bibles].sort((a, b) => Number(b.isActive) - Number(a.isActive));
-  // Open by default when there's no active version (user must pick one) or when
-  // there are multiple versions to switch between.
+  // Open when the user must pick (no active version) or can switch (multiple versions).
   const defaultOpen = !hasActive || bibles.length > 1;
 
   return (

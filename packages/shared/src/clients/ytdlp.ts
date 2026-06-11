@@ -6,8 +6,7 @@ import { join } from "node:path";
 import { listChannelUploads } from "./youtube-data";
 
 const YTDLP_VERSION = "2026.03.17";
-// macOS gets its own universal binary; Linux gets the static one. Other platforms
-// (Windows) fall through to Linux — fine on WSL, will need extension elsewhere.
+// macOS gets the universal binary; other platforms fall through to the Linux static build (fine on WSL).
 const YTDLP_ASSET = process.platform === "darwin" ? "yt-dlp_macos" : "yt-dlp_linux";
 const YTDLP_BIN = join(tmpdir(), `yt-dlp-${YTDLP_VERSION}-${process.platform}`);
 const RELEASE_URL = `https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/${YTDLP_ASSET}`;
@@ -63,7 +62,6 @@ export function runYtdlp(args: string[], timeoutMs = 180_000): Promise<YtdlpResu
   });
 }
 
-// === Audio download (existing primary use) ===
 export async function downloadAudioWithYtdlp(args: {
   videoId: string;
   outPath: string;
@@ -87,7 +85,6 @@ export async function downloadAudioWithYtdlp(args: {
   );
 }
 
-// === Metadata (replaces TikHub getVideoInfo) ===
 export type YtdlpChapter = {
   start_time: number;
   end_time: number;
@@ -222,7 +219,6 @@ export async function getVideoMetadataYtdlp(
   };
 }
 
-// === Auto-captions (potentially bypasses Deepgram entirely) ===
 export type YtdlpCaptions = {
   text: string;
   words: Array<{ w: string; t: number }>;
@@ -295,9 +291,8 @@ export async function getAutoCaptionsYtdlp(
       `yt-dlp captions exited ${r.code} (partial-success possible) stderr=${r.stderr.slice(0, 200)}`,
     );
   }
-  // yt-dlp may write captions to either `${outTemplate}.${lang}.json3` or to
+  // yt-dlp may write captions to either `${outTemplate}.${lang}.json3` or
   // `${cwd-or-default}/${video_id}.${lang}.json3` depending on template handling.
-  // Glob the tmp dir for anything matching .json3 from this call.
   const fs = await import("node:fs");
   const dirEntries = fs.readdirSync(outDir);
   const myFiles = dirEntries.filter(
@@ -311,8 +306,7 @@ export async function getAutoCaptionsYtdlp(
   }
   logger?.info(`yt-dlp captions: found ${myFiles.length} candidate files: ${myFiles.join(", ")}`);
 
-  // Pick the best language file by preference order. Match the lang substring
-  // between the last two dots: filename `.en.json3` → lang="en", `.zh-CN.json3` → lang="zh-CN".
+  // Lang is the substring between the last two dots: `.en.json3` → "en", `.zh-CN.json3` → "zh-CN".
   const candidates: Array<{ path: string; lang: string }> = myFiles.map((f) => {
     const m = f.match(/\.([\w-]+)\.json3$/);
     return { path: join(outDir, f), lang: m ? m[1]! : "unknown" };
@@ -372,7 +366,6 @@ export async function getAutoCaptionsYtdlp(
   return null;
 }
 
-// === Channel video listing (replaces TikHub getChannelVideos) ===
 export type YtdlpChannelVideo = {
   video_id: string;
   title: string;
@@ -457,9 +450,8 @@ export async function listChannelVideosYtdlp(
   });
 }
 
-// Resilient listing: yt-dlp through a proxy (fast path, exact /videos-tab semantics)
-// with a YouTube Data API fallback — proxy egress to www.youtube.com periodically
-// read-times-out (D5 family), which used to kill the whole run at its first step.
+// yt-dlp via proxy (fast path, exact /videos-tab semantics) with a YouTube Data API
+// fallback — proxy egress to www.youtube.com periodically read-times-out (D5 family).
 export async function listChannelVideos(
   channelUrl: string,
   limit: number,
@@ -488,7 +480,6 @@ export async function listChannelVideos(
   }
 }
 
-// === Channel ID resolution (replaces TikHub resolveChannelId) ===
 export async function resolveChannelIdYtdlp(
   channelUrl: string,
   proxyUrl: string,
@@ -517,7 +508,6 @@ export async function resolveChannelIdYtdlp(
   return channelId;
 }
 
-// === Top comments (for "why it works" SOP enrichment) ===
 export type YtdlpComment = {
   text: string;
   author: string | null;
@@ -569,7 +559,6 @@ export async function getTopCommentsYtdlp(
     .sort((a, b) => b.likes - a.likes);
 }
 
-// === Error helper ===
 type YtdlpErr = Error & { status?: number; stderr?: string };
 
 function createYtdlpError(prefix: string, r: YtdlpResult): YtdlpErr {

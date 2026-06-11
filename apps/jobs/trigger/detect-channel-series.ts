@@ -24,7 +24,7 @@ import { fetchVideoMetadataBatch } from "@singularity/shared/clients/youtube-dat
 type Payload = {
   channelId: string;
   runId: string;
-  // How many recent videos to pull. Default 100 — yt-dlp flat-playlist handles it cheaply.
+  // Default 100 — yt-dlp flat-playlist handles it cheaply.
   videoCount?: number;
   language?: "en" | "zh";
 };

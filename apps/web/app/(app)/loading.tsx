@@ -1,8 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Generic (app)-group fallback: mirrors the common page anatomy (header block,
-// card grid, list rows) instead of uniform bars, so the swap to real content
-// doesn't reflow the whole page.
+// Mirrors the common page anatomy (header, cards, rows) so the swap to real content doesn't reflow.
 export default function Loading() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 sm:p-8">

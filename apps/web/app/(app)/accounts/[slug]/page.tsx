@@ -84,8 +84,7 @@ export default async function AccountDetailPage({ params }: Props) {
       .limit(5),
   ]);
 
-  // Single-project phase: this page adds nothing over the default project hub, so
-  // skip the hop entirely. With 2+ projects it renders again as the project chooser.
+  // Single project adds nothing over its hub, so skip the hop; with 2+ this page is the chooser.
   if (projectList.length === 1) {
     redirect(
       `/accounts/${encodeURIComponent(channel.slug)}/projects/${encodeURIComponent(projectList[0]!.slug)}`,

@@ -160,8 +160,8 @@ async function triggerOrFailRun(
   }
 }
 
-// D3 spine: each channel owns a same-id own_account + default project. Idempotent so it
-// can also heal channels created before the project layer existed.
+// Project spine: each channel owns a same-id own_account + default project. Idempotent
+// so it can also heal channels created before the project layer existed.
 async function ensureProjectSpine(c: {
   id: string;
   userId: string;
@@ -332,7 +332,7 @@ export const appRouter = router({
         return channel ?? null;
       }),
 
-    // Persistent context header (§5): resolve [account · platform] > [project · duration] from route slugs.
+    // Persistent context header: resolve [account · platform] > [project · duration] from route slugs.
     context: protectedProcedure
       .input(z.object({ accountSlug: z.string().min(1), projectSlug: z.string().optional() }))
       .query(async ({ ctx, input }) => {
@@ -408,8 +408,7 @@ export const appRouter = router({
           .where(and(eq(channels.id, id), eq(channels.userId, ctx.user.id)))
           .returning();
         if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
-        // Competitor binding lives exclusively in project_competitors (competitors router);
-        // the legacy channels.competitors JSONB write path was contracted away in INC6.
+        // Competitor binding lives exclusively in project_competitors (competitors router).
         await ensureProjectSpine(updated);
         return updated;
       }),
@@ -667,7 +666,7 @@ export const appRouter = router({
   }),
 
   channelsMaintenance: router({
-    // 伪账号收口 (P-C §5.6): a study target added as an own account converts to a real
+    // 伪账号收口: a study target added as an own account converts to a real
     // competitor_account, re-owning its clerk history; spine rows are deleted explicitly
     // (own_accounts/projects have NO FK to channels — nothing cascades from channels).
     convertToCompetitor: protectedProcedure
@@ -766,7 +765,7 @@ export const appRouter = router({
   }),
 
   sops: router({
-    // Picker data for cross-project SOP selection (P-B). Only ai_reference SOPs are
+    // Picker data for cross-project SOP selection. Only ai_reference SOPs are
     // offered: that's the machine-facing document the script writer consumes.
     pickerList: protectedProcedure
       .input(z.object({ projectId: z.string().uuid() }))
@@ -898,9 +897,9 @@ export const appRouter = router({
         .orderBy(desc(pipelineRuns.startedAt));
     }),
 
-    // Historical run-duration percentiles for a job type, used for the cold-start ETA range
-    // (§ PROG P1). Global (duration depends on job + input size, not the user) and outlier-
-    // trimmed; jobKey maps to deduplicated command strings to avoid bucket fragmentation.
+    // Historical run-duration percentiles for a job type, used for the cold-start ETA range.
+    // Global (duration depends on job + input size, not the user) and outlier-trimmed;
+    // jobKey maps to deduplicated command strings to avoid bucket fragmentation.
     etaHints: protectedProcedure
       .input(z.object({ jobKey: z.enum(["clerk.analyze", "muse.monitor", "poet.script", "poet.bible"]) }))
       .query(async ({ input }) => {
@@ -1513,7 +1512,7 @@ export const appRouter = router({
           .set({ isActive: true, updatedAt: new Date() })
           .where(eq(poetBible.id, input.bibleId))
           .returning();
-        // Keep the project's hard pin in sync (INC5d read path; project.id == channel.id).
+        // Keep the project's hard pin in sync (project.id == channel.id).
         await db
           .update(projects)
           .set({ activeBibleId: input.bibleId, updatedAt: new Date() })

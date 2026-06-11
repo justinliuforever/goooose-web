@@ -12,8 +12,7 @@ import { ensureCurrentUser } from "@/lib/users";
 
 type Props = { params: Promise<{ slug: string }> };
 
-// No project-create mutation exists yet: projects are auto-provisioned with the account
-// via ensureProjectSpine during the 1:1 expand phase. Honest placeholder until multi-project.
+// Projects are auto-provisioned with the account via ensureProjectSpine; placeholder until multi-project.
 export default async function NewProjectPage({ params }: Props) {
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);

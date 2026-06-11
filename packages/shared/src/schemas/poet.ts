@@ -38,7 +38,6 @@ export function isLongForm(targetWordCount: number, language: "zh" | "en"): bool
   return targetWordCount >= LONG_FORM_THRESHOLD[language];
 }
 
-// Human label for a stored duration (seconds): "30 秒" / "约 5 分钟" / "约 7 分 30 秒".
 export function formatDurationLabel(seconds: number | null | undefined): string | null {
   if (!seconds || seconds <= 0) return null;
   if (seconds < 60) return `${seconds} 秒`;

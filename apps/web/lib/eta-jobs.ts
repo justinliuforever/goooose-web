@@ -1,6 +1,5 @@
-// Canonical job keys for ETA history. The frontend knows exactly which job a panel shows, so
-// the client passes a jobKey and the server maps it to the (deduplicated) command strings —
-// avoids the prod command-name fragmentation (analyze-channel vs clerk-analyze-channel). (§ PROG P1)
+// Canonical job keys for ETA history: client passes a jobKey, server maps it to deduplicated
+// command strings — avoids prod command-name fragmentation (analyze-channel vs clerk-analyze-channel).
 
 export type EtaJobKey = "clerk.analyze" | "muse.monitor" | "poet.script" | "poet.bible";
 
@@ -11,8 +10,7 @@ export const ETA_JOB_COMMANDS: Record<EtaJobKey, { agent: string; commands: stri
   "poet.bible": { agent: "poet", commands: ["generate-bible", "poet-generate-bible"] },
 };
 
-// Cold-start linear fallback (seconds) used only when <5 historical samples exist. Rough by
-// design (×bias band); real percentile history takes over as soon as it accrues.
+// Cold-start linear fallback (seconds) when <5 historical samples; rough by design — percentile history takes over.
 const COLD: Record<EtaJobKey, { base: number; per: number }> = {
   "clerk.analyze": { base: 180, per: 30 }, // per video (caption ~10s / ASR ~90s — wide band)
   "muse.monitor": { base: 120, per: 45 }, // per competitor
@@ -20,8 +18,7 @@ const COLD: Record<EtaJobKey, { base: number; per: number }> = {
   "poet.bible": { base: 600, per: 12 }, // per video
 };
 
-// Returns a wide honest band, or null when the input count is unknown (caller shows step
-// progress instead of a misleading base-only number).
+// Null when count is unknown: caller shows step progress instead of a misleading base-only number.
 export function coldStartRange(jobKey: EtaJobKey, count?: number): { lo: number; hi: number } | null {
   const c = COLD[jobKey];
   if (!c || !count || count <= 0) return null;

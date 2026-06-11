@@ -56,8 +56,7 @@ export default async function ProjectHubPage({ params }: Props) {
     .limit(1);
   if (!project) notFound();
 
-  // Content rows are channel_id-authoritative until the INC6 contract; during expand
-  // project.id == channel.id, so channel.id is the correct scope for these counts.
+  // Content rows are channel_id-authoritative; project.id == channel.id for the default project, so channel.id is the correct scope here.
   const [
     [museVideoCount],
     [museIdeaCount],
@@ -153,8 +152,7 @@ export default async function ProjectHubPage({ params }: Props) {
 
   const setupSteps = [
     { label: "绑定对标账号", href: "#competitors", done: (boundCount?.c ?? 0) > 0 },
-    // A pinned competitor SOP satisfies this step too — what matters is that
-    // writing has a SOP to follow, not where it came from.
+    // A pinned competitor SOP satisfies this step too — writing just needs a SOP to follow, regardless of source.
     { label: "用 Clerk 拆解频道生成 SOP", href: `/clerk/${a}`, done: !!currentSop },
     { label: "生成并选用频道圣经", href: `/accounts/${a}/bible`, done: !!activeBible },
     { label: "Muse 出选题", href: `/accounts/${a}/projects/${p}/muse`, done: (museIdeaCount?.c ?? 0) > 0 },

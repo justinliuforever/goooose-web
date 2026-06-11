@@ -31,7 +31,6 @@ export function ActivityLog({ entries, defaultOpen = false }: Props) {
     scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
   }, [open, autoScroll, rendered.length]);
 
-  // User scroll re-enables auto-scroll if they reach bottom; pauses it otherwise.
   const onScroll = () => {
     const el = scrollerRef.current;
     if (!el) return;

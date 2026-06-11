@@ -58,7 +58,7 @@ export const generateScript = task({
         .limit(1);
       if (!channel) throw new Error(`channel ${payload.channelId} not found`);
 
-      // Duration default source (§6): project.id == channel.id during the expand phase.
+      // Duration default source: project.id == channel.id during the expand phase.
       const [project] = await db
         .select({ targetDurationSeconds: projects.targetDurationSeconds })
         .from(projects)
@@ -220,7 +220,7 @@ export const generateScript = task({
           .filter((r): r is ScriptReference => r !== null);
       }
 
-      // Duration priority (§6): explicit request > row-stored value > project default.
+      // Duration priority: explicit request > row-stored value > project default.
       const resolvedDuration =
         payload.durationSeconds ?? rowDurationSeconds ?? project?.targetDurationSeconds ?? null;
       const targetWordCount = computeTargetWordCount(resolvedDuration ?? undefined, language);
