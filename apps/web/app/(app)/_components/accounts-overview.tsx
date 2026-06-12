@@ -2,9 +2,11 @@ import Link from "next/link";
 import { ArrowRight, Plus } from "lucide-react";
 
 import type { AccountSummary } from "@/lib/dashboard-data";
+import { AnimatedNumber } from "@/components/animated-number";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SpotlightCard } from "@/components/spotlight-card";
 
 export function AccountsOverview({ accounts }: { accounts: AccountSummary[] }) {
   return (
@@ -18,7 +20,7 @@ export function AccountsOverview({ accounts }: { accounts: AccountSummary[] }) {
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {accounts.map((a) => (
-          <Card key={a.id} className="h-full">
+          <SpotlightCard key={a.id} className="h-full">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center justify-between gap-2 text-sm font-medium">
                 <Link
@@ -41,13 +43,13 @@ export function AccountsOverview({ accounts }: { accounts: AccountSummary[] }) {
                 {a.nextStep.label}
               </Link>
               <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
-                <span>{a.projectCount} 个项目</span>
-                <span>{a.clerkVideos} 分析</span>
-                <span>{a.museIdeas} 选题</span>
-                <span>{a.poetScripts} 脚本</span>
+                <span><AnimatedNumber value={a.projectCount} countUp /> 个项目</span>
+                <span><AnimatedNumber value={a.clerkVideos} countUp /> 分析</span>
+                <span><AnimatedNumber value={a.museIdeas} countUp /> 选题</span>
+                <span><AnimatedNumber value={a.poetScripts} countUp /> 脚本</span>
               </div>
             </CardContent>
-          </Card>
+          </SpotlightCard>
         ))}
       </div>
     </section>

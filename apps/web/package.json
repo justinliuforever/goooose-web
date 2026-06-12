@@ -13,6 +13,7 @@
     "@ai-sdk/deepseek": "^2.0.35",
     "@base-ui/react": "^1.4.1",
     "@logto/next": "^4.2.10",
+    "@number-flow/react": "^0.6.0",
     "@singularity/db": "workspace:*",
     "@singularity/shared": "workspace:*",
     "@tanstack/react-query": "^5.100.10",

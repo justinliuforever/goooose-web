@@ -7,7 +7,9 @@ import { toast } from "sonner";
 import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
 import { AgentTimeline, type Stage } from "@/components/agent-timeline";
+import { AnimatedNumber } from "@/components/animated-number";
 import { EtaHint } from "@/components/eta-hint";
+import { SuccessCheck } from "@/components/success-check";
 import { trpc } from "@/lib/trpc";
 
 const MUSE_STAGES: Stage[] = [
@@ -120,9 +122,12 @@ export function MuseRunProgressPanel({
   const phase = progressData?.phase;
   const current = progressData?.current ?? 0;
   const total = progressData?.total ?? 0;
-  const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+  // Completed state renders in the window before router.refresh() unmounts the
+  // panel: bar fills, spinner becomes a drawn check.
+  const done = run?.status === "COMPLETED";
+  const pct = done ? 100 : total > 0 ? Math.round((current / total) * 100) : 0;
   const elapsed = formatElapsed(now - startedMs);
-  const phaseLabel = translatePhase(phase);
+  const phaseLabel = done ? "巡视完成" : translatePhase(phase);
 
   // Refresh on phase OR count change; 5s timer covers long ASR sits (90s+).
   const lastPhaseRef = useRef<string | undefined>(undefined);
@@ -185,18 +190,24 @@ export function MuseRunProgressPanel({
 <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-2 text-sm font-medium">
-            <Loader2 className="size-3.5 animate-spin text-muse" />
+            {done ? (
+              <SuccessCheck className="size-3.5 text-muse" />
+            ) : (
+              <Loader2 className="size-3.5 animate-spin text-muse" />
+            )}
             {phaseLabel}
           </span>
           <span className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
-            <EtaHint jobKey="muse.monitor" liveSec={progressData?.estSecondsRemaining} />
+            {done ? null : (
+              <EtaHint jobKey="muse.monitor" liveSec={progressData?.estSecondsRemaining} />
+            )}
             <span>{elapsed}</span>
           </span>
         </div>
 
         <AgentTimeline stages={MUSE_STAGES} currentPhase={phase} accentClass="text-muse" />
 
-        {total > 0 ? (
+        {total > 0 || done ? (
           <div className="flex flex-col gap-1">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div
@@ -206,7 +217,7 @@ export function MuseRunProgressPanel({
             </div>
             <div className="flex items-center justify-between font-mono text-[10px] text-muted-foreground">
               <span>
-                {current}/{total}
+                {done ? total : current}/{total}
               </span>
               <span>{pct}%</span>
             </div>
@@ -259,7 +270,9 @@ function Stat({
       <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
-      <span className="font-mono text-lg leading-none">{value}</span>
+      <span className="font-mono text-lg leading-none">
+        <AnimatedNumber value={value} />
+      </span>
       {sub ? (
         <span className="text-[10px] text-muted-foreground">{sub}</span>
       ) : hint ? (

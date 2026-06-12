@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/ui/button";
 import { CompetitorAvatar } from "@/components/competitor-avatar";
+import { StaggerItem } from "@/components/stagger-item";
 import { followerNoun, formatFollowerCount } from "@/lib/format-count";
 import {
   Table,
@@ -326,9 +327,9 @@ export default async function MuseChannelPage({ params }: Props) {
         <section id="muse-ideas" className="flex scroll-mt-20 flex-col gap-3">
           <h2 className="text-sm font-medium text-muted-foreground">选题列表</h2>
           <div className="flex flex-col gap-4">
-            {ideas.map((idea) => (
+            {ideas.map((idea, i) => (
+              <StaggerItem key={idea.id} index={i}>
               <article
-                key={idea.id}
                 className="flex flex-col gap-3 rounded-lg border bg-card p-5"
               >
                 <header className="flex items-start justify-between gap-3">
@@ -422,6 +423,7 @@ export default async function MuseChannelPage({ params }: Props) {
                   </div>
                 ) : null}
               </article>
+              </StaggerItem>
             ))}
           </div>
         </section>

@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { AnimatedNumber } from "@/components/animated-number";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
@@ -99,7 +101,12 @@ function GlobalRunsIndicatorInner() {
   if (runs.length === 0) return null;
 
   return (
-    <div ref={wrapRef} className="relative">
+    <motion.div
+      ref={wrapRef}
+      className="relative"
+      initial={{ opacity: 0, scale: 0.92 }}
+      animate={{ opacity: 1, scale: 1 }}
+    >
       <Button
         variant="ghost"
         size="sm"
@@ -108,11 +115,27 @@ function GlobalRunsIndicatorInner() {
         onClick={() => setOpen((o) => !o)}
       >
         <Loader2 className="size-3.5 animate-spin text-amber-600" />
-        <span className="font-mono text-xs">{runs.length}</span>
+        {/* Keyed remount pops the count on every change — peripheral cue that a run started/finished. */}
+        <motion.span
+          key={runs.length}
+          initial={{ scale: 0.5, opacity: 0.4 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 500, damping: 22 }}
+          className="font-mono text-xs"
+        >
+          {runs.length}
+        </motion.span>
         <span className="hidden text-xs text-muted-foreground sm:inline">任务运行中</span>
       </Button>
+      <AnimatePresence>
       {open ? (
-        <div className="absolute top-full right-0 z-50 mt-1.5 w-80 rounded-md border bg-popover p-1.5 text-popover-foreground shadow-md">
+        <motion.div
+          initial={{ opacity: 0, y: -4, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -4, scale: 0.98 }}
+          transition={{ duration: 0.15 }}
+          className="absolute top-full right-0 z-50 mt-1.5 w-80 rounded-md border bg-popover p-1.5 text-popover-foreground shadow-md"
+        >
           <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">运行中的任务</p>
           <div className="flex flex-col gap-0.5">
             {runs.map((r) => (
@@ -141,7 +164,7 @@ function GlobalRunsIndicatorInner() {
                         />
                       </span>
                       <span className="font-mono text-[10px] text-muted-foreground">
-                        {r.progress ?? 0}/{r.total}
+                        <AnimatedNumber value={r.progress ?? 0} />/{r.total}
                       </span>
                     </span>
                   ) : (
@@ -151,9 +174,10 @@ function GlobalRunsIndicatorInner() {
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
       ) : null}
-    </div>
+      </AnimatePresence>
+    </motion.div>
   );
 }
 

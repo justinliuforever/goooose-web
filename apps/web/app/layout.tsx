@@ -1,5 +1,6 @@
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { MotionConfig } from "framer-motion";
 import type { Metadata } from "next";
 import { Caveat, Inter, JetBrains_Mono } from "next/font/google";
 
@@ -41,8 +42,10 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <TRPCProvider>
-          <TooltipProvider>{children}</TooltipProvider>
-          <Toaster />
+          <MotionConfig reducedMotion="user">
+            <TooltipProvider>{children}</TooltipProvider>
+            <Toaster />
+          </MotionConfig>
         </TRPCProvider>
         <Analytics />
         <SpeedInsights />
