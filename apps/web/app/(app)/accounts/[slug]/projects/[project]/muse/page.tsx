@@ -8,6 +8,7 @@ import {
   competitorAccounts,
   museIdeas,
   museMonitorVideos,
+  poetCustomTopics,
   projectCompetitors,
 } from "@singularity/db";
 
@@ -32,6 +33,7 @@ import { ensureCurrentUser } from "@/lib/users";
 import { ActiveRunsBanner } from "@/components/active-runs-banner";
 
 import { IdeaApproveToggle } from "./_components/idea-approve-toggle";
+import { ImportToPoetButton } from "./_components/import-to-poet-button";
 import { MuseRunButton } from "./_components/muse-run-button";
 import {
   MuseRunProgressPanel,
@@ -64,7 +66,7 @@ export default async function MuseChannelPage({ params }: Props) {
 
   if (!channel || channel.userId !== user.id) notFound();
 
-  const [monitored, ideas, activeRun, boundCompetitors] = await Promise.all([
+  const [monitored, ideas, activeRun, boundCompetitors, importedRows] = await Promise.all([
     db
       .select()
       .from(museMonitorVideos)
@@ -105,7 +107,16 @@ export default async function MuseChannelPage({ params }: Props) {
       .from(projectCompetitors)
       .innerJoin(competitorAccounts, eq(competitorAccounts.id, projectCompetitors.competitorAccountId))
       .where(and(eq(projectCompetitors.projectId, channel.id), isNull(competitorAccounts.deletedAt))),
+    // Ideas already pushed into Poet — flips the card button to 已导入. project.id == channel.id (1:1 expand).
+    db
+      .selectDistinct({ sourceIdeaId: poetCustomTopics.sourceIdeaId })
+      .from(poetCustomTopics)
+      .where(eq(poetCustomTopics.projectId, channel.id)),
   ]);
+
+  const importedIdeaIds = new Set(
+    importedRows.map((r) => r.sourceIdeaId).filter((id): id is string => id !== null),
+  );
 
   const activeCompetitorCount = boundCompetitors.length;
   const approvedUnscripted = ideas.filter((i) => i.approved && !i.scripted).length;
@@ -358,7 +369,15 @@ export default async function MuseChannelPage({ params }: Props) {
                       {idea.storyAngle ?? "—"}
                     </h3>
                   </div>
-                  <div className="flex shrink-0">
+                  <div className="flex shrink-0 items-center gap-2">
+                    <ImportToPoetButton
+                      channelId={channel.id}
+                      ideaId={idea.id}
+                      topic={idea.storyAngle ?? ""}
+                      facts={idea.factsAndData}
+                      language="zh"
+                      alreadyImported={importedIdeaIds.has(idea.id)}
+                    />
                     <IdeaApproveToggle
                       ideaId={idea.id}
                       approved={idea.approved}

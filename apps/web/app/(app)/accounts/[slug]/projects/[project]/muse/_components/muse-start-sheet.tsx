@@ -64,17 +64,42 @@ export function MuseStartSheet({ channelId, channelName, competitors, disabled }
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     () => new Set(competitors.map((c) => c.id)),
   );
+  const [extraIds, setExtraIds] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
+
+  // Only load the user's competitor pool once the sheet is opened.
+  const allCompetitors = trpc.competitors.list.useQuery(undefined, { enabled: open });
+  const boundIdSet = useMemo(() => new Set(competitors.map((c) => c.id)), [competitors]);
+  const unbound = useMemo(
+    () => (allCompetitors.data ?? []).filter((c) => !boundIdSet.has(c.id)),
+    [allCompetitors.data, boundIdSet],
+  );
 
   const selected = useMemo(
     () => competitors.filter((c) => selectedIds.has(c.id)),
     [competitors, selectedIds],
   );
-  const hasXhs = selected.some((c) => c.platform === "xhs");
-  const hasYt = selected.some((c) => c.platform === "youtube");
+  const extraSelected = useMemo(
+    () => unbound.filter((c) => extraIds.has(c.id)),
+    [unbound, extraIds],
+  );
+  const hasXhs =
+    selected.some((c) => c.platform === "xhs") || extraSelected.some((c) => c.platform === "xhs");
+  const hasYt =
+    selected.some((c) => c.platform === "youtube") ||
+    extraSelected.some((c) => c.platform === "youtube");
 
   const toggle = (id: string) => {
     setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleExtra = (id: string) => {
+    setExtraIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -102,11 +127,15 @@ export function MuseStartSheet({ channelId, channelName, competitors, disabled }
       numIdeasPerVideo: numIdeas,
       language,
       ...(allSelected ? {} : { competitorAccountIds: selected.map((c) => c.id) }),
+      ...(extraSelected.length > 0
+        ? { extraCompetitorAccountIds: extraSelected.map((c) => c.id) }
+        : {}),
       xhsContentType,
     });
   };
 
-  const totalIdeas = selected.length * maxVideos * numIdeas;
+  const totalCount = selected.length + extraSelected.length;
+  const totalIdeas = totalCount * maxVideos * numIdeas;
   const contentNoun =
     hasXhs && hasYt
       ? "最新内容（YouTube 视频 + 小红书笔记）"
@@ -165,10 +194,52 @@ export function MuseStartSheet({ channelId, channelName, competitors, disabled }
                   );
                 })}
               </div>
-              {selected.length === 0 ? (
+              {totalCount === 0 ? (
                 <p className="text-xs text-destructive">至少选择一个对标账号</p>
               ) : null}
             </Field>
+
+            {unbound.length > 0 ? (
+              <Field>
+                <FieldLabel>临时加入其他对标（仅本次）</FieldLabel>
+                <div className="flex flex-col gap-1.5">
+                  {unbound.map((c) => {
+                    const isOn = extraIds.has(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => toggleExtra(c.id)}
+                        className={`flex items-center gap-2.5 rounded-md border p-2 text-left text-xs transition-colors ${
+                          isOn ? "border-foreground bg-foreground/5" : "opacity-60 hover:bg-muted/50"
+                        }`}
+                      >
+                        <CompetitorAvatar name={c.name} avatarUrl={c.avatarUrl} className="size-7" />
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate font-medium">{c.name ?? c.url}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {c.platform === "xhs" ? "小红书" : "YouTube"}
+                            {c.subscriberCount != null
+                              ? ` · ${formatFollowerCount(c.subscriberCount)} ${followerNoun(c.platform)}`
+                              : ""}
+                          </span>
+                        </span>
+                        <span
+                          className={`flex size-4 shrink-0 items-center justify-center rounded border ${
+                            isOn ? "border-foreground bg-foreground text-background" : "border-border"
+                          }`}
+                        >
+                          {isOn ? <Check className="size-3" /> : null}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  仅本次巡视加入，不会绑定到项目
+                </p>
+              </Field>
+            ) : null}
 
             <Field>
               <FieldLabel>每个对标账号拉取内容数</FieldLabel>
@@ -263,7 +334,7 @@ export function MuseStartSheet({ channelId, channelName, competitors, disabled }
             <div className="rounded-md border bg-muted/30 p-3 text-xs">
               <span className="font-medium text-foreground">预估上限：</span>
               <span className="font-mono">
-                {selected.length} × {maxVideos} × {numIdeas} = 最多 {totalIdeas.toLocaleString()} 选题
+                {totalCount} × {maxVideos} × {numIdeas} = 最多 {totalIdeas.toLocaleString()} 选题
               </span>
               <p className="mt-1 text-muted-foreground">
                 实际产出取决于相关性筛选 — 只有与你频道定位相关、且有可借鉴爆款机制的内容才会生成选题。
@@ -278,14 +349,14 @@ export function MuseStartSheet({ channelId, channelName, competitors, disabled }
           <div className="flex items-center gap-3">
             <Button
               onClick={handleSubmit}
-              disabled={startMutation.isPending || selected.length === 0}
+              disabled={startMutation.isPending || totalCount === 0}
             >
               {startMutation.isPending ? (
                 <Loader2 data-icon="inline-start" className="animate-spin" />
               ) : (
                 <Play data-icon="inline-start" />
               )}
-              {startMutation.isPending ? "启动中…" : `巡视 ${selected.length} 个对标`}
+              {startMutation.isPending ? "启动中…" : `巡视 ${totalCount} 个对标`}
             </Button>
             <Button
               variant="ghost"

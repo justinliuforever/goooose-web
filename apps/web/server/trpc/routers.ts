@@ -1268,10 +1268,39 @@ export const appRouter = router({
         }
         const boundIds = new Set(bound.map((b) => b.id));
         const selectedIds = input.competitorAccountIds?.filter((id) => boundIds.has(id));
-        if (input.competitorAccountIds && (!selectedIds || selectedIds.length === 0)) {
+
+        // Temp competitors: must be the user's, but need NOT be bound to this project.
+        let extraIds: string[] | undefined;
+        const extraReq = input.extraCompetitorAccountIds?.filter((id) => !boundIds.has(id));
+        if (extraReq && extraReq.length > 0) {
+          const owned = await db
+            .select({ id: competitorAccounts.id })
+            .from(competitorAccounts)
+            .where(
+              and(
+                inArray(competitorAccounts.id, extraReq),
+                eq(competitorAccounts.userId, ctx.user.id),
+                isNull(competitorAccounts.deletedAt),
+              ),
+            );
+          if (owned.length !== extraReq.length) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: "临时对标账号不存在或不属于你",
+            });
+          }
+          extraIds = owned.map((o) => o.id);
+        }
+
+        // selectedIds === [] is a valid extras-only run; reject only when nothing at all would run.
+        if (
+          input.competitorAccountIds &&
+          (selectedIds?.length ?? 0) === 0 &&
+          (extraIds?.length ?? 0) === 0
+        ) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message: "所选对标账号不在本项目的绑定列表里",
+            message: "请至少选择一个对标账号",
           });
         }
 
@@ -1286,6 +1315,7 @@ export const appRouter = router({
             numIdeasPerVideo: input.numIdeasPerVideo,
             language: input.language,
             ...(selectedIds ? { competitorAccountIds: selectedIds } : {}),
+            ...(extraIds ? { extraCompetitorAccountIds: extraIds } : {}),
             xhsContentType: input.xhsContentType,
           },
           payload: {
@@ -1293,6 +1323,7 @@ export const appRouter = router({
             numIdeasPerVideo: input.numIdeasPerVideo,
             language: input.language,
             competitorAccountIds: selectedIds,
+            extraCompetitorAccountIds: extraIds,
             xhsContentType: input.xhsContentType,
           },
         });
@@ -1398,6 +1429,25 @@ export const appRouter = router({
           .returning();
         if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
         return updated;
+      }),
+
+    // Muse idea ids already imported into Poet as custom topics — drives the card's 已导入 state.
+    importedIdeaIds: protectedProcedure
+      .input(z.object({ projectId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        await assertProjectOwner(ctx.user.id, input.projectId);
+        const rows = await db
+          .selectDistinct({ sourceIdeaId: poetCustomTopics.sourceIdeaId })
+          .from(poetCustomTopics)
+          .where(
+            and(
+              eq(poetCustomTopics.projectId, input.projectId),
+              sql`${poetCustomTopics.sourceIdeaId} IS NOT NULL`,
+            ),
+          );
+        return rows
+          .map((r) => r.sourceIdeaId)
+          .filter((id): id is string => id !== null);
       }),
   }),
 
@@ -1620,6 +1670,7 @@ export const appRouter = router({
               title: r.title,
             })),
             language: input.language,
+            sourceIdeaId: input.sourceIdeaId ?? null,
             status: "draft",
           })
           .returning();

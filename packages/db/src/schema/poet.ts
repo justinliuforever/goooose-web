@@ -82,6 +82,8 @@ export const poetCustomTopics = pgTable("poet_custom_topics", {
   status: customTopicStatusEnum("status").notNull().default("draft"),
   bibleId: uuid("bible_id").references(() => poetBible.id, { onDelete: "set null" }),
   sopId: uuid("sop_id").references(() => clerkSops.id, { onDelete: "set null" }),
+  // Provenance + dedup for ideas imported from Muse. Plain uuid (no FK) — idea rows may be deleted independently.
+  sourceIdeaId: uuid("source_idea_id"),
   language: languageEnum("language").notNull().default("zh"),
   durationSeconds: integer("duration_seconds"),
   targetWordCount: integer("target_word_count"),

@@ -95,14 +95,19 @@ type IdeaGenerationArgs = {
   viralTrigger: string;
   numIdeas: number;
   language?: "en" | "zh";
+  biblePositioning?: string;
 };
 
 export function buildIdeaGenerationPrompt(args: IdeaGenerationArgs): string {
+  const biblePositioning = args.biblePositioning?.trim();
+  const bibleBlock = biblePositioning
+    ? `\n## Channel Positioning (Bible)\n${biblePositioning}\n\nEvery generated topic must fit this positioning — its target audience, voice/tone, and content direction. Drop any idea that contradicts it.\n`
+    : "";
   const inner = `You are a creative content strategist specializing in "Script Bending" — taking proven viral concepts and adapting them to a different niche.
 
 ## Target Channel
 ${args.channelDescription}
-
+${bibleBlock}
 ## Source Video That Went Viral
 - **Title:** ${args.title}
 - **Channel:** ${args.channelName}

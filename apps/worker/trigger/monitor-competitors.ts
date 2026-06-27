@@ -10,6 +10,7 @@ import {
   museMonitorVideos,
   pipelineRuns,
   projectCompetitors,
+  resolveActiveBible,
   withRunDb,
 } from "@singularity/db";
 import {
@@ -47,6 +48,8 @@ type Payload = {
   language?: "en" | "zh";
   // Subset of bound competitor_accounts ids to monitor; omitted = all bound.
   competitorAccountIds?: string[];
+  // Unbound competitor_accounts to include just for this run (not permanent 巡视对象).
+  extraCompetitorAccountIds?: string[];
   // XHS-only content filter; YouTube competitors are unaffected.
   xhsContentType?: "all" | "video" | "image";
 };
@@ -92,10 +95,8 @@ export const monitorCompetitors = task({
         .where(
           and(eq(projectCompetitors.projectId, projectId), isNull(competitorAccounts.deletedAt)),
         );
-      const idFilter =
-        payload.competitorAccountIds && payload.competitorAccountIds.length > 0
-          ? new Set(payload.competitorAccountIds)
-          : null;
+      // Explicit [] means "none of the bound" (extras-only run); undefined means all bound.
+      const idFilter = payload.competitorAccountIds ? new Set(payload.competitorAccountIds) : null;
       const competitors: Array<{
         competitorAccountId: string | null;
         platform: "youtube" | "xhs";
@@ -107,6 +108,39 @@ export const monitorCompetitors = task({
           url: b.url,
         }))
         .filter((c) => !idFilter || (c.competitorAccountId && idFilter.has(c.competitorAccountId)));
+
+      // One-off competitors for this run only — not part of the project's permanent bindings.
+      const extraIds = (payload.extraCompetitorAccountIds ?? []).filter(
+        (id) => !competitors.some((c) => c.competitorAccountId === id),
+      );
+      if (extraIds.length > 0) {
+        const extras = await db
+          .select({
+            competitorAccountId: competitorAccounts.id,
+            platform: competitorAccounts.platform,
+            url: competitorAccounts.url,
+          })
+          .from(competitorAccounts)
+          .where(
+            and(
+              inArray(competitorAccounts.id, extraIds),
+              eq(competitorAccounts.userId, channel.userId),
+              isNull(competitorAccounts.deletedAt),
+            ),
+          );
+        const known = new Set(competitors.map((c) => c.competitorAccountId));
+        for (const e of extras) {
+          if (known.has(e.competitorAccountId)) continue;
+          known.add(e.competitorAccountId);
+          competitors.push({
+            competitorAccountId: e.competitorAccountId,
+            platform: e.platform as "youtube" | "xhs",
+            url: e.url,
+          });
+        }
+        logger.info(`Temp competitors: ${extras.length}/${extraIds.length} resolved for this run`);
+      }
+
       if (competitors.length === 0) {
         throw new Error("This channel has no competitors configured");
       }
@@ -125,6 +159,13 @@ export const monitorCompetitors = task({
       }
 
       const channelDescription = channel.description ?? channel.name;
+
+      // Bible is optional here — ideas still generate without it, just less positioning-aware.
+      const resolvedBible = await resolveActiveBible(db, projectId, channel.id);
+      const biblePositioning = resolvedBible?.bible.content ?? undefined;
+      if (resolvedBible?.viaFallback) {
+        logger.warn(`Project ${channel.id} has no Bible pin; used channel active-bible fallback`);
+      }
 
       await db
         .update(pipelineRuns)
@@ -537,6 +578,7 @@ export const monitorCompetitors = task({
               viralTrigger,
               numIdeas: numIdeasPerVideo,
               language,
+              biblePositioning,
             });
 
             if (ideasResult.ideas.length === 0) {

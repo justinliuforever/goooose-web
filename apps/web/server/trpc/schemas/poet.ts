@@ -38,6 +38,7 @@ export const createCustomTopicInput = z.object({
   topic: z.string().min(5).max(2000),
   references: z.array(customTopicReferenceInput).max(10).default([]),
   language: z.enum(["en", "zh"]).default("zh"),
+  sourceIdeaId: z.string().uuid().optional(),
 });
 
 export const updateCustomTopicInput = z.object({
