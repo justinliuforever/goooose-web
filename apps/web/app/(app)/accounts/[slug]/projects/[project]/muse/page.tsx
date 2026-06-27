@@ -10,6 +10,7 @@ import {
   museMonitorVideos,
   poetCustomTopics,
   projectCompetitors,
+  projects,
 } from "@singularity/db";
 
 import { Badge } from "@/components/ui/badge";
@@ -53,7 +54,7 @@ function formatDuration(seconds: number | null): string {
 export default async function MuseChannelPage({ params }: Props) {
   const { slug: rawSlug, project: rawProject } = await params;
   const slug = decodeURIComponent(rawSlug);
-  const project = decodeURIComponent(rawProject);
+  const projectSlug = decodeURIComponent(rawProject);
 
   const user = await ensureCurrentUser();
   if (!user) return null;
@@ -66,11 +67,18 @@ export default async function MuseChannelPage({ params }: Props) {
 
   if (!channel || channel.userId !== user.id) notFound();
 
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.ownAccountId, channel.id), eq(projects.slug, projectSlug)))
+    .limit(1);
+  if (!project) notFound();
+
   const [monitored, ideas, activeRun, boundCompetitors, importedRows] = await Promise.all([
     db
       .select()
       .from(museMonitorVideos)
-      .where(eq(museMonitorVideos.channelId, channel.id))
+      .where(eq(museMonitorVideos.projectId, project.id))
       .orderBy(desc(museMonitorVideos.processedAt)),
     db
       .select({
@@ -91,10 +99,10 @@ export default async function MuseChannelPage({ params }: Props) {
       })
       .from(museIdeas)
       .leftJoin(museMonitorVideos, eq(museMonitorVideos.id, museIdeas.sourceVideoId))
-      .where(eq(museIdeas.channelId, channel.id))
+      .where(eq(museIdeas.projectId, project.id))
       .orderBy(asc(museIdeas.ideaNumber)),
     getActiveAgentRun(channel.id, user.id, "muse"),
-    // Same source the monitor reads; project.id == channel.id during the 1:1 expand phase.
+    // Same source the monitor reads: this project's bound competitors.
     db
       .select({
         id: competitorAccounts.id,
@@ -106,12 +114,12 @@ export default async function MuseChannelPage({ params }: Props) {
       })
       .from(projectCompetitors)
       .innerJoin(competitorAccounts, eq(competitorAccounts.id, projectCompetitors.competitorAccountId))
-      .where(and(eq(projectCompetitors.projectId, channel.id), isNull(competitorAccounts.deletedAt))),
-    // Ideas already pushed into Poet — flips the card button to 已导入. project.id == channel.id (1:1 expand).
+      .where(and(eq(projectCompetitors.projectId, project.id), isNull(competitorAccounts.deletedAt))),
+    // Ideas already pushed into Poet — flips the card button to 已导入.
     db
       .selectDistinct({ sourceIdeaId: poetCustomTopics.sourceIdeaId })
       .from(poetCustomTopics)
-      .where(eq(poetCustomTopics.projectId, channel.id)),
+      .where(eq(poetCustomTopics.projectId, project.id)),
   ]);
 
   const importedIdeaIds = new Set(
@@ -130,7 +138,7 @@ export default async function MuseChannelPage({ params }: Props) {
         .from(museMonitorVideos)
         .where(
           and(
-            eq(museMonitorVideos.channelId, channel.id),
+            eq(museMonitorVideos.projectId, project.id),
             eq(museMonitorVideos.runId, activeRun.runId),
           ),
         ),
@@ -139,7 +147,7 @@ export default async function MuseChannelPage({ params }: Props) {
         .from(museMonitorVideos)
         .where(
           and(
-            eq(museMonitorVideos.channelId, channel.id),
+            eq(museMonitorVideos.projectId, project.id),
             eq(museMonitorVideos.runId, activeRun.runId),
             eq(museMonitorVideos.relevant, true),
           ),
@@ -149,7 +157,7 @@ export default async function MuseChannelPage({ params }: Props) {
         .from(museMonitorVideos)
         .where(
           and(
-            eq(museMonitorVideos.channelId, channel.id),
+            eq(museMonitorVideos.projectId, project.id),
             eq(museMonitorVideos.runId, activeRun.runId),
             eq(museMonitorVideos.relevant, false),
           ),
@@ -159,7 +167,7 @@ export default async function MuseChannelPage({ params }: Props) {
         .from(museIdeas)
         .where(
           and(
-            eq(museIdeas.channelId, channel.id),
+            eq(museIdeas.projectId, project.id),
             eq(museIdeas.runId, activeRun.runId),
           ),
         ),
@@ -174,7 +182,7 @@ export default async function MuseChannelPage({ params }: Props) {
         .from(museMonitorVideos)
         .where(
           and(
-            eq(museMonitorVideos.channelId, channel.id),
+            eq(museMonitorVideos.projectId, project.id),
             eq(museMonitorVideos.runId, activeRun.runId),
           ),
         )
@@ -201,7 +209,7 @@ export default async function MuseChannelPage({ params }: Props) {
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-8 p-6 sm:p-8">
-      <BackLink href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project)}`} label="项目" />
+      <BackLink href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}`} label="项目" />
 
       <header className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -219,7 +227,7 @@ export default async function MuseChannelPage({ params }: Props) {
               size="sm"
               render={
                 <Link
-                  href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project)}/poet`}
+                  href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/poet`}
                 />
               }
             >
@@ -229,11 +237,12 @@ export default async function MuseChannelPage({ params }: Props) {
         </div>
         <MuseRunButton
           channelId={channel.id}
+          projectId={project.id}
           channelName={channel.name}
           competitors={boundCompetitors}
           isActive={!!activeRun}
           accountSlug={slug}
-          projectSlug={project}
+          projectSlug={projectSlug}
         />
       </header>
 
@@ -372,6 +381,7 @@ export default async function MuseChannelPage({ params }: Props) {
                   <div className="flex shrink-0 items-center gap-2">
                     <ImportToPoetButton
                       channelId={channel.id}
+                      projectId={project.id}
                       ideaId={idea.id}
                       topic={idea.storyAngle ?? ""}
                       facts={idea.factsAndData}
@@ -461,7 +471,7 @@ export default async function MuseChannelPage({ params }: Props) {
                 variant="outline"
                 render={
                   <Link
-                    href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project)}`}
+                    href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}`}
                   />
                 }
               >

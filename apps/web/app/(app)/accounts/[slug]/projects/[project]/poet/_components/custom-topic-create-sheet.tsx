@@ -37,6 +37,7 @@ type RefDraft = {
 
 type Props = {
   channelId: string;
+  projectId: string;
   hasActiveBible: boolean;
 };
 
@@ -46,7 +47,7 @@ const KIND_LABEL: Record<RefDraft["kind"], string> = {
   text: "粘贴文本",
 };
 
-export function CustomTopicCreateSheet({ channelId, hasActiveBible }: Props) {
+export function CustomTopicCreateSheet({ channelId, projectId, hasActiveBible }: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
@@ -91,6 +92,7 @@ export function CustomTopicCreateSheet({ channelId, hasActiveBible }: Props) {
     });
     create.mutate({
       channelId,
+      projectId,
       topic: topic.trim(),
       references: cleaned,
       language: "zh",

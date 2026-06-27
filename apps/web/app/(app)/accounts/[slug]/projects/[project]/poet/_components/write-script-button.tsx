@@ -29,6 +29,7 @@ import { trpc } from "@/lib/trpc";
 
 type Props = {
   channelId: string;
+  projectId: string;
   channelSlug?: string;
   ideaId: string;
   ideaTitle: string;
@@ -49,6 +50,7 @@ const DURATIONS = [
 
 export function WriteScriptButton({
   channelId,
+  projectId,
   channelSlug,
   ideaId,
   ideaTitle,
@@ -91,7 +93,7 @@ export function WriteScriptButton({
 
   const startRun = (seconds: number) => {
     setPending(true);
-    mutation.mutate({ channelId, ideaId, durationSeconds: seconds, language: "zh" });
+    mutation.mutate({ channelId, projectId, ideaId, durationSeconds: seconds, language: "zh" });
   };
 
   const handlePick = (seconds: number) => {

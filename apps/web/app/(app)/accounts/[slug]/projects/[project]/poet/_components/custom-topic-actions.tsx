@@ -19,6 +19,7 @@ import { trpc } from "@/lib/trpc";
 
 type Props = {
   channelId: string;
+  projectId: string;
   topicId: string;
   topicLabel: string;
   status: "draft" | "analyzed" | "scripted";
@@ -38,6 +39,7 @@ const DURATIONS = [
 
 export function CustomTopicActions({
   channelId,
+  projectId,
   topicId,
   topicLabel,
   status,
@@ -85,7 +87,7 @@ export function CustomTopicActions({
       return;
     }
     setPending("analyze");
-    analyze.mutate({ channelId, topicId, language: "zh" });
+    analyze.mutate({ channelId, projectId, topicId, language: "zh" });
   };
 
   const handleGenerate = (seconds: number) => {
@@ -102,7 +104,7 @@ export function CustomTopicActions({
       return;
     }
     setPending("script");
-    generate.mutate({ channelId, topicId, durationSeconds: seconds, language: "zh" });
+    generate.mutate({ channelId, projectId, topicId, durationSeconds: seconds, language: "zh" });
   };
 
   const handleGenerateCustom = () => {

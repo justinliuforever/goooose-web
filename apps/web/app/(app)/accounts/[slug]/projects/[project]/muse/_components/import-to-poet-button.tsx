@@ -9,6 +9,7 @@ import { trpc } from "@/lib/trpc";
 
 type Props = {
   channelId: string;
+  projectId: string;
   ideaId: string;
   topic: string;
   facts?: string | null;
@@ -18,6 +19,7 @@ type Props = {
 
 export function ImportToPoetButton({
   channelId,
+  projectId,
   ideaId,
   topic,
   facts,
@@ -53,6 +55,7 @@ export function ImportToPoetButton({
       onClick={() =>
         create.mutate({
           channelId,
+          projectId,
           topic,
           references: facts ? [{ kind: "text", text: facts }] : [],
           language,

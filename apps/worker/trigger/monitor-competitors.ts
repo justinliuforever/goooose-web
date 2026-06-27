@@ -253,7 +253,7 @@ export const monitorCompetitors = task({
             .from(museMonitorVideos)
             .where(
               and(
-                eq(museMonitorVideos.channelId, channel.id),
+                eq(museMonitorVideos.projectId, projectId),
                 inArray(
                   museMonitorVideos.platformVideoId,
                   candidates.map((c) => c.videoId),
@@ -429,7 +429,7 @@ export const monitorCompetitors = task({
               runId: payload.runId,
             })
             .onConflictDoUpdate({
-              target: [museMonitorVideos.channelId, museMonitorVideos.platformVideoId],
+              target: [museMonitorVideos.projectId, museMonitorVideos.platformVideoId],
               set: {
                 projectId,
                 competitorAccountId: ref.competitorAccountId,

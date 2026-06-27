@@ -13,6 +13,7 @@ import { MuseStartSheet, type MuseCompetitor } from "./muse-start-sheet";
 
 type Props = {
   channelId: string;
+  projectId: string;
   channelName: string;
   competitors: MuseCompetitor[];
   isActive: boolean;
@@ -22,6 +23,7 @@ type Props = {
 
 export function MuseRunButton({
   channelId,
+  projectId,
   channelName,
   competitors,
   isActive,
@@ -73,6 +75,7 @@ export function MuseRunButton({
         ) : (
           <MuseStartSheet
             channelId={channelId}
+            projectId={projectId}
             channelName={channelName}
             competitors={competitors}
             disabled={competitorCount === 0}

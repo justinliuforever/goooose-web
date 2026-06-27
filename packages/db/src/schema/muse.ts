@@ -26,11 +26,8 @@ export const museMonitorVideos = pgTable(
     runId: uuid("run_id").references(() => pipelineRuns.id, { onDelete: "set null" }),
   },
   (table) => ({
-    channelVideoUnique: unique("muse_monitor_videos_channel_video_unique").on(
-      table.channelId,
-      table.platformVideoId,
-    ),
-    // Owner-keyed twin of the channel unique; channel-scoped index retires with channel_id (契约末轮).
+    // Project-scoped unique: one competitor video per project, so two projects of the
+    // same account can independently store the same video (Round 4 multi-project).
     projectVideoUnique: unique("muse_monitor_videos_project_video_unique").on(
       table.projectId,
       table.platformVideoId,

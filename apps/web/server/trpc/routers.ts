@@ -171,11 +171,13 @@ async function stageAndTriggerRun(args: {
   taskId: string;
   config: Record<string, unknown>;
   payload: Record<string, unknown>;
+  projectId?: string;
 }) {
   const [run] = await db
     .insert(pipelineRuns)
     .values({
       ...args.owner,
+      ...(args.projectId ? { projectId: args.projectId } : {}),
       agent: args.agent,
       command: args.taskId,
       status: "pending",
@@ -185,6 +187,7 @@ async function stageAndTriggerRun(args: {
   if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
   const handle = await triggerOrFailRun(run.id, args.taskId, {
     ...args.owner,
+    ...(args.projectId ? { projectId: args.projectId } : {}),
     runId: run.id,
     ...args.payload,
   });
@@ -1246,6 +1249,7 @@ export const appRouter = router({
           .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
+        await assertProjectOwner(ctx.user.id, input.projectId);
         // Same source as the monitor job: live project_competitors.
         const bound = await db
           .select({ id: competitorAccounts.id })
@@ -1256,7 +1260,7 @@ export const appRouter = router({
           )
           .where(
             and(
-              eq(projectCompetitors.projectId, channel.id),
+              eq(projectCompetitors.projectId, input.projectId),
               isNull(competitorAccounts.deletedAt),
             ),
           );
@@ -1308,6 +1312,7 @@ export const appRouter = router({
 
         return stageAndTriggerRun({
           owner: { channelId: channel.id },
+          projectId: input.projectId,
           agent: "muse",
           taskId: "muse-monitor-competitors",
           config: {
@@ -1525,11 +1530,15 @@ export const appRouter = router({
           .set({ isActive: true, updatedAt: new Date() })
           .where(eq(poetBible.id, input.bibleId))
           .returning();
-        // Keep the project's hard pin in sync (project.id == channel.id).
-        await db
-          .update(projects)
-          .set({ activeBibleId: input.bibleId, updatedAt: new Date() })
-          .where(eq(projects.id, target.poet_bible.channelId));
+        // The Bible is account-level; only an explicit project context sets the per-project pin.
+        // Pinless projects resolve to this account-active Bible via resolveActiveBible's fallback.
+        if (input.projectId) {
+          await assertProjectOwner(ctx.user.id, input.projectId);
+          await db
+            .update(projects)
+            .set({ activeBibleId: input.bibleId, updatedAt: new Date() })
+            .where(eq(projects.id, input.projectId));
+        }
         return activated;
       }),
 
@@ -1542,6 +1551,7 @@ export const appRouter = router({
           .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertProjectOwner(ctx.user.id, input.projectId);
 
         const [activeBible] = await db
           .select({ id: poetBible.id })
@@ -1558,7 +1568,7 @@ export const appRouter = router({
         const [idea] = await db
           .select({ id: museIdeas.id, approved: museIdeas.approved })
           .from(museIdeas)
-          .where(and(eq(museIdeas.id, input.ideaId), eq(museIdeas.channelId, channel.id)))
+          .where(and(eq(museIdeas.id, input.ideaId), eq(museIdeas.projectId, input.projectId)))
           .limit(1);
         if (!idea) throw new TRPCError({ code: "NOT_FOUND", message: "选题不存在" });
         if (!idea.approved) {
@@ -1572,6 +1582,7 @@ export const appRouter = router({
 
         return stageAndTriggerRun({
           owner: { channelId: channel.id },
+          projectId: input.projectId,
           agent: "poet",
           taskId: "poet-generate-script",
           config: {
@@ -1657,11 +1668,12 @@ export const appRouter = router({
           .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertProjectOwner(ctx.user.id, input.projectId);
         const [created] = await db
           .insert(poetCustomTopics)
           .values({
             channelId: channel.id,
-            projectId: channel.id,
+            projectId: input.projectId,
             topic: input.topic,
             references: input.references.map((r) => ({
               kind: r.kind,
@@ -1742,6 +1754,7 @@ export const appRouter = router({
           .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertProjectOwner(ctx.user.id, input.projectId);
 
         const [activeBible] = await db
           .select({ id: poetBible.id })
@@ -1755,10 +1768,20 @@ export const appRouter = router({
           });
         }
 
+        const [topic] = await db
+          .select({ id: poetCustomTopics.id })
+          .from(poetCustomTopics)
+          .where(
+            and(eq(poetCustomTopics.id, input.topicId), eq(poetCustomTopics.projectId, input.projectId)),
+          )
+          .limit(1);
+        if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "自定义选题不存在" });
+
         await assertNoActiveRun(channel.id, "poet");
 
         return stageAndTriggerRun({
           owner: { channelId: channel.id },
+          projectId: input.projectId,
           agent: "poet",
           taskId: "poet-analyze-custom-topic",
           config: { kind: "analyze", topicId: input.topicId, language: input.language },
@@ -1831,6 +1854,7 @@ export const appRouter = router({
           .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertProjectOwner(ctx.user.id, input.projectId);
 
         const [activeBible] = await db
           .select({ id: poetBible.id })
@@ -1850,7 +1874,7 @@ export const appRouter = router({
           .where(
             and(
               eq(poetCustomTopics.id, input.topicId),
-              eq(poetCustomTopics.channelId, channel.id),
+              eq(poetCustomTopics.projectId, input.projectId),
             ),
           )
           .limit(1);
@@ -1866,6 +1890,7 @@ export const appRouter = router({
 
         return stageAndTriggerRun({
           owner: { channelId: channel.id },
+          projectId: input.projectId,
           agent: "poet",
           taskId: "poet-generate-script",
           config: {

@@ -34,6 +34,7 @@ export type MuseCompetitor = {
 
 type Props = {
   channelId: string;
+  projectId: string;
   channelName: string;
   competitors: MuseCompetitor[];
   disabled: boolean;
@@ -53,7 +54,7 @@ const XHS_CONTENT_OPTIONS: Array<{ value: XhsContentType; label: string; hint: s
   { value: "image", label: "仅图文", hint: "标题 + 正文分析" },
 ];
 
-export function MuseStartSheet({ channelId, channelName, competitors, disabled }: Props) {
+export function MuseStartSheet({ channelId, projectId, channelName, competitors, disabled }: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
@@ -123,6 +124,7 @@ export function MuseStartSheet({ channelId, channelName, competitors, disabled }
     const allSelected = selected.length === competitors.length;
     startMutation.mutate({
       channelId,
+      projectId,
       maxVideosPerCompetitor: maxVideos,
       numIdeasPerVideo: numIdeas,
       language,

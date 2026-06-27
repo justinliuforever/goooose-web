@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 
-import { channels, poetBible, poetCustomTopics, clerkSops } from "@singularity/db";
+import { channels, poetBible, poetCustomTopics, clerkSops, projects } from "@singularity/db";
 import type { CustomTopicReference } from "@singularity/db";
 
 import { Badge } from "@/components/ui/badge";
@@ -62,7 +62,7 @@ function ReferenceChip({ reference }: { reference: CustomTopicReference }) {
 export default async function PoetTopicDetailPage({ params }: Props) {
   const { slug: rawSlug, project: rawProject, topicId } = await params;
   const slug = decodeURIComponent(rawSlug);
-  const project = decodeURIComponent(rawProject);
+  const projectSlug = decodeURIComponent(rawProject);
 
   const user = await ensureCurrentUser();
   if (!user) return null;
@@ -75,11 +75,18 @@ export default async function PoetTopicDetailPage({ params }: Props) {
 
   if (!channel || channel.userId !== user.id) notFound();
 
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.ownAccountId, channel.id), eq(projects.slug, projectSlug)))
+    .limit(1);
+  if (!project) notFound();
+
   const [topic] = await db
     .select()
     .from(poetCustomTopics)
     .where(
-      and(eq(poetCustomTopics.id, topicId), eq(poetCustomTopics.channelId, channel.id)),
+      and(eq(poetCustomTopics.id, topicId), eq(poetCustomTopics.projectId, project.id)),
     )
     .limit(1);
 
@@ -108,7 +115,7 @@ export default async function PoetTopicDetailPage({ params }: Props) {
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-8 p-6 sm:p-8">
-      <BackLink href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project)}/poet`} label="Poet · 写手" />
+      <BackLink href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/poet`} label="Poet · 写手" />
 
       <header className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-4">
@@ -117,6 +124,7 @@ export default async function PoetTopicDetailPage({ params }: Props) {
           </h1>
           <CustomTopicActions
             channelId={channel.id}
+            projectId={project.id}
             topicId={topic.id}
             topicLabel={topic.topic}
             status={topic.status}
@@ -171,7 +179,7 @@ export default async function PoetTopicDetailPage({ params }: Props) {
               <span>
                 圣经：{" "}
                 <Link
-                  href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project)}/poet`}
+                  href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/poet`}
                   className="hover:text-foreground hover:underline"
                 >
                   {bible.name}

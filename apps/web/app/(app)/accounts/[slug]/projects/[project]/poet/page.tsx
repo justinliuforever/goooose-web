@@ -10,6 +10,7 @@ import {
   poetBible,
   poetCustomTopics,
   poetScripts,
+  projects,
   type CustomTopicReference,
 } from "@singularity/db";
 
@@ -36,7 +37,7 @@ type Props = { params: Promise<{ slug: string; project: string }> };
 export default async function PoetChannelPage({ params }: Props) {
   const { slug: rawSlug, project: rawProject } = await params;
   const slug = decodeURIComponent(rawSlug);
-  const project = decodeURIComponent(rawProject);
+  const projectSlug = decodeURIComponent(rawProject);
 
   const user = await ensureCurrentUser();
   if (!user) return null;
@@ -47,6 +48,13 @@ export default async function PoetChannelPage({ params }: Props) {
     .where(eq(channels.slug, slug))
     .limit(1);
   if (!channel || channel.userId !== user.id) notFound();
+
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.ownAccountId, channel.id), eq(projects.slug, projectSlug)))
+    .limit(1);
+  if (!project) notFound();
 
   const [activeBibleRow, approvedIdeas, customTopics, scripts, activeRun, aiSopRows] =
     await Promise.all([
@@ -71,7 +79,7 @@ export default async function PoetChannelPage({ params }: Props) {
         .leftJoin(museMonitorVideos, eq(museMonitorVideos.id, museIdeas.sourceVideoId))
         .where(
           and(
-            eq(museIdeas.channelId, channel.id),
+            eq(museIdeas.projectId, project.id),
             eq(museIdeas.approved, true),
             eq(museIdeas.scripted, false),
           ),
@@ -80,12 +88,12 @@ export default async function PoetChannelPage({ params }: Props) {
       db
         .select()
         .from(poetCustomTopics)
-        .where(eq(poetCustomTopics.channelId, channel.id))
+        .where(eq(poetCustomTopics.projectId, project.id))
         .orderBy(desc(poetCustomTopics.updatedAt)),
       db
         .select()
         .from(poetScripts)
-        .where(eq(poetScripts.channelId, channel.id))
+        .where(eq(poetScripts.projectId, project.id))
         .orderBy(desc(poetScripts.generatedAt))
         .limit(20),
       getActiveAgentRun(channel.id, user.id, "poet"),
@@ -101,7 +109,7 @@ export default async function PoetChannelPage({ params }: Props) {
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-8 p-6 sm:p-8">
-      <BackLink href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project)}`} label="项目" />
+      <BackLink href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}`} label="项目" />
 
       <header className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -120,7 +128,7 @@ export default async function PoetChannelPage({ params }: Props) {
 
       <PoetRunProgress
         accountSlug={slug}
-        projectSlug={project}
+        projectSlug={projectSlug}
         initialActive={
           activeRun
             ? {
@@ -163,6 +171,7 @@ export default async function PoetChannelPage({ params }: Props) {
                 </div>
                 <WriteScriptButton
                   channelId={channel.id}
+                  projectId={project.id}
                   channelSlug={channel.slug}
                   ideaId={idea.id}
                   ideaTitle={idea.storyAngle ?? "选题"}
@@ -181,7 +190,11 @@ export default async function PoetChannelPage({ params }: Props) {
           <h2 className="text-sm font-medium text-muted-foreground">
             自定义选题（跳过 Muse，直接喂主题）
           </h2>
-          <CustomTopicCreateSheet channelId={channel.id} hasActiveBible={!!activeBible} />
+          <CustomTopicCreateSheet
+            channelId={channel.id}
+            projectId={project.id}
+            hasActiveBible={!!activeBible}
+          />
         </div>
         {customTopics.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed bg-card/40 p-6 text-center text-xs text-muted-foreground">
@@ -231,6 +244,7 @@ export default async function PoetChannelPage({ params }: Props) {
                   </div>
                   <CustomTopicActions
                     channelId={channel.id}
+                    projectId={project.id}
                     topicId={t.id}
                     topicLabel={t.topic}
                     status={t.status}
@@ -322,7 +336,7 @@ export default async function PoetChannelPage({ params }: Props) {
                 className="flex items-start justify-between gap-3 rounded-lg border bg-card p-4 hover:bg-muted/30"
               >
                 <Link
-                  href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project)}/poet/scripts/${s.id}`}
+                  href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/poet/scripts/${s.id}`}
                   className="flex flex-1 flex-col gap-2 min-w-0"
                 >
                   <div className="flex items-center gap-3">
@@ -371,7 +385,7 @@ export default async function PoetChannelPage({ params }: Props) {
               variant="ghost"
               render={
                 <Link
-                  href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project)}/muse`}
+                  href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/muse`}
                 />
               }
             >

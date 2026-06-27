@@ -15,12 +15,15 @@ export const updateBibleInput = z.object({
 
 export const switchActiveBibleInput = z.object({
   bibleId: z.string().uuid(),
+  // Account-level pages omit projectId; only a project context sets the per-project pin.
+  projectId: z.string().uuid().optional(),
 });
 
 // Duration in seconds (supports ≤60s short videos). ≥ 2000 zh chars / ≥ 1500 en
 // words (≈10 min) routes to long-form.
 export const generateScriptInput = z.object({
   channelId: z.string().uuid(),
+  projectId: z.string().uuid(),
   ideaId: z.string().uuid(),
   durationSeconds: z.number().int().min(15).max(3600).default(300),
   language: z.enum(["en", "zh"]).default("zh"),
@@ -35,6 +38,7 @@ export const customTopicReferenceInput = z.object({
 
 export const createCustomTopicInput = z.object({
   channelId: z.string().uuid(),
+  projectId: z.string().uuid(),
   topic: z.string().min(5).max(2000),
   references: z.array(customTopicReferenceInput).max(10).default([]),
   language: z.enum(["en", "zh"]).default("zh"),
@@ -62,12 +66,14 @@ export const deleteScriptInput = z.object({
 
 export const analyzeCustomTopicInput = z.object({
   channelId: z.string().uuid(),
+  projectId: z.string().uuid(),
   topicId: z.string().uuid(),
   language: z.enum(["en", "zh"]).default("zh"),
 });
 
 export const generateScriptFromCustomTopicInput = z.object({
   channelId: z.string().uuid(),
+  projectId: z.string().uuid(),
   topicId: z.string().uuid(),
   durationSeconds: z.number().int().min(15).max(3600).default(300),
   language: z.enum(["en", "zh"]).default("zh"),

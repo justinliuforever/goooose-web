@@ -9,6 +9,7 @@ import {
   poetBible,
   poetCustomTopics,
   poetScripts,
+  projects,
 } from "@singularity/db";
 
 import { formatDurationLabel } from "@singularity/domain/schemas/poet";
@@ -26,7 +27,7 @@ type Props = { params: Promise<{ slug: string; project: string; scriptId: string
 export default async function ScriptDetailPage({ params }: Props) {
   const { slug: rawSlug, project: rawProject, scriptId: rawScriptId } = await params;
   const slug = decodeURIComponent(rawSlug);
-  const project = decodeURIComponent(rawProject);
+  const projectSlug = decodeURIComponent(rawProject);
   const scriptId = decodeURIComponent(rawScriptId);
 
   const user = await ensureCurrentUser();
@@ -39,10 +40,17 @@ export default async function ScriptDetailPage({ params }: Props) {
     .limit(1);
   if (!channel || channel.userId !== user.id) notFound();
 
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.ownAccountId, channel.id), eq(projects.slug, projectSlug)))
+    .limit(1);
+  if (!project) notFound();
+
   const [script] = await db
     .select()
     .from(poetScripts)
-    .where(and(eq(poetScripts.id, scriptId), eq(poetScripts.channelId, channel.id)))
+    .where(and(eq(poetScripts.id, scriptId), eq(poetScripts.projectId, project.id)))
     .limit(1);
   if (!script) notFound();
 
@@ -81,7 +89,7 @@ export default async function ScriptDetailPage({ params }: Props) {
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-6 p-6 sm:p-8">
-      <BackLink href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project)}/poet`} label="Poet · 写手" />
+      <BackLink href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/poet`} label="Poet · 写手" />
 
       <header className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-2">
@@ -105,7 +113,7 @@ export default async function ScriptDetailPage({ params }: Props) {
           scriptId={script.id}
           scriptText={script.scriptText}
           accountSlug={slug}
-          projectSlug={project}
+          projectSlug={projectSlug}
         />
       </header>
 
