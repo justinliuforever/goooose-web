@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ChevronDown, Plus, ScanSearch, Tv } from "lucide-react";
 
+import { NewAccountSheet } from "@/app/(app)/accounts/_components/new-account-sheet";
 import type { SidebarAccount } from "@/lib/sidebar-data";
 import {
   Sidebar,
@@ -82,14 +83,14 @@ export function AppSidebar({ accounts }: { accounts: SidebarAccount[] }) {
                   </SidebarMenuItem>
                 ))}
                 <SidebarMenuItem>
-                  <SidebarMenuButton
-                    render={<Link href="/accounts/new" />}
-                    isActive={pathname === "/accounts/new"}
-                    className="text-muted-foreground"
-                  >
-                    <Plus />
-                    <span>新建账号</span>
-                  </SidebarMenuButton>
+                  <NewAccountSheet
+                    trigger={
+                      <SidebarMenuButton className="text-muted-foreground">
+                        <Plus />
+                        <span>新建账号</span>
+                      </SidebarMenuButton>
+                    }
+                  />
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>

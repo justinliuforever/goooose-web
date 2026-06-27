@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Plus } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -18,6 +16,7 @@ import { formatDate } from "@/lib/datetime";
 import { trpc } from "@/lib/trpc";
 
 import { DeleteChannelButton } from "./delete-channel-button";
+import { NewAccountSheet } from "./new-account-sheet";
 
 export function ChannelsList() {
   const { data, isLoading } = trpc.channels.list.useQuery();
@@ -46,10 +45,7 @@ export function ChannelsList() {
             频道是你的内容资产，沉淀定位与频道圣经；建好后在项目里绑定对标，Clerk、Muse、Poet 才能开工。
           </p>
         </div>
-        <Button render={<Link href="/accounts/new" />} size="lg">
-          <Plus data-icon="inline-start" />
-          新建账号
-        </Button>
+        <NewAccountSheet size="lg" />
       </div>
     );
   }
@@ -57,10 +53,7 @@ export function ChannelsList() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-end">
-        <Button render={<Link href="/accounts/new" />} size="sm">
-          <Plus data-icon="inline-start" />
-          新建账号
-        </Button>
+        <NewAccountSheet size="sm" />
       </div>
       <Table>
         <TableHeader>

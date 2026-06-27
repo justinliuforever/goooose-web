@@ -60,6 +60,7 @@ import {
   startAnalysisInput,
 } from "./schemas/clerk";
 import { approveIdeaInput, startMonitorInput } from "./schemas/muse";
+import { createProjectInput } from "./schemas/projects";
 import {
   analyzeCustomTopicInput,
   createCustomTopicInput,
@@ -1829,6 +1830,62 @@ export const appRouter = router({
           },
         });
       }),
+  }),
+
+  projects: router({
+    create: protectedProcedure
+      .input(createProjectInput)
+      .mutation(async ({ ctx, input }) => {
+        const [account] = await db
+          .select({ id: channels.id, platform: channels.platform })
+          .from(channels)
+          .where(and(eq(channels.slug, input.accountSlug), eq(channels.userId, ctx.user.id)))
+          .limit(1);
+        if (!account) throw new TRPCError({ code: "NOT_FOUND", message: "Account not found" });
+
+        const base = slugify(input.name);
+        let slug = base;
+        let suffix = 1;
+        while (true) {
+          const [clash] = await db
+            .select({ id: projects.id })
+            .from(projects)
+            .where(and(eq(projects.ownAccountId, account.id), eq(projects.slug, slug)))
+            .limit(1);
+          if (!clash) break;
+          suffix++;
+          slug = `${base}-${suffix}`;
+        }
+
+        const [created] = await db
+          .insert(projects)
+          .values({
+            ownAccountId: account.id,
+            userId: ctx.user.id,
+            name: input.name,
+            slug,
+            platform: account.platform,
+            description: input.description ?? null,
+          })
+          .returning();
+        if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        return created;
+      }),
+
+    // Picker source for "在项目中选用": every project the user owns, across accounts.
+    listForPicker: protectedProcedure.query(async ({ ctx }) => {
+      return db
+        .select({
+          id: projects.id,
+          name: projects.name,
+          accountSlug: channels.slug,
+          accountName: channels.name,
+        })
+        .from(projects)
+        .innerJoin(channels, eq(channels.id, projects.ownAccountId))
+        .where(eq(projects.userId, ctx.user.id))
+        .orderBy(channels.name, projects.createdAt);
+    }),
   }),
 });
 

@@ -210,29 +210,6 @@ export default async function ClerkChannelPage({ params }: Props) {
               <SopCard key={sop.id} sop={sop} showDelete />
             ))}
           </div>
-          <div className="flex flex-col gap-3 rounded-lg border-2 border-dashed border-poet/40 bg-poet/5 p-5">
-            <div className="flex flex-col gap-1">
-              <h3 className="text-sm font-medium">SOP 已就绪，去生成频道圣经</h3>
-              <p className="text-sm text-muted-foreground">
-                回到账号生成或更新频道圣经，Muse、Poet 后续都按它来写。
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                render={<Link href={`/accounts/${encodeURIComponent(slug)}/bible`} />}
-              >
-                去生成圣经
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                render={<Link href={`/accounts/${encodeURIComponent(slug)}`} />}
-              >
-                查看账号
-              </Button>
-            </div>
-          </div>
         </section>
       ) : null}
 

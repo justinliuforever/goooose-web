@@ -4,6 +4,7 @@ import { formatDateTime } from "@/lib/datetime";
 import { sopTypeLabel } from "@/lib/sop-labels";
 
 import { DeleteSopButton } from "../[slug]/_components/delete-sop-button";
+import { UseSopInProjectButton } from "./use-sop-in-project-button";
 
 // Single SOP card for all three surfaces (own channel / competitor / library) —
 // the previous three copies had already drifted apart.
@@ -56,6 +57,7 @@ export function SopCard({
           <span className="font-mono text-xs text-muted-foreground">
             {formatDateTime(sop.generatedAt)}
           </span>
+          {sop.sopType === "ai_reference" ? <UseSopInProjectButton sopId={sop.id} /> : null}
           <CopyButton text={sop.contentMd} label="复制" />
           {showDelete ? <DeleteSopButton sopId={sop.id} sopLabel={label} /> : null}
         </div>

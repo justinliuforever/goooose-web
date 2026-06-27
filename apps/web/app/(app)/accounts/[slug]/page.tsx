@@ -12,6 +12,7 @@ import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
 import { EditChannelSheet } from "../_components/edit-channel-sheet";
+import { NewProjectSheet } from "./projects/_components/new-project-sheet";
 import { BibleGenerateSheet } from "./projects/[project]/poet/_components/bible-generate-sheet";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -123,9 +124,7 @@ export default async function AccountDetailPage({ params }: Props) {
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-muted-foreground">② 项目 · 不同更新形式的分类</h2>
-          <Button size="sm" variant="outline" render={<Link href={`/accounts/${a}/projects/new`} />}>
-            新建项目
-          </Button>
+          <NewProjectSheet accountSlug={channel.slug} />
         </div>
         {projectList.length === 0 ? (
           <div className="rounded-lg border border-dashed bg-card/40 p-6 text-center text-xs text-muted-foreground">

@@ -17,6 +17,7 @@ export const projects = pgTable(
     ownAccountId: uuid("own_account_id").notNull().references(() => ownAccounts.id, { onDelete: "cascade" }),
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    description: text("description"),
     slug: text("slug").notNull(),
     platform: platformEnum("platform").notNull(),
     targetDurationSeconds: integer("target_duration_seconds").notNull().default(300),
