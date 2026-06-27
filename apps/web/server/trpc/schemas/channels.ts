@@ -19,11 +19,13 @@ export const createChannelInput = z
   .object({
     name: z.string().min(1, "Required").max(80),
     platform: platformSchema,
-    platformUrl: z.string().url("Must be a valid URL"),
+    // Optional for 我的账号 — only needed if you later 复盘 the account in Clerk. The account's
+    // positioning lives in its Bible, not a free-text description.
+    platformUrl: z.string().optional().default(""),
     description: z.string().max(500).optional().nullable(),
   })
   .superRefine((v, ctx) => {
-    if (!validateChannelUrl(v.platform, v.platformUrl)) {
+    if (v.platformUrl && !validateChannelUrl(v.platform, v.platformUrl)) {
       ctx.addIssue({ code: "custom", message: PLATFORM_URL_HINT[v.platform], path: ["platformUrl"] });
     }
   });
@@ -45,11 +47,11 @@ export const updateChannelInput = z
     id: z.string().uuid(),
     name: z.string().min(1, "Required").max(80),
     platform: platformSchema,
-    platformUrl: z.string().url("Must be a valid URL"),
+    platformUrl: z.string().optional().default(""),
     description: z.string().max(500).nullable().optional(),
   })
   .superRefine((v, ctx) => {
-    if (!validateChannelUrl(v.platform, v.platformUrl)) {
+    if (v.platformUrl && !validateChannelUrl(v.platform, v.platformUrl)) {
       ctx.addIssue({ code: "custom", message: PLATFORM_URL_HINT[v.platform], path: ["platformUrl"] });
     }
   });

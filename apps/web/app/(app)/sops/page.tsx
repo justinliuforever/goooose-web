@@ -5,6 +5,7 @@ import { channels, clerkSops, competitorAccounts, projects, projectSops } from "
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ClerkTabs } from "../clerk/_components/clerk-tabs";
 import { SopCard } from "../clerk/_components/sop-card";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
@@ -96,6 +97,8 @@ export default async function SopsLibraryPage() {
         </p>
       </header>
 
+      <ClerkTabs />
+
       {sops.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-card/40 p-10 text-sm text-muted-foreground">
           <span>还没有任何 SOP</span>
@@ -146,44 +149,42 @@ function SourceSection({
         const primarySops = sorted.filter((s) => s.sopType !== "ai_reference");
         const aiReferenceSops = sorted.filter((s) => s.sopType === "ai_reference");
         return (
-          <section key={group.href} className="flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="size-2 shrink-0 rounded-full bg-clerk" />
-                <h3 className="truncate text-base font-medium">{group.name}</h3>
-                <Badge variant="outline" className="shrink-0 text-[10px]">
-                  {chip}
-                </Badge>
+          <details key={group.href} open className="flex flex-col gap-3 rounded-lg border bg-card/30 p-4">
+            <summary className="flex cursor-pointer items-center gap-3">
+              <span className="size-2 shrink-0 rounded-full bg-clerk" />
+              <h3 className="truncate text-base font-medium">{group.name}</h3>
+              <Badge variant="outline" className="shrink-0 text-[10px]">
+                {chip}
+              </Badge>
+              <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                {primarySops.length} 份
+              </span>
+            </summary>
+
+            <div className="mt-2 flex flex-col gap-4">
+              <div className="flex justify-end">
+                <Button variant="ghost" size="sm" render={<Link href={group.href} />}>
+                  查看分析
+                </Button>
               </div>
-              <Button variant="ghost" size="sm" render={<Link href={group.href} />}>
-                查看分析
-              </Button>
-            </div>
-
-            <div className="flex flex-col gap-4">
               {primarySops.map((sop) => (
-                <SopCard
-                  key={sop.id}
-                  sop={sop}
-                  usedBy={usedByMap.get(sop.id) ?? 0}
-                  defaultOpen={primarySops.length <= 3}
-                />
+                <SopCard key={sop.id} sop={sop} usedBy={usedByMap.get(sop.id) ?? 0} />
               ))}
-            </div>
 
-            {aiReferenceSops.length > 0 ? (
-              <details className="flex flex-col gap-3 rounded-lg border bg-card/50 p-4 text-sm">
-                <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-                  AI 参考稿（默认隐藏 · 给 AI 用，非给人读 · 写稿选用的就是这类）
-                </summary>
-                <div className="mt-3 flex flex-col gap-4">
-                  {aiReferenceSops.map((sop) => (
-                    <SopCard key={sop.id} sop={sop} usedBy={usedByMap.get(sop.id) ?? 0} />
-                  ))}
-                </div>
-              </details>
-            ) : null}
-          </section>
+              {aiReferenceSops.length > 0 ? (
+                <details className="flex flex-col gap-3 rounded-lg border bg-card/50 p-4 text-sm">
+                  <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+                    AI 底稿（默认隐藏 · 给 AI 用，非给人读 · 写稿选用的就是这类）
+                  </summary>
+                  <div className="mt-3 flex flex-col gap-4">
+                    {aiReferenceSops.map((sop) => (
+                      <SopCard key={sop.id} sop={sop} usedBy={usedByMap.get(sop.id) ?? 0} />
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+            </div>
+          </details>
         );
       })}
     </div>

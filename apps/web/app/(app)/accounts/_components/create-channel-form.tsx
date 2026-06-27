@@ -15,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import {
   createChannelInput,
@@ -32,15 +31,13 @@ export function CreateChannelForm() {
   const [name, setName] = useState("");
   const [platform, setPlatform] = useState<"youtube" | "xhs">("youtube");
   const [platformUrl, setPlatformUrl] = useState("");
-  const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const createMutation = trpc.channels.create.useMutation({
     onSuccess: (channel) => {
       utils.channels.list.invalidate();
-      toast.success(`已创建「${channel.name}」· 接下来在项目里绑定对标账号`);
-      const s = encodeURIComponent(channel.slug);
-      router.push(`/accounts/${s}/projects/${s}`);
+      toast.success(`已创建「${channel.name}」· 接下来生成频道圣经`);
+      router.push(`/accounts/${encodeURIComponent(channel.slug)}`);
     },
     onError: (err) => {
       setError(err.message);
@@ -51,27 +48,22 @@ export function CreateChannelForm() {
     e.preventDefault();
     setError(null);
 
-    // Front-load the URL-shape check with a friendly platform-specific message
-    // before letting Zod reject with a generic one.
-    const isValidUrl =
-      platform === "youtube"
-        ? isValidYoutubeChannelUrl(platformUrl)
-        : isValidXhsProfileUrl(platformUrl);
-    if (!isValidUrl) {
-      setError(
-        platform === "youtube"
-          ? "URL 不符合 YouTube 频道格式（应为 /@handle、/channel/UCxxx、/c/name 或 /user/name）"
-          : "URL 不符合小红书主页格式（应为 https://www.xiaohongshu.com/user/profile/{24位hex}）",
-      );
-      return;
+    const url = platformUrl.trim();
+    // URL is optional; validate shape only when provided.
+    if (url) {
+      const isValidUrl =
+        platform === "youtube" ? isValidYoutubeChannelUrl(url) : isValidXhsProfileUrl(url);
+      if (!isValidUrl) {
+        setError(
+          platform === "youtube"
+            ? "URL 不符合 YouTube 频道格式（应为 /@handle、/channel/UCxxx、/c/name 或 /user/name）"
+            : "URL 不符合小红书主页格式（应为 https://www.xiaohongshu.com/user/profile/{24位hex}）",
+        );
+        return;
+      }
     }
 
-    const result = createChannelInput.safeParse({
-      name,
-      platform,
-      platformUrl,
-      description: description || null,
-    });
+    const result = createChannelInput.safeParse({ name, platform, platformUrl: url });
     if (!result.success) {
       setError(result.error.issues[0]?.message ?? "Invalid input");
       return;
@@ -110,7 +102,7 @@ export function CreateChannelForm() {
         </Field>
 
         <Field>
-          <FieldLabel htmlFor="platformUrl">主页链接</FieldLabel>
+          <FieldLabel htmlFor="platformUrl">主页链接（选填）</FieldLabel>
           <Input
             id="platformUrl"
             type="url"
@@ -121,35 +113,15 @@ export function CreateChannelForm() {
                 ? "https://www.youtube.com/@channel"
                 : "https://www.xiaohongshu.com/user/profile/..."
             }
-            required
           />
-          <p className="text-[10px] leading-snug text-muted-foreground">
-            示例 · YouTube:{" "}
-            <code className="font-mono">https://www.youtube.com/@mkbhd</code>
-            <br />
-            示例 · 小红书:{" "}
-            <code className="font-mono">
-              https://www.xiaohongshu.com/user/profile/{"{24位hex}"}
-            </code>
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            只有以后想用 Clerk「复盘」自己这个账号时才需要填；账号的定位在下一步用频道圣经描述。
           </p>
           <ChannelUrlPreview platform={platform} url={platformUrl} />
         </Field>
-
-        <Field>
-          <FieldLabel htmlFor="description">描述</FieldLabel>
-          <Textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="选填，账号定位、风格说明"
-            rows={3}
-          />
-        </Field>
       </FieldGroup>
 
-      {error ? (
-        <p className="text-sm text-destructive">{error}</p>
-      ) : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={createMutation.isPending}>

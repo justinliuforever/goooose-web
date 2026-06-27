@@ -55,6 +55,7 @@ import {
   deleteSopInput,
   detectSeriesInput,
   listSeriesInput,
+  resetTargetInput,
   runStatusInput,
   startAnalysisInput,
 } from "./schemas/clerk";
@@ -1152,6 +1153,37 @@ export const appRouter = router({
           )
           .returning({ id: clerkSops.id });
         return { id: deleted?.id ?? null };
+      }),
+
+    // 清空重建: wipe a target's analyzed videos + SOPs so the user can start the corpus over.
+    resetTarget: protectedProcedure
+      .input(resetTargetInput)
+      .mutation(async ({ ctx, input }) => {
+        if (input.channelId) {
+          const [own] = await db
+            .select({ id: channels.id })
+            .from(channels)
+            .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
+            .limit(1);
+          if (!own) throw new TRPCError({ code: "NOT_FOUND" });
+          await db.delete(clerkSops).where(eq(clerkSops.channelId, own.id));
+          await db.delete(clerkVideos).where(eq(clerkVideos.channelId, own.id));
+        } else {
+          const [comp] = await db
+            .select({ id: competitorAccounts.id })
+            .from(competitorAccounts)
+            .where(
+              and(
+                eq(competitorAccounts.id, input.competitorAccountId!),
+                eq(competitorAccounts.userId, ctx.user.id),
+              ),
+            )
+            .limit(1);
+          if (!comp) throw new TRPCError({ code: "NOT_FOUND" });
+          await db.delete(clerkSops).where(eq(clerkSops.competitorAccountId, comp.id));
+          await db.delete(clerkVideos).where(eq(clerkVideos.competitorAccountId, comp.id));
+        }
+        return { ok: true };
       }),
 
     listSeries: protectedProcedure

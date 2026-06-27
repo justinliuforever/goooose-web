@@ -11,6 +11,7 @@ import { BackLink } from "@/components/back-link";
 import { PoetFactList } from "@/components/poet-fact-list";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
+import { sopTypeLabel } from "@/lib/sop-labels";
 import { ensureCurrentUser } from "@/lib/users";
 
 import { CustomTopicActions } from "../../_components/custom-topic-actions";
@@ -179,7 +180,7 @@ export default async function PoetTopicDetailPage({ params }: Props) {
             ) : null}
             {sop ? (
               <span className="font-mono text-xs text-muted-foreground">
-                SOP：{sop.sopType}（{sop.language}）
+                SOP：{sopTypeLabel(sop.sopType)}（{sop.language}）
               </span>
             ) : null}
           </div>

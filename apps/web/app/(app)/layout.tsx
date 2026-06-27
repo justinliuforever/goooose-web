@@ -7,15 +7,20 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { getSidebarAccounts } from "@/lib/sidebar-data";
+import { ensureCurrentUser } from "@/lib/users";
 
-export default function AppLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const user = await ensureCurrentUser();
+  const accounts = user ? await getSidebarAccounts(user.id) : [];
+
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar accounts={accounts} />
       <SidebarInset className="min-w-0">
         <header className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
           <div className="flex items-center gap-1 md:hidden">

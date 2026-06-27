@@ -40,6 +40,7 @@ const DEFAULT_NUM_IDEAS = 5;
 
 type Payload = {
   channelId: string;
+  projectId?: string;
   runId: string;
   maxVideosPerCompetitor?: number;
   numIdeasPerVideo?: number;
@@ -74,8 +75,9 @@ export const monitorCompetitors = task({
         .where(eq(channels.id, payload.channelId))
         .limit(1);
       if (!channel) throw new Error(`channel ${payload.channelId} not found`);
+      const projectId = payload.projectId ?? channel.id;
 
-      // Competitors come exclusively from project_competitors (project.id == channel.id).
+      // Competitors come from this project's project_competitors bindings.
       const bound = await db
         .select({
           competitorAccountId: competitorAccounts.id,
@@ -88,7 +90,7 @@ export const monitorCompetitors = task({
           eq(competitorAccounts.id, projectCompetitors.competitorAccountId),
         )
         .where(
-          and(eq(projectCompetitors.projectId, channel.id), isNull(competitorAccounts.deletedAt)),
+          and(eq(projectCompetitors.projectId, projectId), isNull(competitorAccounts.deletedAt)),
         );
       const idFilter =
         payload.competitorAccountIds && payload.competitorAccountIds.length > 0
@@ -372,7 +374,7 @@ export const monitorCompetitors = task({
             .insert(museMonitorVideos)
             .values({
               channelId: channel.id,
-              projectId: channel.id,
+              projectId,
               competitorAccountId: ref.competitorAccountId,
               platformVideoId: ref.videoId,
               title,
@@ -388,7 +390,7 @@ export const monitorCompetitors = task({
             .onConflictDoUpdate({
               target: [museMonitorVideos.channelId, museMonitorVideos.platformVideoId],
               set: {
-                projectId: channel.id,
+                projectId,
                 competitorAccountId: ref.competitorAccountId,
                 relevant: cls.relevant,
                 topicClassification: safeText(cls.topic_classification),
@@ -547,7 +549,7 @@ export const monitorCompetitors = task({
             await db.insert(museIdeas).values(
               ideasResult.ideas.map((idea) => ({
                 channelId: channel.id,
-                projectId: channel.id,
+                projectId,
                 sourceVideoId: row.monitorVideoId,
                 ideaNumber: ++globalIdeaNumber,
                 storyAngle: safeText(idea.story_angle),

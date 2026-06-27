@@ -9,6 +9,7 @@ import { formatDuration, formatViews } from "@/lib/format-count";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/ui/button";
 import { ContentTypeBadge } from "../_components/content-type-badge";
+import { ResetTargetButton } from "../_components/reset-target-button";
 import { SopCard } from "../_components/sop-card";
 import { TranscriptSourceBadge } from "../_components/transcript-source-badge";
 import {
@@ -127,6 +128,12 @@ export default async function ClerkChannelPage({ params }: Props) {
         initialActive={activeRun}
       />
 
+      {videos.length > 0 ? (
+        <div className="flex justify-end">
+          <ResetTargetButton target={{ kind: "own", channelId: channel.id }} name={channel.name} />
+        </div>
+      ) : null}
+
       <div id="videos" className="scroll-mt-20 overflow-x-auto rounded-md border">
       <Table>
         <TableHeader>
@@ -192,10 +199,15 @@ export default async function ClerkChannelPage({ params }: Props) {
 
       {primarySops.length > 0 ? (
         <section id="sop" className="flex scroll-mt-20 flex-col gap-4">
-          <h2 className="text-sm font-medium text-muted-foreground">脚本撰写 SOP</h2>
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-medium text-muted-foreground">脚本撰写 SOP</h2>
+            <p className="text-xs text-muted-foreground">
+              SOP 是这个账号全部拆解的实时汇总（基于 {videos.length} 条视频），每次分析后自动刷新到最新。
+            </p>
+          </div>
           <div className="flex flex-col gap-4">
             {primarySops.map((sop) => (
-              <SopCard key={sop.id} sop={sop} defaultOpen={primarySops.length <= 3} showDelete />
+              <SopCard key={sop.id} sop={sop} showDelete />
             ))}
           </div>
           <div className="flex flex-col gap-3 rounded-lg border-2 border-dashed border-poet/40 bg-poet/5 p-5">
@@ -227,7 +239,7 @@ export default async function ClerkChannelPage({ params }: Props) {
       {aiReferenceSops.length > 0 ? (
         <details className="flex flex-col gap-3 rounded-lg border bg-card/50 p-4 text-sm">
           <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-            AI 参考稿（默认隐藏 · 给 AI 用，非给人读）
+            AI 底稿（默认隐藏 · 给 AI 用，非给人读 · 写稿选用的就是这类）
           </summary>
           <div className="mt-3 flex flex-col gap-4">
             {aiReferenceSops.map((sop) => (

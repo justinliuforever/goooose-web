@@ -21,6 +21,7 @@ import { safeText } from "@singularity/integrations/utils";
 
 type Payload = {
   channelId: string;
+  projectId?: string;
   runId: string;
   topicId: string;
   language?: "en" | "zh";
@@ -39,6 +40,7 @@ export const analyzeCustomTopic = task({
         .where(eq(channels.id, payload.channelId))
         .limit(1);
       if (!channel) throw new Error(`channel ${payload.channelId} not found`);
+      const projectId = payload.projectId ?? channel.id;
 
       const [topic] = await db
         .select()
@@ -52,14 +54,14 @@ export const analyzeCustomTopic = task({
         .limit(1);
       if (!topic) throw new Error(`custom topic ${payload.topicId} not found`);
 
-      const resolvedBible = await resolveActiveBible(db, channel.id);
+      const resolvedBible = await resolveActiveBible(db, projectId, channel.id);
       if (!resolvedBible) throw new Error("请先生成并激活一份频道圣经");
       if (resolvedBible.viaFallback) {
         logger.warn(`Project ${channel.id} has no Bible pin; used channel active-bible fallback`);
       }
       const bible = resolvedBible.bible;
 
-      const sop = await resolvePrimarySop(db, channel.id);
+      const sop = await resolvePrimarySop(db, projectId, channel.id);
       const sopText = sop?.contentMd ?? "[No SOP reference available]";
 
       await db
@@ -135,7 +137,7 @@ export const analyzeCustomTopic = task({
         .update(poetCustomTopics)
         .set({
           status: "analyzed",
-          projectId: channel.id,
+          projectId,
           references: persistedRefs,
           storyAngle: safeText(analysis.storyAngle),
           factsAndData: safeText(analysis.factsAndData),

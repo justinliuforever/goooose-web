@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -113,12 +114,6 @@ export function CustomTopicActions({
     handleGenerate(sec);
   };
 
-  const handleDelete = () => {
-    if (!confirm(`确定删除「${topicLabel.slice(0, 50)}」？`)) return;
-    setPending("delete");
-    remove.mutate({ topicId });
-  };
-
   return (
     <div className="flex items-center gap-2">
       {status === "draft" ? (
@@ -193,14 +188,20 @@ export function CustomTopicActions({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={handleDelete}
+      <ConfirmDialog
+        title={`删除「${topicLabel.slice(0, 50)}」？`}
+        confirmLabel="删除"
         disabled={pending !== null}
-      >
-        <Trash2 className="size-3" />
-      </Button>
+        onConfirm={() => {
+          setPending("delete");
+          remove.mutate({ topicId });
+        }}
+        trigger={
+          <Button size="sm" variant="ghost" disabled={pending !== null}>
+            <Trash2 className="size-3" />
+          </Button>
+        }
+      />
     </div>
   );
 }

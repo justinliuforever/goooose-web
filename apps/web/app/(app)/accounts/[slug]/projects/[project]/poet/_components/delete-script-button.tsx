@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { trpc } from "@/lib/trpc";
 
 type Props = {
@@ -28,21 +29,25 @@ export function DeleteScriptButton({ scriptId }: Props) {
   });
 
   return (
-    <Button
-      size="sm"
-      variant="ghost"
+    <ConfirmDialog
+      title="删除该脚本？"
+      description="删除后选题会回到「待写稿」状态，可重新生成。"
+      confirmLabel="删除"
       disabled={pending}
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!confirm("确定删除该脚本？删除后选题会回到「待写稿」状态，可重新生成。")) {
-          return;
-        }
+      onConfirm={() => {
         setPending(true);
         remove.mutate({ scriptId });
       }}
-    >
-      {pending ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
-    </Button>
+      trigger={
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={pending}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {pending ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+        </Button>
+      }
+    />
   );
 }

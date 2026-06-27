@@ -8,6 +8,7 @@ import { BackLink } from "@/components/back-link";
 import { Badge } from "@/components/ui/badge";
 import { CompetitorAvatar } from "@/components/competitor-avatar";
 import { ContentTypeBadge } from "../../_components/content-type-badge";
+import { ResetTargetButton } from "../../_components/reset-target-button";
 import { SopCard } from "../../_components/sop-card";
 import { TranscriptSourceBadge } from "../../_components/transcript-source-badge";
 import {
@@ -115,6 +116,15 @@ export default async function ClerkCompetitorPage({ params }: Props) {
 
       <ActiveRunsBanner competitorAccountId={competitor.id} />
 
+      {videos.length > 0 ? (
+        <div className="flex justify-end">
+          <ResetTargetButton
+            target={{ kind: "competitor", competitorAccountId: competitor.id }}
+            name={name}
+          />
+        </div>
+      ) : null}
+
       {videos.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-card/40 p-10 text-sm text-muted-foreground">
           <span>还没拆解过这个对标</span>
@@ -176,10 +186,15 @@ export default async function ClerkCompetitorPage({ params }: Props) {
 
       {primarySops.length > 0 ? (
         <section className="flex flex-col gap-4">
-          <h2 className="text-sm font-medium text-muted-foreground">脚本撰写 SOP</h2>
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-medium text-muted-foreground">脚本撰写 SOP</h2>
+            <p className="text-xs text-muted-foreground">
+              SOP 是这个账号全部拆解的实时汇总（基于 {videos.length} 条视频），每次分析后自动刷新到最新。
+            </p>
+          </div>
           <div className="flex flex-col gap-4">
             {primarySops.map((sop) => (
-              <SopCard key={sop.id} sop={sop} sourceName={name} defaultOpen={primarySops.length <= 3} showDelete />
+              <SopCard key={sop.id} sop={sop} sourceName={name} showDelete />
             ))}
           </div>
           <div className="rounded-lg border-2 border-dashed border-poet/40 bg-poet/5 p-4 text-sm">
@@ -194,7 +209,7 @@ export default async function ClerkCompetitorPage({ params }: Props) {
       {aiReferenceSops.length > 0 ? (
         <details className="flex flex-col gap-3 rounded-lg border bg-card/50 p-4 text-sm">
           <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-            AI 参考稿（默认隐藏 · 给 AI 用，非给人读 · 写稿选用的就是这类）
+            AI 底稿（默认隐藏 · 给 AI 用，非给人读 · 写稿选用的就是这类）
           </summary>
           <div className="mt-3 flex flex-col gap-4">
             {aiReferenceSops.map((sop) => (

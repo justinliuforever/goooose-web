@@ -67,24 +67,25 @@ export function EditChannelSheet({ channel }: Props) {
     e.preventDefault();
     setError(null);
 
-    const ownUrlOk =
-      platform === "youtube"
-        ? isValidYoutubeChannelUrl(platformUrl)
-        : isValidXhsProfileUrl(platformUrl);
-    if (!ownUrlOk) {
-      setError(
-        platform === "youtube"
-          ? "URL 不符合 YouTube 频道格式（应为 /@handle、/channel/UCxxx、/c/name 或 /user/name）"
-          : "URL 不符合小红书主页格式（应为 https://www.xiaohongshu.com/user/profile/{24位hex}）",
-      );
-      return;
+    const url = platformUrl.trim();
+    if (url) {
+      const ownUrlOk =
+        platform === "youtube" ? isValidYoutubeChannelUrl(url) : isValidXhsProfileUrl(url);
+      if (!ownUrlOk) {
+        setError(
+          platform === "youtube"
+            ? "URL 不符合 YouTube 频道格式（应为 /@handle、/channel/UCxxx、/c/name 或 /user/name）"
+            : "URL 不符合小红书主页格式（应为 https://www.xiaohongshu.com/user/profile/{24位hex}）",
+        );
+        return;
+      }
     }
 
     const result = updateChannelInput.safeParse({
       id: channel.id,
       name,
       platform,
-      platformUrl,
+      platformUrl: url,
       description: description || null,
     });
     if (!result.success) {
@@ -127,14 +128,14 @@ export function EditChannelSheet({ channel }: Props) {
       </SheetTrigger>
       <SheetContent className="flex w-full flex-col gap-0 sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>编辑频道</SheetTitle>
+          <SheetTitle>编辑账号</SheetTitle>
           <SheetDescription>修改名称、平台、对标后保存即可。</SheetDescription>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="edit-name">频道名称</FieldLabel>
+              <FieldLabel htmlFor="edit-name">账号名称</FieldLabel>
               <Input
                 id="edit-name"
                 value={name}
@@ -184,7 +185,7 @@ export function EditChannelSheet({ channel }: Props) {
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="edit-url">主页链接</FieldLabel>
+              <FieldLabel htmlFor="edit-url">主页链接（选填）</FieldLabel>
               <Input
                 id="edit-url"
                 type="url"
@@ -195,7 +196,6 @@ export function EditChannelSheet({ channel }: Props) {
                     ? "https://www.xiaohongshu.com/user/profile/{user_id}"
                     : "https://www.youtube.com/@handle"
                 }
-                required
               />
               <ChannelUrlPreview platform={platform} url={platformUrl} />
             </Field>

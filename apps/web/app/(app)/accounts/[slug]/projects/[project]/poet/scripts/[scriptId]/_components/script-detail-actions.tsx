@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { trpc } from "@/lib/trpc";
 
 type Props = {
@@ -42,28 +43,32 @@ export function ScriptDetailActions({ scriptId, scriptText, accountSlug, project
     }
   };
 
-  const handleDelete = () => {
-    if (!confirm("确定删除该脚本？删除后选题会回到「待写稿」状态，可重新生成。")) {
-      return;
-    }
-    setPendingDelete(true);
-    remove.mutate({ scriptId });
-  };
-
   return (
     <div className="flex items-center gap-2">
       <Button size="sm" variant="outline" onClick={handleCopy}>
         {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         {copied ? "已复制" : "复制全文"}
       </Button>
-      <Button size="sm" variant="ghost" onClick={handleDelete} disabled={pendingDelete}>
-        {pendingDelete ? (
-          <Loader2 className="size-3 animate-spin" />
-        ) : (
-          <Trash2 className="size-3" />
-        )}
-        删除
-      </Button>
+      <ConfirmDialog
+        title="删除该脚本？"
+        description="删除后选题会回到「待写稿」状态，可重新生成。"
+        confirmLabel="删除"
+        disabled={pendingDelete}
+        onConfirm={() => {
+          setPendingDelete(true);
+          remove.mutate({ scriptId });
+        }}
+        trigger={
+          <Button size="sm" variant="ghost" disabled={pendingDelete}>
+            {pendingDelete ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <Trash2 className="size-3" />
+            )}
+            删除
+          </Button>
+        }
+      />
     </div>
   );
 }

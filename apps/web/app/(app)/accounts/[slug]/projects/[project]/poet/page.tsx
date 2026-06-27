@@ -9,7 +9,6 @@ import {
   museMonitorVideos,
   poetBible,
   poetCustomTopics,
-  poetDriftEvents,
   poetScripts,
   type CustomTopicReference,
 } from "@singularity/db";
@@ -24,24 +23,15 @@ import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
-import { BibleGenerateSheet } from "./_components/bible-generate-sheet";
-import { BibleHistory } from "./_components/bible-history";
 import { DeleteScriptButton } from "./_components/delete-script-button";
 import { CustomTopicActions } from "./_components/custom-topic-actions";
 import { CustomTopicCreateSheet } from "./_components/custom-topic-create-sheet";
-import { DriftBanner } from "./_components/drift-banner";
 import { ActiveRunsBanner } from "@/components/active-runs-banner";
 
 import { PoetRunProgress } from "./_components/poet-run-progress";
 import { WriteScriptButton } from "./_components/write-script-button";
 
 type Props = { params: Promise<{ slug: string; project: string }> };
-
-const DRIFT_REASON_LABEL: Record<string, string> = {
-  no_overlap: "话题与你的描述无重合词",
-  ai_markers: "内容大量倒向 AI/LLM 等模板话题",
-  topic_substitution: "话题被替换",
-};
 
 export default async function PoetChannelPage({ params }: Props) {
   const { slug: rawSlug, project: rawProject } = await params;
@@ -58,24 +48,12 @@ export default async function PoetChannelPage({ params }: Props) {
     .limit(1);
   if (!channel || channel.userId !== user.id) notFound();
 
-  const [activeBibleRow, bibles, latestDrift, approvedIdeas, customTopics, scripts, activeRun, aiSopRows] =
+  const [activeBibleRow, approvedIdeas, customTopics, scripts, activeRun, aiSopRows] =
     await Promise.all([
       db
         .select()
         .from(poetBible)
         .where(and(eq(poetBible.channelId, channel.id), eq(poetBible.isActive, true)))
-        .limit(1),
-      db
-        .select()
-        .from(poetBible)
-        .where(eq(poetBible.channelId, channel.id))
-        .orderBy(desc(poetBible.updatedAt))
-        .limit(10),
-      db
-        .select()
-        .from(poetDriftEvents)
-        .where(eq(poetDriftEvents.channelId, channel.id))
-        .orderBy(desc(poetDriftEvents.detectedAt))
         .limit(1),
       db
         .select({
@@ -120,11 +98,6 @@ export default async function PoetChannelPage({ params }: Props) {
 
   const activeBible = activeBibleRow[0] ?? null;
   const hasAiReferenceSop = aiSopRows.length > 0;
-  const recentDrift = latestDrift[0] ?? null;
-  const showDriftBanner =
-    recentDrift !== null &&
-    !activeBible &&
-    bibles.some((b) => b.id === recentDrift.bibleId && !b.isActive);
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-8 p-6 sm:p-8">
@@ -166,75 +139,15 @@ export default async function PoetChannelPage({ params }: Props) {
         }
       />
 
-      {showDriftBanner && recentDrift ? (
-        <DriftBanner
-          driftEventId={recentDrift.id}
-          humanMessage={recentDrift.humanMessage ?? DRIFT_REASON_LABEL[recentDrift.reason]}
-        />
-      ) : null}
-
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-muted-foreground">频道圣经</h2>
-          <div className="flex items-center gap-2">
-            {activeBible ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                render={
-                  <Link
-                    href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project)}/muse`}
-                  />
-                }
-              >
-                去 Muse 出选题
-              </Button>
-            ) : null}
-            <BibleGenerateSheet
-              channelId={channel.id}
-              channelName={channel.name}
-              channelDescription={channel.description}
-              buttonLabel={activeBible ? "+ 新建圣经" : "生成圣经"}
-              buttonVariant="outline"
-            />
-          </div>
-        </div>
-
-        {activeBible ? (
-          <article className="flex flex-col gap-3 rounded-lg border bg-card p-5">
-            <header className="flex items-center justify-between">
-              <h3 className="text-base font-medium">{activeBible.name}</h3>
-              <Badge variant="secondary" className="text-[10px]">
-                生效中
-              </Badge>
-            </header>
-            <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap font-sans text-sm leading-relaxed">
-              {activeBible.content}
-            </pre>
-            <footer className="font-mono text-xs text-muted-foreground">
-              {formatDateTime(activeBible.updatedAt)} 更新
-            </footer>
-          </article>
-        ) : (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-card/40 p-8 text-sm text-muted-foreground">
-            <span>该频道还没有可用的圣经</span>
-            <span className="text-xs">先生成一份，再来选题写稿</span>
-            <BibleGenerateSheet
-              channelId={channel.id}
-              channelName={channel.name}
-              channelDescription={channel.description}
-              buttonLabel="生成圣经"
-            />
-          </div>
-        )}
-        <BibleHistory
-          bibles={
-            activeBible && !bibles.some((b) => b.id === activeBible.id)
-              ? [activeBible, ...bibles]
-              : bibles
-          }
-        />
-      </section>
+      <Link
+        href={`/accounts/${encodeURIComponent(slug)}/bible`}
+        className="flex w-fit items-center gap-2 rounded-md border bg-card/40 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+      >
+        <span className="size-[7px] rounded-full bg-poet" />
+        写稿依据 · 账号圣经：
+        <span className="font-medium text-foreground">{activeBible ? activeBible.name : "未设置"}</span>
+        {activeBible ? null : <span>· 去账号页生成 →</span>}
+      </Link>
 
       {approvedIdeas.length > 0 ? (
         <section className="flex flex-col gap-3">
@@ -263,7 +176,7 @@ export default async function PoetChannelPage({ params }: Props) {
                   ideaId={idea.id}
                   ideaTitle={idea.storyAngle ?? "选题"}
                   disabled={!activeBible}
-                  disabledReason={!activeBible ? "请先生成并激活一份频道圣经" : undefined}
+                  disabledReason={!activeBible ? "请先在账号页生成并选用频道圣经" : undefined}
                   hasSop={hasAiReferenceSop}
                 />
               </article>
@@ -283,17 +196,17 @@ export default async function PoetChannelPage({ params }: Props) {
           <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed bg-card/40 p-6 text-center text-xs text-muted-foreground">
             <span>
               {activeBible
-                ? "想到什么写什么 — 新建一个自定义选题，AI 会根据当前圣经分析并写稿"
-                : "先生成圣经，才能新建自定义选题"}
+                ? "想到什么写什么 — 新建一个自定义选题，AI 会根据账号圣经分析并写稿"
+                : "新建自定义选题；写稿前请先在账号页生成频道圣经"}
             </span>
             {!activeBible ? (
-              <BibleGenerateSheet
-                channelId={channel.id}
-                channelName={channel.name}
-                channelDescription={channel.description}
-                buttonLabel="生成圣经"
-                buttonVariant="outline"
-              />
+              <Button
+                variant="outline"
+                size="sm"
+                render={<Link href={`/accounts/${encodeURIComponent(slug)}/bible`} />}
+              >
+                去账号页生成圣经
+              </Button>
             ) : null}
           </div>
         ) : (
@@ -450,20 +363,21 @@ export default async function PoetChannelPage({ params }: Props) {
 
       {!activeBible && approvedIdeas.length === 0 && scripts.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-sm text-muted-foreground">
-          <span>这个频道还没有脚本</span>
+          <span>这个项目还没有脚本</span>
           <span className="text-xs">
-            先生成圣经 → 通过 Muse 选题 → 回到这里点「写稿」
+            先在账号页生成圣经 → 用 Muse 出选题 → 回到这里点「写稿」
           </span>
           <div className="flex items-center gap-2">
-            <BibleGenerateSheet
-              channelId={channel.id}
-              channelName={channel.name}
-              channelDescription={channel.description}
-              buttonLabel="生成圣经"
-            />
             <Button
               size="sm"
               variant="outline"
+              render={<Link href={`/accounts/${encodeURIComponent(slug)}/bible`} />}
+            >
+              去账号页生成圣经
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
               render={
                 <Link
                   href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project)}/muse`}

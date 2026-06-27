@@ -28,6 +28,7 @@ import { safeText } from "@singularity/integrations/utils";
 
 type Payload = {
   channelId: string;
+  projectId?: string;
   runId: string;
   // Exactly one of these two must be set.
   ideaId?: string;
@@ -49,12 +50,12 @@ export const generateScript = task({
         .where(eq(channels.id, payload.channelId))
         .limit(1);
       if (!channel) throw new Error(`channel ${payload.channelId} not found`);
+      const projectId = payload.projectId ?? channel.id;
 
-      // Duration default source: project.id == channel.id during the expand phase.
       const [project] = await db
         .select({ targetDurationSeconds: projects.targetDurationSeconds })
         .from(projects)
-        .where(eq(projects.id, channel.id))
+        .where(eq(projects.id, projectId))
         .limit(1);
 
       await db
@@ -219,14 +220,14 @@ export const generateScript = task({
       const willGoLong = isLongForm(targetWordCount, language);
       total = willGoLong ? 4 : 3;
 
-      const resolvedBible = await resolveActiveBible(db, channel.id);
+      const resolvedBible = await resolveActiveBible(db, projectId, channel.id);
       if (!resolvedBible) throw new Error("No active Channel Bible — generate one first");
       if (resolvedBible.viaFallback) {
         logger.warn(`Project ${channel.id} has no Bible pin; used channel active-bible fallback`);
       }
       const bible = resolvedBible.bible;
 
-      const sop = await resolvePrimarySop(db, channel.id);
+      const sop = await resolvePrimarySop(db, projectId, channel.id);
       const sopText = sop?.contentMd ?? "";
       if (!sopText) {
         logger.warn(
@@ -304,7 +305,7 @@ export const generateScript = task({
         .insert(poetScripts)
         .values({
           channelId: channel.id,
-          projectId: channel.id,
+          projectId,
           ideaId: museIdeaId,
           customTopicId: customTopicIdFinal,
           bibleId: bible.id,

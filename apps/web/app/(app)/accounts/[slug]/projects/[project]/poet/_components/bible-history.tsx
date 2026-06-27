@@ -9,6 +9,7 @@ import type { PoetBible } from "@singularity/db";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { formatDateTime } from "@/lib/datetime";
 import { trpc } from "@/lib/trpc";
 
@@ -107,22 +108,25 @@ export function BibleHistory({ bibles }: Props) {
                 </Button>
               ) : null}
               {!b.isActive ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
+                <ConfirmDialog
+                  title={`删除「${b.name}」？`}
+                  description="删除后无法恢复。"
+                  confirmLabel="删除"
                   disabled={pendingId !== null}
-                  onClick={() => {
-                    if (!confirm(`确定删除「${b.name}」？`)) return;
+                  onConfirm={() => {
                     setPendingId(b.id);
                     remove.mutate({ bibleId: b.id });
                   }}
-                >
-                  {pendingId === b.id && remove.isPending ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    <Trash2 className="size-3" />
-                  )}
-                </Button>
+                  trigger={
+                    <Button size="sm" variant="ghost" disabled={pendingId !== null}>
+                      {pendingId === b.id && remove.isPending ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-3" />
+                      )}
+                    </Button>
+                  }
+                />
               ) : null}
             </div>
           </div>

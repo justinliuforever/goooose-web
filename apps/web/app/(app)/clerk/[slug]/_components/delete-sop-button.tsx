@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { trpc } from "@/lib/trpc";
 
 type Props = {
@@ -29,17 +30,20 @@ export function DeleteSopButton({ sopId, sopLabel }: Props) {
   });
 
   return (
-    <Button
-      size="sm"
-      variant="ghost"
+    <ConfirmDialog
+      title={`删除「${sopLabel}」SOP？`}
+      description="删除后无法恢复。"
+      confirmLabel="删除"
       disabled={pending}
-      onClick={() => {
-        if (!confirm(`确定删除「${sopLabel}」SOP？`)) return;
+      onConfirm={() => {
         setPending(true);
         remove.mutate({ sopId });
       }}
-    >
-      {pending ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
-    </Button>
+      trigger={
+        <Button size="sm" variant="ghost" disabled={pending}>
+          {pending ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+        </Button>
+      }
+    />
   );
 }

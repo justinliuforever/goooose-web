@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/copy-button";
 import { formatDateTime } from "@/lib/datetime";
+import { sopTypeLabel } from "@/lib/sop-labels";
 
 import { DeleteSopButton } from "../[slug]/_components/delete-sop-button";
 
@@ -28,7 +29,7 @@ export function SopCard({
   usedBy?: number;
   showDelete?: boolean;
 }) {
-  const label = sop.sopType.replace(/_/g, " ");
+  const label = sopTypeLabel(sop.sopType);
   return (
     <details open={defaultOpen} className="flex flex-col gap-3 rounded-lg border bg-card p-5">
       <summary className="flex cursor-pointer items-center justify-between gap-3 list-none [&::-webkit-details-marker]:hidden">

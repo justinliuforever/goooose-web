@@ -1,6 +1,7 @@
 import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowRight } from "lucide-react";
 
 import {
   channels,
@@ -19,17 +20,13 @@ import { formatDurationLabel } from "@singularity/domain/schemas/poet";
 
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/back-link";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
-import { EditChannelSheet } from "../../../_components/edit-channel-sheet";
 import { ProjectCompetitorsCard } from "../../../_components/project-competitors-card";
-
-import { ConvertToCompetitorButton } from "./_components/convert-to-competitor-button";
 import { ProjectSopRow, type CurrentSop } from "./_components/project-sop-row";
-import { SetupChecklist } from "./_components/setup-checklist";
 
 type Props = { params: Promise<{ slug: string; project: string }> };
 
@@ -41,12 +38,7 @@ export default async function ProjectHubPage({ params }: Props) {
   const user = await ensureCurrentUser();
   if (!user) return null;
 
-  // Account identity (D3 spine: channel.id == own_account.id == default project.id).
-  const [channel] = await db
-    .select()
-    .from(channels)
-    .where(eq(channels.slug, slug))
-    .limit(1);
+  const [channel] = await db.select().from(channels).where(eq(channels.slug, slug)).limit(1);
   if (!channel || channel.userId !== user.id) notFound();
 
   const [project] = await db
@@ -56,42 +48,43 @@ export default async function ProjectHubPage({ params }: Props) {
     .limit(1);
   if (!project) notFound();
 
-  // Content rows are channel_id-authoritative; project.id == channel.id for the default project, so channel.id is the correct scope here.
   const [
     [museVideoCount],
     [museIdeaCount],
-    [poetBibleCount],
     [poetTopicCount],
     [poetScriptCount],
-    pinnedBible,
-    [clerkSopCount],
     [boundCount],
+    activeBibleRows,
+    recentScripts,
   ] = await Promise.all([
-    db.select({ c: count() }).from(museMonitorVideos).where(eq(museMonitorVideos.channelId, channel.id)),
-    db.select({ c: count() }).from(museIdeas).where(eq(museIdeas.channelId, channel.id)),
-    db.select({ c: count() }).from(poetBible).where(eq(poetBible.channelId, channel.id)),
-    db.select({ c: count() }).from(poetCustomTopics).where(eq(poetCustomTopics.channelId, channel.id)),
-    db.select({ c: count() }).from(poetScripts).where(eq(poetScripts.channelId, channel.id)),
-    project.activeBibleId
-      ? db.select().from(poetBible).where(eq(poetBible.id, project.activeBibleId)).limit(1)
-      : Promise.resolve([]),
-    db.select({ c: count() }).from(clerkSops).where(eq(clerkSops.channelId, channel.id)),
+    db.select({ c: count() }).from(museMonitorVideos).where(eq(museMonitorVideos.projectId, project.id)),
+    db.select({ c: count() }).from(museIdeas).where(eq(museIdeas.projectId, project.id)),
+    db.select({ c: count() }).from(poetCustomTopics).where(eq(poetCustomTopics.projectId, project.id)),
+    db.select({ c: count() }).from(poetScripts).where(eq(poetScripts.projectId, project.id)),
     db
       .select({ c: count() })
       .from(projectCompetitors)
       .innerJoin(competitorAccounts, eq(competitorAccounts.id, projectCompetitors.competitorAccountId))
       .where(and(eq(projectCompetitors.projectId, project.id), isNull(competitorAccounts.deletedAt))),
+    db
+      .select()
+      .from(poetBible)
+      .where(and(eq(poetBible.channelId, channel.id), eq(poetBible.isActive, true)))
+      .limit(1),
+    db
+      .select({
+        id: poetScripts.id,
+        wordCount: poetScripts.wordCount,
+        durationSeconds: poetScripts.durationSeconds,
+        generatedAt: poetScripts.generatedAt,
+      })
+      .from(poetScripts)
+      .where(eq(poetScripts.projectId, project.id))
+      .orderBy(desc(poetScripts.generatedAt))
+      .limit(5),
   ]);
 
-  const a = encodeURIComponent(channel.slug);
-  const p = encodeURIComponent(project.slug);
-  const itemNoun = project.platform === "xhs" ? "篇监控笔记" : "个监控视频";
-  const activeBible = pinnedBible[0] ?? null;
-
-  // Current writing SOP: explicit primary binding wins, else mirror the resolver's
-  // fallback (this account's latest ai_reference) so the row shows what writing will use.
-  // SOPs are owned by an own channel OR a competitor (one-owner XOR, 0018) — must
-  // leftJoin both sides; an innerJoin(channels) silently drops competitor SOPs.
+  // Current writing SOP: explicit primary binding wins, else this account's latest ai_reference.
   const [pinnedSop] = await db
     .select({
       generatedAt: clerkSops.generatedAt,
@@ -129,91 +122,81 @@ export default async function ProjectHubPage({ params }: Props) {
     }
   }
 
-  const tools = [
-    {
-      label: "Clerk · 分析师",
-      href: `/clerk/${a}`,
-      dot: "bg-clerk",
-      lines: [`${clerkSopCount?.c ?? 0} 份 SOP`],
-    },
+  const a = encodeURIComponent(channel.slug);
+  const p = encodeURIComponent(project.slug);
+  const activeBible = activeBibleRows[0] ?? null;
+
+  const entries = [
     {
       label: "Muse · 选题官",
+      desc: "巡视对标账号 → 生成可写的选题",
       href: `/accounts/${a}/projects/${p}/muse`,
       dot: "bg-muse",
-      lines: [`${museVideoCount?.c ?? 0} ${itemNoun}`, `${museIdeaCount?.c ?? 0} 个选题`],
+      stats: [
+        `${boundCount?.c ?? 0} 个对标`,
+        `${museVideoCount?.c ?? 0} ${project.platform === "xhs" ? "篇" : "个"}已巡视`,
+        `${museIdeaCount?.c ?? 0} 个选题`,
+      ],
     },
     {
       label: "Poet · 写手",
+      desc: "选题 / 时长 / 参考 → 成稿",
       href: `/accounts/${a}/projects/${p}/poet`,
       dot: "bg-poet",
-      lines: [`${poetTopicCount?.c ?? 0} 个自定义选题`, `${poetScriptCount?.c ?? 0} 篇脚本`],
+      stats: [`${poetTopicCount?.c ?? 0} 个自定义选题`, `${poetScriptCount?.c ?? 0} 篇脚本`],
     },
-  ];
-
-  const setupSteps = [
-    { label: "绑定对标账号", href: "#competitors", done: (boundCount?.c ?? 0) > 0 },
-    // A pinned competitor SOP satisfies this step too — writing just needs a SOP to follow, regardless of source.
-    { label: "用 Clerk 拆解频道生成 SOP", href: `/clerk/${a}`, done: !!currentSop },
-    { label: "生成并选用频道圣经", href: `/accounts/${a}/bible`, done: !!activeBible },
-    { label: "Muse 出选题", href: `/accounts/${a}/projects/${p}/muse`, done: (museIdeaCount?.c ?? 0) > 0 },
-    { label: "Poet 写稿", href: `/accounts/${a}/projects/${p}/poet`, done: (poetScriptCount?.c ?? 0) > 0 },
   ];
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-6 p-6 sm:p-8">
-      <BackLink href="/accounts" label="账号" />
+      <BackLink href={`/accounts/${a}`} label={channel.name} />
 
-      <header className="flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{channel.name}</h1>
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <Badge variant="secondary" className="font-mono text-[10px] uppercase">
-                {project.platform}
-              </Badge>
-              <Badge variant="outline" className="font-mono text-[10px]">
-                目标时长 {formatDurationLabel(project.targetDurationSeconds)}
-              </Badge>
-              <a
-                href={channel.platformUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="truncate font-mono text-xs hover:text-foreground"
-              >
-                {channel.platformUrl}
-              </a>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <ConvertToCompetitorButton channelId={channel.id} channelName={channel.name} />
-            <EditChannelSheet channel={channel} />
-          </div>
+      <header className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">{project.name}</h1>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <Link href={`/accounts/${a}`} className="hover:text-foreground hover:underline">
+            {channel.name}
+          </Link>
+          <span className="opacity-40">·</span>
+          <Badge variant="secondary" className="font-mono text-[10px] uppercase">
+            {project.platform}
+          </Badge>
+          <Badge variant="outline" className="font-mono text-[10px]">
+            目标时长 {formatDurationLabel(project.targetDurationSeconds)}
+          </Badge>
         </div>
-        {channel.description ? (
-          <p className="max-w-2xl text-sm text-muted-foreground">{channel.description}</p>
-        ) : null}
       </header>
 
-      <SetupChecklist steps={setupSteps} />
+      <Link
+        href={`/accounts/${a}/bible`}
+        className="flex items-center gap-2 rounded-md border bg-card/40 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+      >
+        <span className="size-[7px] rounded-full bg-poet" />
+        联动账号圣经：
+        <span className="font-medium text-foreground">{activeBible ? activeBible.name : "未设置"}</span>
+        {activeBible ? null : <span className="text-muted-foreground">· 去账号页设置</span>}
+      </Link>
 
-      <ProjectSopRow projectId={project.id} current={currentSop} />
-
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {tools.map((t) => (
-          <Link key={t.label} href={t.href}>
-            <Card className="transition-colors hover:bg-muted/50">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {entries.map((e) => (
+          <Link key={e.label} href={e.href}>
+            <Card className="h-full transition-colors hover:bg-muted/50">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <span className={`size-[9px] rounded-full ${t.dot}`} />
-                  {t.label}
+                <CardTitle className="flex items-center justify-between gap-2 text-base">
+                  <span className="flex items-center gap-2">
+                    <span className={`size-2.5 rounded-full ${e.dot}`} />
+                    {e.label}
+                  </span>
+                  <ArrowRight className="size-4 text-muted-foreground" />
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex flex-col gap-1">
-                  {t.lines.map((line) => (
-                    <span key={line} className="font-mono text-sm">
-                      {line}
-                    </span>
+              <CardContent className="flex flex-col gap-2">
+                <p className="text-sm text-muted-foreground">{e.desc}</p>
+                <div className="flex flex-wrap gap-2">
+                  {e.stats.map((s) => (
+                    <Badge key={s} variant="secondary" className="font-mono text-[10px]">
+                      {s}
+                    </Badge>
                   ))}
                 </div>
               </CardContent>
@@ -222,39 +205,45 @@ export default async function ProjectHubPage({ params }: Props) {
         ))}
       </section>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center justify-between gap-3 text-sm font-medium text-muted-foreground">
-            <span className="flex items-center gap-2">
-              <span className="size-[9px] rounded-full bg-poet" />
-              频道圣经
-            </span>
-            <Button variant="ghost" size="sm" render={<Link href={`/accounts/${a}/bible`} />}>
-              管理
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {activeBible ? (
-            <div className="flex items-center gap-2 text-sm">
-              <Badge variant="success" className="text-[10px]">已选用</Badge>
-              <span className="truncate font-medium">{activeBible.name}</span>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              还没有选用的圣经（{poetBibleCount?.c ?? 0} 本可选）。
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <p className="text-center text-xs text-muted-foreground">
+        Muse 出选题 →（一键导入）→ Poet 写稿
+      </p>
 
-      <div id="competitors" className="scroll-mt-20">
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-muted-foreground">Poet 写稿依据 · SOP</span>
+        <ProjectSopRow projectId={project.id} current={currentSop} />
+      </div>
+
+      <div id="competitors" className="flex scroll-mt-20 flex-col gap-1.5">
+        <span className="text-xs font-medium text-muted-foreground">Muse 巡视对象 · 对标账号</span>
         <ProjectCompetitorsCard
           projectId={project.id}
           accountSlug={channel.slug}
           projectSlug={project.slug}
         />
       </div>
+
+      {recentScripts.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-medium text-muted-foreground">最近脚本</h2>
+          <div className="flex flex-col gap-2">
+            {recentScripts.map((s) => (
+              <Link
+                key={s.id}
+                href={`/accounts/${a}/projects/${p}/poet/scripts/${s.id}`}
+                className="flex items-center justify-between gap-3 rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-muted/50"
+              >
+                <span className="font-mono text-xs text-muted-foreground">
+                  {formatDurationLabel(s.durationSeconds ?? 0)} · {s.wordCount ?? 0} 字
+                </span>
+                <span className="font-mono text-xs text-muted-foreground">
+                  {formatDateTime(s.generatedAt)}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

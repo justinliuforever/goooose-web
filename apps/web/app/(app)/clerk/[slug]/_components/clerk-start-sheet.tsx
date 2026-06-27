@@ -240,6 +240,9 @@ export function ClerkStartSheet({
                   </button>
                 ))}
               </div>
+              <p className="text-xs text-muted-foreground">
+                「从头分析」会重新拆这批视频，不会清空账号已拆的内容；分析后视频累计、SOP 自动刷新。要彻底重来，用上方的「清空重建」。
+              </p>
             </Field>
 
             {platform === "youtube" && source !== "urls" ? (

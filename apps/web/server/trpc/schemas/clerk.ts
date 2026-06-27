@@ -33,6 +33,16 @@ export const deleteSopInput = z.object({
   sopId: z.string().uuid(),
 });
 
+export const resetTargetInput = z
+  .object({
+    channelId: z.string().uuid().optional(),
+    competitorAccountId: z.string().uuid().optional(),
+  })
+  .refine((v) => (v.channelId == null) !== (v.competitorAccountId == null), {
+    message: "必须且只能指定一个目标（自有账号或对标账号）",
+    path: ["channelId"],
+  });
+
 export const detectSeriesInput = z.object({
   channelId: z.string().uuid(),
   videoCount: z.number().int().min(20).max(200).default(100),

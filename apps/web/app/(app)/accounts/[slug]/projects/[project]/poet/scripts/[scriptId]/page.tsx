@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/back-link";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
+import { sopTypeLabel } from "@/lib/sop-labels";
 import { ensureCurrentUser } from "@/lib/users";
 
 import { ScriptDetailActions } from "./_components/script-detail-actions";
@@ -151,7 +152,7 @@ export default async function ScriptDetailPage({ params }: Props) {
             引用的 SOP
           </h3>
           <p className="mt-2 text-sm">
-            {sop ? sop.sopType.replace(/_/g, " ") : "—"}
+            {sop ? sopTypeLabel(sop.sopType) : "—"}
           </p>
           {sop ? (
             <span className="text-xs text-muted-foreground">
