@@ -15,49 +15,6 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
-  apps/jobs:
-    dependencies:
-      '@ai-sdk/deepseek':
-        specifier: ^2.0.35
-        version: 2.0.35(zod@4.4.3)
-      '@singularity/db':
-        specifier: workspace:*
-        version: link:../../packages/db
-      '@singularity/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-      '@trigger.dev/sdk':
-        specifier: ^4.4.4
-        version: 4.4.6(ai@6.0.184(zod@4.4.3))(zod@4.4.3)
-      ai:
-        specifier: ^6.0.184
-        version: 6.0.184(zod@4.4.3)
-      drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(@opentelemetry/api@1.9.0)(postgres@3.4.9)
-      jsonrepair:
-        specifier: ^3.14.0
-        version: 3.14.0
-      p-limit:
-        specifier: ^6.2.0
-        version: 6.2.0
-      postgres:
-        specifier: ^3.4.9
-        version: 3.4.9
-      undici:
-        specifier: ^7.16.0
-        version: 7.25.0
-    devDependencies:
-      '@trigger.dev/build':
-        specifier: ^4.4.4
-        version: 4.4.6(magicast@0.3.5)(supports-color@10.2.2)(typescript@5.9.3)
-      trigger.dev:
-        specifier: ^4.4.4
-        version: 4.4.6(react@19.2.4)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
-
   apps/web:
     dependencies:
       '@ai-sdk/deepseek':
@@ -183,6 +140,49 @@ importers:
         version: 4.3.0
       typescript:
         specifier: ^5
+        version: 5.9.3
+
+  apps/worker:
+    dependencies:
+      '@ai-sdk/deepseek':
+        specifier: ^2.0.35
+        version: 2.0.35(zod@4.4.3)
+      '@singularity/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@singularity/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@trigger.dev/sdk':
+        specifier: ^4.4.4
+        version: 4.4.6(ai@6.0.184(zod@4.4.3))(zod@4.4.3)
+      ai:
+        specifier: ^6.0.184
+        version: 6.0.184(zod@4.4.3)
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@opentelemetry/api@1.9.0)(postgres@3.4.9)
+      jsonrepair:
+        specifier: ^3.14.0
+        version: 3.14.0
+      p-limit:
+        specifier: ^6.2.0
+        version: 6.2.0
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
+      undici:
+        specifier: ^7.16.0
+        version: 7.25.0
+    devDependencies:
+      '@trigger.dev/build':
+        specifier: ^4.4.4
+        version: 4.4.6(magicast@0.3.5)(supports-color@10.2.2)(typescript@5.9.3)
+      trigger.dev:
+        specifier: ^4.4.4
+        version: 4.4.6(react@19.2.4)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.0
         version: 5.9.3
 
   packages/db:

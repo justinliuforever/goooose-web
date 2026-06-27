@@ -7,7 +7,7 @@ const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
 const SOURCE = path.join(ROOT, ".env.local");
-const APPS = ["apps/web", "apps/jobs"];
+const APPS = ["apps/web", "apps/worker"];
 
 if (!fs.existsSync(SOURCE)) {
   console.log("[link-env] no root .env.local yet — skipping (set it up locally and re-run pnpm install)");
