@@ -47,11 +47,14 @@ export function ImportToPoetButton({
     );
   }
 
+  // createCustomTopicInput.topic requires min(5); a null/short story angle would 400 on import.
+  const importable = topic.trim().length >= 5;
+
   return (
     <Button
       size="sm"
       variant="outline"
-      disabled={create.isPending}
+      disabled={create.isPending || !importable}
       onClick={() =>
         create.mutate({
           channelId,

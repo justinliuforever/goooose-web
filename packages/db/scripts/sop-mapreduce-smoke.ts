@@ -74,7 +74,7 @@ function renderVideoAnalysisFields(v: typeof clerkVideos.$inferSelect): string {
 
 // Mirror of analyze-channel.ts VIDEOS_SUMMARY_NOTE + renderVideoSummaryBlock, REDUCE side.
 const VIDEOS_SUMMARY_NOTE =
-  `GROUNDING — write the SOP only from the per-video pattern summaries below. Each summary already distills one video's grounded techniques; never quote lines, cite [m:ss], invent a beat-by-beat structure, or assert per-video frequency counts beyond what the summaries state. If a video has no pattern summary, infer only from its title and label it inference. If most videos lack spoken detail, say so plainly and keep the SOP at the title/cover-pattern level instead of fabricating depth.\n\n`;
+  `GROUNDING — write the SOP only from the per-video pattern summaries below. Each summary already distills one video's grounded techniques; never quote lines, cite [m:ss], invent a beat-by-beat structure, or assert per-video frequency counts beyond what the summaries state. Put a phrase in quotation marks with a [Video N] citation ONLY if it appears verbatim in a summary; paraphrase or inference takes no quotes and no citation. If a video has no pattern summary, infer only from its title and label it inference. If most videos lack spoken detail, say so plainly and keep the SOP at the title/cover-pattern level instead of fabricating depth.\n\n`;
 
 function renderVideoSummaryBlock(
   v: typeof clerkVideos.$inferSelect,

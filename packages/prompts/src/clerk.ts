@@ -54,6 +54,11 @@ export const CHINESE_WRAPPER = (innerPrompt: string) =>
 
 ${innerPrompt}`;
 
+// Quote-grounding for the SOP reduce prompts (en path; the zh path's 不编造 lives in ZH_STYLE_GUIDE).
+// Stops the reduce from dressing up paraphrase/inference as a sourced verbatim quote.
+const QUOTE_GROUNDING_EN =
+  'Put a phrase in quotation marks and attach a [Video N]/[Partial N] source citation ONLY if that exact phrase appears verbatim in the provided summaries/partials. If you are paraphrasing, generalizing, or inferring, do NOT use quotation marks and do NOT attach a source citation. Never invent example lines, prompt fragments, numbers, names, or rhetorical questions and present them as sourced.';
+
 type SponsorChapterArg = {
   start_time: number;
   end_time: number;
@@ -204,6 +209,10 @@ export function buildVideoMapSummaryPrompt(args: VideoMapSummaryArgs): string {
       ? 'When you cite a moment, use the [m:ss] markers that actually appear in the transcript. Never invent a timecode.'
       : 'This transcript carries NO [m:ss] markers — locate moments approximately (opening / early / mid / late). Do NOT fabricate timecodes.';
 
+  // ASR can emit off-topic / wrong-language noise; treating that as real source produces invented "quotes".
+  const garbledRule =
+    'If the transcript is empty, garbled, clearly off-topic relative to the title, or in a language inconsistent with the title/content (a likely ASR error), TREAT IT AS NO TRANSCRIPT — do not quote or extract any lines, phrases, or parameters from it. Infer only from the title/cover and explicitly label those as inference. Never present an invented or ASR-noise line as a verbatim quote.';
+
   const transcriptBlock = args.transcript
     ? args.transcript.slice(0, 12000)
     : '[No transcript available — use title, cover signals, and the structured analysis only]';
@@ -233,6 +242,7 @@ Write compact markdown bullets (no headers above ###) covering, where the source
 
 Constraints:
 - ${tcRule}
+- ${garbledRule}
 - Ground EVERY claim in the title, structured analysis, or transcript above — do NOT invent specifics (prices, names, stats, quotes, timecodes) that are not present.
 - Keep it tight: ~300-550 words, compact bullets, NO preamble and NO closing summary. Start directly with the first bullet.`;
 
@@ -267,6 +277,7 @@ Write compact markdown bullets (no headers above ###) synthesizing ACROSS the vi
 
 Constraints:
 - Ground EVERY claim in the summaries above — never invent specifics (prices, names, stats, quotes, timecodes) not present. Carry through only the verbatim quotes and [m:ss] timecodes that already appear in the summaries; if a summary has no timecodes, locate moments approximately (opening / early / mid / late), never fabricate.
+- ${QUOTE_GROUNDING_EN}
 - Distinguish patterns that recur across multiple videos from one-offs; do not assert frequency counts beyond what the summaries state.
 - Keep it tight: ~400-700 words, compact bullets, NO preamble and NO closing summary. Start directly with the first bullet.`;
   return language === 'zh' ? CHINESE_WRAPPER(inner) : inner;
@@ -364,6 +375,7 @@ Translate the SOP into a 10-15-bullet actionable checklist a writer can tick bef
 2-column table (Element / Target) covering: ideal duration, hook duration, sponsor placement, sections count, visual-reveal cadence, anecdote count, CTA style — calibrated to the channel's top performers.
 
 Format as clean markdown. Cite \`[m:ss]\` timestamps from the analyzed transcripts wherever quoting a line — do NOT invent timestamps.
+${QUOTE_GROUNDING_EN}
 `;
   const note = transcriptCoverageNote(args.transcriptCount, args.videoCount);
   return args.language === 'zh' ? CHINESE_WRAPPER(note + inner) : note + inner;
@@ -381,6 +393,7 @@ Write the ENTIRE document in English (it is read by an AI scriptwriter, not an e
 The data below is a set of per-video pattern summaries — each distills one video's reusable techniques (hook, structure, retention, CTA, signature moves). Synthesize ACROSS them into the channel's repeated patterns.
 
 GROUNDING (critical): Use ONLY facts, numbers, prices, product/model names, handles, quotes, and [m:ss] timestamps that appear in the Analyzed Videos Data above. Never invent specifics not in the source — omit them, generalize, or tag "[unverified]" instead. Every [m:ss] you cite must actually exist in the provided summaries; if a summary carries no timestamps, do not fabricate them — describe position approximately (early / mid / late) instead.
+${QUOTE_GROUNDING_EN}
 
 ## Analyzed Videos Data
 ${args.videosData}

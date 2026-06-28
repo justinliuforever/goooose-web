@@ -128,6 +128,7 @@ Rules:
 5. Feel native to the target channel.
 6. Vary the ANGLE TYPE across the batch — e.g. engineering deep-dive, myth-busting / expectation check, hands-on experiment, side-by-side comparison, data-driven story, prediction. At most 2 ideas may share an angle type, and story_angle phrasing must not repeat one sentence pattern across ideas.
 7. Stay inside the target channel's niche — drop an idea rather than drift into adjacent lifestyle / marketing / general-interest territory.
+8. Do NOT fabricate. Do not claim first-person experience, experiments, tests, or case-counts the channel hasn't actually done; do not invent statistics, sample sizes, prices, dates, or names. If a useful fact isn't grounded in the source, mark it "(needs verification)" or omit it. This applies to every field — story_angle, why_similar, viral_trigger included, not just facts_and_data.
 
 Return JSON:
 {

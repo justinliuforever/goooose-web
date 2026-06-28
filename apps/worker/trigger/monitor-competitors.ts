@@ -479,11 +479,12 @@ export const monitorCompetitors = task({
       }
 
       // Recovery: pull DB rows that are relevant but never got ideas (prior
-      // run killed by MAX_DURATION_EXCEEDED before idea-gen).
+      // run killed by MAX_DURATION_EXCEEDED before idea-gen). Scope to projectId
+      // (not channelId) so a sibling project's content isn't pulled in.
       const alreadyIdeated = await db
         .select({ id: museIdeas.sourceVideoId })
         .from(museIdeas)
-        .where(eq(museIdeas.channelId, channel.id));
+        .where(eq(museIdeas.projectId, projectId));
       const ideatedIds = alreadyIdeated
         .map((r) => r.id)
         .filter((id): id is string => id !== null);
@@ -498,7 +499,7 @@ export const monitorCompetitors = task({
         .from(museMonitorVideos)
         .where(
           and(
-            eq(museMonitorVideos.channelId, channel.id),
+            eq(museMonitorVideos.projectId, projectId),
             eq(museMonitorVideos.relevant, true),
             ideatedIds.length > 0
               ? notInArray(museMonitorVideos.id, ideatedIds)
