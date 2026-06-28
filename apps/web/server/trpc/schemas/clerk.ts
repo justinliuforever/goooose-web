@@ -23,6 +23,12 @@ export const startAnalysisInput = z
 
 export type StartAnalysisInput = z.infer<typeof startAnalysisInput>;
 
+// Single-video deep-dive SOP on an already-analyzed clerk_videos row.
+export const generateVideoSopInput = z.object({
+  videoId: z.string().uuid(),
+  language: z.enum(["en", "zh"]).default("zh"),
+});
+
 export const runStatusInput = z.object({
   runId: z.string().uuid(),
 });

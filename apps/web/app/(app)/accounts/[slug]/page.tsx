@@ -153,16 +153,20 @@ export default async function AccountDetailPage({ params }: Props) {
 
       <Link
         href={`/clerk/${a}`}
-        className="flex w-fit items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        className="flex w-full items-center justify-between gap-3 rounded-lg border border-clerk/40 bg-clerk/5 p-3 transition-colors hover:bg-clerk/10"
       >
-        <span className="size-[7px] rounded-full bg-clerk" />
-        在 Clerk 复盘这个账号
-        <span className="text-muted-foreground/70">
-          {analyzed
-            ? `· 已拆 ${clerkVideoCount?.c ?? 0} ${itemNoun} · ${clerkSopCount?.c ?? 0} 份 SOP`
-            : "· 可选，拆解自己发过的内容找规律"}
-        </span>
-        →
+        <div className="flex items-center gap-2.5">
+          <span className="size-2 shrink-0 rounded-full bg-clerk" />
+          <div className="flex flex-col">
+            <span className="text-sm font-medium">在 Clerk 复盘这个账号</span>
+            <span className="text-xs text-muted-foreground">
+              {analyzed
+                ? `已拆 ${clerkVideoCount?.c ?? 0} ${itemNoun} · ${clerkSopCount?.c ?? 0} 份 SOP`
+                : "可选，拆解自己发过的内容找规律"}
+            </span>
+          </div>
+        </div>
+        <span className="text-muted-foreground">→</span>
       </Link>
     </div>
   );

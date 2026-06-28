@@ -54,6 +54,7 @@ import {
 import {
   deleteSopInput,
   detectSeriesInput,
+  generateVideoSopInput,
   listSeriesInput,
   resetTargetInput,
   runStatusInput,
@@ -1054,6 +1055,48 @@ export const appRouter = router({
           owner,
           agent: "clerk",
           taskId: "clerk-analyze-channel",
+          config,
+          payload: config,
+        });
+      }),
+
+    // Deep-dive SOP for a single already-analyzed video. Writes a single_video SOP keyed
+    // to that video, leaving the channel SOPs untouched.
+    generateVideoSop: protectedProcedure
+      .input(generateVideoSopInput)
+      .mutation(async ({ ctx, input }) => {
+        const [video] = await db
+          .select({
+            id: clerkVideos.id,
+            channelId: clerkVideos.channelId,
+            competitorAccountId: clerkVideos.competitorAccountId,
+            transcript: clerkVideos.transcript,
+          })
+          .from(clerkVideos)
+          .leftJoin(channels, eq(channels.id, clerkVideos.channelId))
+          .leftJoin(competitorAccounts, eq(competitorAccounts.id, clerkVideos.competitorAccountId))
+          .where(
+            and(
+              eq(clerkVideos.id, input.videoId),
+              or(eq(channels.userId, ctx.user.id), eq(competitorAccounts.userId, ctx.user.id)),
+            ),
+          )
+          .limit(1);
+        if (!video) throw new TRPCError({ code: "NOT_FOUND", message: "视频不存在" });
+        if (!video.transcript || !video.transcript.trim()) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "该视频没有字幕/转写，无法生成单条拆解" });
+        }
+
+        const owner: { channelId: string } | { competitorAccountId: string } = video.channelId
+          ? { channelId: video.channelId }
+          : { competitorAccountId: video.competitorAccountId! };
+        await assertNoActiveRun(owner, "clerk");
+
+        const config = { videoId: video.id, language: input.language };
+        return stageAndTriggerRun({
+          owner,
+          agent: "clerk",
+          taskId: "clerk-analyze-single-video",
           config,
           payload: config,
         });

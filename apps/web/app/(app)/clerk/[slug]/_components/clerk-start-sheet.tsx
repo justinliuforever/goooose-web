@@ -71,6 +71,20 @@ const MODE_OPTIONS: Array<{ value: Mode; label: string; hint: string }> = [
   { value: "incremental", label: "仅新视频", hint: "跳过已经分析过的视频" },
 ];
 
+// Mirror the worker's id extraction (xhs.ts / analyze-channel.ts) so a paste that can't
+// resolve to a note/video id is caught before the run — including share-card text blobs
+// where the URL is wrapped in title/emoji.
+function lineResolvesToId(line: string, platform: "youtube" | "xhs"): boolean {
+  if (platform === "xhs") {
+    return /^[a-f0-9]{16,32}$/i.test(line) || /(?:explore|discovery\/item)\/[a-f0-9]{16,32}/i.test(line);
+  }
+  return (
+    /^[A-Za-z0-9_-]{11}$/.test(line) ||
+    /[?&]v=[A-Za-z0-9_-]{11}/.test(line) ||
+    /(?:youtu\.be|\/shorts|\/live|\/embed|\/v)\/[A-Za-z0-9_-]{11}/.test(line)
+  );
+}
+
 export function ClerkStartSheet({
   target,
   channelName,
@@ -117,6 +131,15 @@ export function ClerkStartSheet({
     if (source === "urls" && videoIds.length === 0) {
       setError(platform === "xhs" ? "请粘贴至少 1 个小红书笔记 URL" : "请粘贴至少 1 个视频 URL");
       return;
+    }
+    if (source === "urls") {
+      const unresolved = videoIds.filter((line) => !lineResolvesToId(line, platform));
+      if (unresolved.length > 0) {
+        setError(
+          `有 ${unresolved.length} 行无法识别为${itemLabel}链接（支持直接粘贴分享文字/链接），请检查后重试`,
+        );
+        return;
+      }
     }
     const recencyMonths =
       recency === "all" ? null : (Number.parseInt(recency, 10) as 1 | 3 | 6);

@@ -84,6 +84,13 @@ type RunOwner = {
 function extractYoutubeVideoIdLocal(input: string): string | null {
   const s = input.trim();
   if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  // Pasted text can wrap the URL in title/emoji, so new URL(s) throws on the whole
+  // string — scan for an embedded watch/shorts/youtu.be id first (anchored to its
+  // URL context so an arbitrary 11-char substring can't false-match).
+  const embedded =
+    s.match(/[?&]v=([A-Za-z0-9_-]{11})/) ??
+    s.match(/(?:youtu\.be|\/shorts|\/live|\/embed|\/v)\/([A-Za-z0-9_-]{11})/);
+  if (embedded) return embedded[1]!;
   try {
     const parsed = new URL(s);
     if (parsed.hostname.includes("youtu.be")) {

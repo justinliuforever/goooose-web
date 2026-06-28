@@ -97,6 +97,9 @@ export const clerkSops = pgTable(
     // one-owner CHECK when a competitor is deleted (0018 rebuilds the FK).
     competitorAccountId: uuid("competitor_account_id").references(() => competitorAccounts.id, { onDelete: "cascade" }),
     sopType: sopTypeEnum("sop_type").notNull(),
+    // single_video SOPs are tied to one analyzed video; channel-level SOPs
+    // (human/ai_reference/hottest) keep this NULL (0024).
+    videoId: uuid("video_id").references(() => clerkVideos.id, { onDelete: "set null" }),
     language: text("language").notNull().default("zh"),
     contentMd: text("content_md").notNull(),
     generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -108,6 +111,11 @@ export const clerkSops = pgTable(
     competitorIdx: index("clerk_sops_competitor_idx")
       .on(table.competitorAccountId)
       .where(sql`${table.competitorAccountId} is not null`),
+    // Re-run a single video → replace its prior SOP (per language), without touching the
+    // channel SOPs (their video_id is NULL, so this partial index ignores them).
+    singleVideoUnique: uniqueIndex("clerk_sops_single_video_unique")
+      .on(table.videoId, table.language)
+      .where(sql`${table.sopType} = 'single_video' AND ${table.videoId} is not null`),
   })
 );
 

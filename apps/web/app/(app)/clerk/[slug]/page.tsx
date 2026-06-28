@@ -10,6 +10,7 @@ import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/ui/button";
 import { ContentTypeBadge } from "../_components/content-type-badge";
 import { ResetTargetButton } from "../_components/reset-target-button";
+import { SingleVideoSopButton } from "../_components/single-video-sop-button";
 import { SopCard } from "../_components/sop-card";
 import { TranscriptSourceBadge } from "../_components/transcript-source-badge";
 import {
@@ -61,7 +62,7 @@ export default async function ClerkChannelPage({ params }: Props) {
       .from(clerkSops)
       .where(eq(clerkSops.channelId, channel.id))
       .orderBy(desc(clerkSops.generatedAt)),
-    getActiveAgentRun(channel.id, user.id, "clerk"),
+    getActiveAgentRun(channel.id, user.id, "clerk", "clerk-analyze-channel"),
     channel.platform === "youtube"
       ? db
           .select()
@@ -80,7 +81,12 @@ export default async function ClerkChannelPage({ params }: Props) {
   const sortedSops = [...sops].sort(
     (a, b) => (sopOrder[a.sopType] ?? 99) - (sopOrder[b.sopType] ?? 99),
   );
-  const primarySops = sortedSops.filter((s) => s.sopType !== "ai_reference");
+  // Channel-level SOPs (the account's 3 main docs) stay in the primary section; per-video
+  // 单条拆解 SOPs get their own collapsed section so they don't crowd it out.
+  const primarySops = sortedSops.filter(
+    (s) => s.sopType !== "ai_reference" && s.sopType !== "single_video",
+  );
+  const singleVideoSops = sortedSops.filter((s) => s.sopType === "single_video");
   const aiReferenceSops = sortedSops.filter((s) => s.sopType === "ai_reference");
 
   return (
@@ -145,6 +151,7 @@ export default async function ClerkChannelPage({ params }: Props) {
             <TableHead className="w-20">{isXhs ? "互动分" : "播放量"}</TableHead>
             <TableHead className="w-20">时长</TableHead>
             <TableHead className="hidden w-28 md:table-cell">分析时间</TableHead>
+            <TableHead className="w-28 text-right">单条拆解</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -185,6 +192,9 @@ export default async function ClerkChannelPage({ params }: Props) {
               <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">
                 {formatDateTime(v.analyzedAt)}
               </TableCell>
+              <TableCell className="text-right">
+                <SingleVideoSopButton videoId={v.id} hasTranscript={!!v.transcript} />
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -211,6 +221,19 @@ export default async function ClerkChannelPage({ params }: Props) {
             ))}
           </div>
         </section>
+      ) : null}
+
+      {singleVideoSops.length > 0 ? (
+        <details className="flex flex-col gap-3 rounded-lg border bg-card/50 p-4 text-sm" open>
+          <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+            单条拆解 SOP（{singleVideoSops.length}）· 针对单条视频的深度拆解
+          </summary>
+          <div className="mt-3 flex flex-col gap-4">
+            {singleVideoSops.map((sop) => (
+              <SopCard key={sop.id} sop={sop} showDelete />
+            ))}
+          </div>
+        </details>
       ) : null}
 
       {aiReferenceSops.length > 0 ? (

@@ -21,6 +21,10 @@ export async function getActiveAgentRun(
   owner: string | AgentRunOwner,
   userId: string,
   agent: "clerk" | "muse" | "poet",
+  // Optional command filter: clerk now has two commands (channel analysis + single-video
+  // SOP). The channel run button must reattach only to its own command, not hijack a
+  // single-video run's progress panel.
+  command?: string,
 ): Promise<ActiveAgentRun | null> {
   const ownerObj: AgentRunOwner = typeof owner === "string" ? { channelId: owner } : owner;
   const ownerCond =
@@ -42,6 +46,7 @@ export async function getActiveAgentRun(
         ownerCond,
         or(eq(channels.userId, userId), eq(competitorAccounts.userId, userId)),
         eq(pipelineRuns.agent, agent),
+        ...(command ? [eq(pipelineRuns.command, command)] : []),
         inArray(pipelineRuns.status, ["pending", "running"]),
         // Same 30-min orphan cutoff as assertNoActiveRun: stale pending rows
         // (failed/expired trigger, seeded row) must not show as active forever.

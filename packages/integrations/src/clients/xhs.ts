@@ -72,6 +72,10 @@ export function extractXhsUserId(input: string): string | null {
 export function extractXhsNoteId(input: string): string | null {
   const s = input.trim();
   if (XHS_NOTE_ID_RE.test(s)) return s;
+  // Share-card pastes wrap the URL in title/emoji text ("60 【…】 😆 token 😆 https://…/explore/<id>"),
+  // so new URL(s) throws on the whole string. Scan for an embedded note URL anywhere first.
+  const embedded = s.match(/(?:explore|discovery\/item)\/([a-f0-9]{16,32})/i);
+  if (embedded) return embedded[1]!;
   try {
     const parsed = new URL(s);
     const m = parsed.pathname.match(/\/(?:explore|discovery\/item)\/([a-f0-9]{16,32})/i);
@@ -96,16 +100,7 @@ export function isValidXhsProfileUrl(input: string): boolean {
 }
 
 export function isValidXhsNoteUrl(input: string): boolean {
-  const s = input.trim();
-  if (!s) return false;
-  if (XHS_NOTE_ID_RE.test(s)) return true;
-  try {
-    const u = new URL(s);
-    if (!u.hostname.endsWith("xiaohongshu.com")) return false;
-    return /\/(?:explore|discovery\/item)\/[a-f0-9]{16,32}/i.test(u.pathname);
-  } catch {
-    return false;
-  }
+  return extractXhsNoteId(input) !== null;
 }
 
 export function extractXsecToken(input: string): string | null {
