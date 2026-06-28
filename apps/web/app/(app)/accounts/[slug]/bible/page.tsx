@@ -5,12 +5,14 @@ import { channels, poetBible } from "@singularity/db";
 
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/back-link";
+import { getActiveAgentRun } from "@/lib/agent-run";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
 import { BibleGenerateSheet } from "../projects/[project]/poet/_components/bible-generate-sheet";
 import { BibleHistory } from "../projects/[project]/poet/_components/bible-history";
+import { BibleRunProgress } from "./_components/bible-run-progress";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -29,11 +31,18 @@ export default async function AccountBiblePage({ params }: Props) {
   if (!channel || channel.userId !== user.id) notFound();
 
   // Bible rows stay channel_id-authoritative during expand (project.id == channel.id).
-  const bibles = await db
-    .select()
-    .from(poetBible)
-    .where(eq(poetBible.channelId, channel.id))
-    .orderBy(desc(poetBible.updatedAt));
+  const [bibles, poetRun] = await Promise.all([
+    db
+      .select()
+      .from(poetBible)
+      .where(eq(poetBible.channelId, channel.id))
+      .orderBy(desc(poetBible.updatedAt)),
+    getActiveAgentRun(channel.id, user.id, "poet"),
+  ]);
+
+  // Only watch a bible run here — an active script run belongs to the project poet page.
+  const activeBibleRun =
+    poetRun && poetRun.command === "poet-generate-bible" ? poetRun : null;
 
   const a = encodeURIComponent(channel.slug);
   const activeBible = bibles.find((b) => b.isActive) ?? null;
@@ -57,6 +66,19 @@ export default async function AccountBiblePage({ params }: Props) {
           buttonVariant="outline"
         />
       </header>
+
+      <BibleRunProgress
+        initialActive={
+          activeBibleRun
+            ? {
+                runId: activeBibleRun.runId,
+                triggerRunId: activeBibleRun.triggerRunId,
+                publicAccessToken: activeBibleRun.publicAccessToken,
+                startedAt: activeBibleRun.startedAt,
+              }
+            : null
+        }
+      />
 
       {activeBible ? (
         <article className="flex flex-col gap-3 rounded-lg border bg-card p-5">

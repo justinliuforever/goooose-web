@@ -1,11 +1,13 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
 import { AgentTimeline, type Stage } from "@/components/agent-timeline";
+import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 
 const POET_BIBLE_STAGES: Stage[] = [
@@ -102,12 +104,24 @@ export function PoetRunProgress({ initialActive, accountSlug, projectSlug }: Pro
       : mountedAt
     : null;
 
+  const cancel = trpc.pipeline.cancelRun.useMutation({
+    onSuccess: () => {
+      if (active) setSettledIds((prev) => new Set(prev).add(active.triggerRunId));
+      toast.success("已取消");
+      utils.invalidate();
+      router.refresh();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   if (!active || !startedAt) return null;
 
   return (
     <ProgressCard
       active={active}
       startedAt={startedAt}
+      onCancel={() => cancel.mutate({ runId: active.runId })}
+      canceling={cancel.isPending}
       onProgressTick={() => {
         utils.invalidate();
         router.refresh();
@@ -144,11 +158,15 @@ function ProgressCard({
   startedAt,
   onSettled,
   onProgressTick,
+  onCancel,
+  canceling,
 }: {
   active: ActiveRun;
   startedAt: number;
   onSettled: (ok: boolean, message?: string, scriptId?: string) => void;
   onProgressTick: (phase: string | undefined) => void;
+  onCancel?: () => void;
+  canceling?: boolean;
 }) {
   const { run, error } = useRealtimeRun(active.triggerRunId, {
     accessToken: active.publicAccessToken,
@@ -248,11 +266,26 @@ function ProgressCard({
 
   return (
     <div className="flex w-full flex-col gap-3 rounded-lg border bg-card p-4">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-medium text-foreground">
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <span className="min-w-0 truncate font-medium text-foreground">
           {kindLabel} · {phaseLabel}
+          <span className="font-normal text-muted-foreground"> · 完成前无法启动同 agent 新任务</span>
         </span>
-        <span className="font-mono text-muted-foreground">{elapsed}</span>
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="font-mono text-muted-foreground">{elapsed}</span>
+          {onCancel ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+              onClick={onCancel}
+              disabled={canceling}
+            >
+              <X className="size-3" />
+              {canceling ? "取消中…" : "取消"}
+            </Button>
+          ) : null}
+        </span>
       </div>
       <AgentTimeline stages={stages} currentPhase={progress?.phase} accentClass="text-poet" />
       {total > 0 ? (

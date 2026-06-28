@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -8,6 +8,8 @@ import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
 import { AgentTimeline, type Stage } from "@/components/agent-timeline";
 import { AnimatedNumber } from "@/components/animated-number";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EtaHint } from "@/components/eta-hint";
 import { SuccessCheck } from "@/components/success-check";
 import { trpc } from "@/lib/trpc";
@@ -50,6 +52,7 @@ export type LastProcessed = {
 } | null;
 
 type Props = {
+  runId: string;
   triggerRunId: string;
   accessToken: string;
   startedAt: Date | string | null;
@@ -98,6 +101,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function MuseRunProgressPanel({
+  runId,
   triggerRunId,
   accessToken,
   startedAt,
@@ -106,6 +110,14 @@ export function MuseRunProgressPanel({
 }: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
+  const cancel = trpc.pipeline.cancelRun.useMutation({
+    onSuccess: () => {
+      toast.success("已取消巡视。再次启动会从已分类的相关视频继续生成选题。");
+      utils.invalidate();
+      router.refresh();
+    },
+    onError: (err) => toast.error(err.message),
+  });
   const { run, error } = useRealtimeRun(triggerRunId, {
     accessToken,
     throttleInMs: 500,
@@ -188,20 +200,46 @@ export function MuseRunProgressPanel({
   return (
     <section className="grid grid-cols-1 gap-4 rounded-lg border bg-card p-5 lg:grid-cols-[5fr_7fr]">
 <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <span className="flex items-center gap-2 text-sm font-medium">
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
             {done ? (
               <SuccessCheck className="size-3.5 text-muse" />
             ) : (
               <Loader2 className="size-3.5 animate-spin text-muse" />
             )}
-            {phaseLabel}
+            <span className="truncate">{phaseLabel}</span>
+            {done ? null : (
+              <span className="truncate text-xs font-normal text-muted-foreground">
+                · 完成前无法启动同 agent 新任务
+              </span>
+            )}
           </span>
-          <span className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
+          <span className="flex shrink-0 items-center gap-2 font-mono text-xs text-muted-foreground">
             {done ? null : (
               <EtaHint jobKey="muse.monitor" liveSec={progressData?.estSecondsRemaining} />
             )}
             <span>{elapsed}</span>
+            {done ? null : (
+              <ConfirmDialog
+                title="取消当前巡视？"
+                description="已分类的相关视频会保留，下次启动巡视时会自动补齐选题。"
+                confirmLabel="取消巡视"
+                cancelLabel="继续巡视"
+                disabled={cancel.isPending}
+                onConfirm={() => cancel.mutate({ runId })}
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+                    disabled={cancel.isPending}
+                  >
+                    <X className="size-3" />
+                    {cancel.isPending ? "取消中…" : "取消"}
+                  </Button>
+                }
+              />
+            )}
           </span>
         </div>
 

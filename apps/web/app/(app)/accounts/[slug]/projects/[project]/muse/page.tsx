@@ -31,8 +31,6 @@ import { getActiveAgentRun } from "@/lib/agent-run";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
-import { ActiveRunsBanner } from "@/components/active-runs-banner";
-
 import { IdeaApproveToggle } from "./_components/idea-approve-toggle";
 import { ImportToPoetButton } from "./_components/import-to-poet-button";
 import { MuseRunButton } from "./_components/muse-run-button";
@@ -273,14 +271,13 @@ export default async function MuseChannelPage({ params }: Props) {
         </section>
       ) : null}
 
-      <ActiveRunsBanner channelId={channel.id} />
-
-      {activeRun && liveStats ? (
+      {activeRun ? (
         <MuseRunProgressPanel
+          runId={activeRun.runId}
           triggerRunId={activeRun.triggerRunId}
           accessToken={activeRun.publicAccessToken}
           startedAt={activeRun.startedAt ?? null}
-          liveStats={liveStats}
+          liveStats={liveStats ?? { monitored: 0, relevant: 0, irrelevant: 0, ideas: 0 }}
           lastProcessed={lastProcessed}
         />
       ) : null}

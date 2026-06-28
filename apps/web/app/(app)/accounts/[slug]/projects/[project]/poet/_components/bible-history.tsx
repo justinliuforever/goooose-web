@@ -27,6 +27,8 @@ export function BibleHistory({ bibles }: Props) {
   const activate = trpc.poet.activateBible.useMutation({
     onSuccess: () => {
       toast.success("已切换激活版本");
+      // Persistent header bible chip reads channels.context (60s staleTime) — force it.
+      void utils.channels.context.invalidate();
       utils.invalidate();
       router.refresh();
     },

@@ -27,7 +27,6 @@ import { ensureCurrentUser } from "@/lib/users";
 import { DeleteScriptButton } from "./_components/delete-script-button";
 import { CustomTopicActions } from "./_components/custom-topic-actions";
 import { CustomTopicCreateSheet } from "./_components/custom-topic-create-sheet";
-import { ActiveRunsBanner } from "@/components/active-runs-banner";
 
 import { PoetRunProgress } from "./_components/poet-run-progress";
 import { WriteScriptButton } from "./_components/write-script-button";
@@ -123,8 +122,6 @@ export default async function PoetChannelPage({ params }: Props) {
           </Badge>
         </div>
       </header>
-
-      <ActiveRunsBanner channelId={channel.id} />
 
       <PoetRunProgress
         accountSlug={slug}
