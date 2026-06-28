@@ -22,6 +22,7 @@ import {
   buildAiSopReferencePrompt,
   buildHottestSopPrompt,
   buildHumanSopPrompt,
+  buildSopPartialReducePrompt,
   buildVideoAnalysisPrompt,
 } from "@singularity/prompts/clerk";
 import {
@@ -189,25 +190,160 @@ function renderVideoAnalysisFields(v: typeof clerkVideos.$inferSelect): string {
   return lines.join("\n");
 }
 
+const VIDEOS_SUMMARY_NOTE =
+  `GROUNDING — write the SOP only from the per-video pattern summaries below. Each summary already distills one video's grounded techniques; never quote lines, cite [m:ss], invent a beat-by-beat structure, or assert per-video frequency counts beyond what the summaries state. If a video has no pattern summary, infer only from its title and label it inference. If most videos lack spoken detail, say so plainly and keep the SOP at the title/cover-pattern level instead of fabricating depth.\n\n`;
+
+// Render ONE video as its header + cached map summary. Extracted so the budget packer
+// can size each block before deciding single vs hierarchical reduce. `index` is the
+// 1-based label shown to the LLM.
+function renderVideoSummaryBlock(
+  v: typeof clerkVideos.$inferSelect,
+  summaries: Map<string, string>,
+  index: number,
+): string {
+  const lines: string[] = [];
+  lines.push(`### Video ${index}: "${v.title || "(untitled)"}"`);
+  lines.push(`- Views: ${v.views?.toLocaleString("en-US") ?? "unknown"}`);
+  lines.push(`- Duration: ${v.durationSec ?? "unknown"}s`);
+  lines.push(`- Transcript source: ${v.transcriptSource ?? "none"}`);
+  const summary = summaries.get(v.id);
+  lines.push(summary ? `\n${summary}` : "- (no pattern summary available for this video)");
+  return lines.join("\n");
+}
+
 // REDUCE-side context: render each video as its cached map summary (NOT the raw transcript),
 // so the SOP prompts get a bounded string regardless of transcript length or video count.
 function buildVideosSummaryText(
   videos: Array<typeof clerkVideos.$inferSelect>,
   summaries: Map<string, string>,
 ): string {
-  const blocks = videos.map((v, i) => {
-    const lines: string[] = [];
-    lines.push(`### Video ${i + 1}: "${v.title || "(untitled)"}"`);
-    lines.push(`- Views: ${v.views?.toLocaleString("en-US") ?? "unknown"}`);
-    lines.push(`- Duration: ${v.durationSec ?? "unknown"}s`);
-    lines.push(`- Transcript source: ${v.transcriptSource ?? "none"}`);
-    const summary = summaries.get(v.id);
-    lines.push(summary ? `\n${summary}` : "- (no pattern summary available for this video)");
-    return lines.join("\n");
+  const blocks = videos.map((v, i) => renderVideoSummaryBlock(v, summaries, i + 1));
+  return VIDEOS_SUMMARY_NOTE + blocks.join("\n\n");
+}
+
+// SOP reduce context budget (chars). A safe slice of DeepSeek V4 Pro's ~64k-token window,
+// leaving room for the SOP prompt template + 16k output tokens. Map summaries average ~1k
+// chars, so this fits ~70+ videos in a single reduce. Below budget → single reduce (the
+// common case, zero behavior change). Above → hierarchical reduce (no video dropped).
+const REDUCE_CHAR_BUDGET = 80_000;
+// Per-chunk render cap for the hierarchical path — smaller than the budget so each partial
+// reduce call has its own headroom for the partial-reduce prompt + output.
+const REDUCE_CHUNK_BUDGET = 55_000;
+// Hard cap on recursion depth. One level covers hundreds of videos; the cap only guards a
+// pathological case (e.g. many huge summaries) — we never silently truncate beyond it.
+const REDUCE_MAX_RECURSION = 2;
+
+// Greedy-pack ordered render strings into chunks each ≤ chunkBudget chars (a single block
+// larger than the budget becomes its own chunk rather than being dropped).
+function packBlocksIntoChunks(blocks: string[], chunkBudget: number): string[][] {
+  const chunks: string[][] = [];
+  let current: string[] = [];
+  let currentLen = 0;
+  for (const block of blocks) {
+    const blockLen = block.length + 2; // "\n\n" join cost
+    if (current.length > 0 && currentLen + blockLen > chunkBudget) {
+      chunks.push(current);
+      current = [];
+      currentLen = 0;
+    }
+    current.push(block);
+    currentLen += blockLen;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+// Run ONE partial-reduce LLM call over a chunk's concatenated summary text. On failure,
+// fall back to the raw chunk text so the chunk's content is never dropped.
+async function reduceOneChunk(args: {
+  chunkText: string;
+  language: "en" | "zh";
+  chunkLabel: string;
+}): Promise<string> {
+  try {
+    const prompt = buildSopPartialReducePrompt({
+      videosData: args.chunkText,
+      language: args.language,
+    });
+    const result = await generateText({
+      model: llm("pro"),
+      prompt,
+      maxOutputTokens: 4096,
+      temperature: 0.4,
+      maxRetries: 2,
+    });
+    const cleaned = safeText(result.text);
+    if (cleaned) return cleaned;
+    logger.warn(
+      `SOP partial reduce ${args.chunkLabel}: empty response — falling back to raw chunk summaries`,
+    );
+  } catch (err) {
+    logger.warn(
+      `SOP partial reduce ${args.chunkLabel} failed (${(err as Error).message?.slice(0, 120)}) — falling back to raw chunk summaries`,
+    );
+  }
+  // Resilience: keep the chunk's content rather than dropping it.
+  return args.chunkText;
+}
+
+// Reduce an ordered list of summary blocks down to a single videosData string ≤ budget.
+// ≤ budget → single string as today. Otherwise: pack into chunks, partial-reduce each chunk
+// CONCURRENTLY into a compact partial pattern set, concatenate, and recurse if still over.
+// Type-agnostic and run once (shared by both SOP types). Never drops a block.
+async function buildReducedVideosData(args: {
+  blocks: string[];
+  language: "en" | "zh";
+  videoCount: number;
+  limitFn: <T>(fn: () => Promise<T>) => Promise<T>;
+  depth?: number;
+}): Promise<string> {
+  const { blocks, language, videoCount, limitFn } = args;
+  const depth = args.depth ?? 0;
+  const joined = blocks.join("\n\n");
+
+  if (VIDEOS_SUMMARY_NOTE.length + joined.length <= REDUCE_CHAR_BUDGET) {
+    return VIDEOS_SUMMARY_NOTE + joined;
+  }
+
+  if (depth >= REDUCE_MAX_RECURSION) {
+    logger.warn(
+      `SOP hierarchical reduce hit recursion cap (${REDUCE_MAX_RECURSION}) at ${blocks.length} blocks (${joined.length} chars) — passing through without further reduction (no truncation).`,
+    );
+    return VIDEOS_SUMMARY_NOTE + joined;
+  }
+
+  const chunks = packBlocksIntoChunks(blocks, REDUCE_CHUNK_BUDGET);
+  const partials = await Promise.all(
+    chunks.map((chunk, i) =>
+      limitFn(() =>
+        reduceOneChunk({
+          chunkText: VIDEOS_SUMMARY_NOTE + chunk.join("\n\n"),
+          language,
+          chunkLabel: `L${depth + 1} chunk ${i + 1}/${chunks.length}`,
+        }),
+      ),
+    ),
+  );
+
+  // Re-wrap each partial as a labeled block so the next level / final SOP sees structured input.
+  const partialBlocks = partials.map(
+    (p, i) => `### Partial pattern set ${i + 1} of ${partials.length}\n\n${p}`,
+  );
+  const partialsChars = partialBlocks.join("\n\n").length;
+  logger.info(
+    `Hierarchical SOP reduce: ${videoCount} videos → ${chunks.length} chunks → partials (${partialsChars} chars) → ${
+      VIDEOS_SUMMARY_NOTE.length + partialsChars <= REDUCE_CHAR_BUDGET ? "final SOP" : "recurse"
+    } (level ${depth + 1})`,
+  );
+
+  // Recurse if the concatenated partials still exceed budget (hundreds of videos).
+  return buildReducedVideosData({
+    blocks: partialBlocks,
+    language,
+    videoCount,
+    limitFn,
+    depth: depth + 1,
   });
-  const note =
-    `GROUNDING — write the SOP only from the per-video pattern summaries below. Each summary already distills one video's grounded techniques; never quote lines, cite [m:ss], invent a beat-by-beat structure, or assert per-video frequency counts beyond what the summaries state. If a video has no pattern summary, infer only from its title and label it inference. If most videos lack spoken detail, say so plainly and keep the SOP at the title/cover-pattern level instead of fabricating depth.\n\n`;
-  return note + blocks.join("\n\n");
 }
 
 async function parseCommentsSummaryJson(raw: string): Promise<CommentsSummary | null> {
@@ -1218,16 +1354,21 @@ export const analyzeChannel = task({
           `SOP map step: ${summaries.size}/${channelVideos.length} videos summarized (computed=${mapComputed}, cached=${summaries.size - mapComputed - mapFailed}, fallback=${mapFailed})`,
         );
 
-        // BOUND the reduce: rank by views DESC (already ordered) and feed the SOP prompts at
-        // most the top 50 summaries (~25k tokens, safely under 64k). Aggregate stats stay whole.
-        const REDUCE_MAX = 50;
-        const reduceVideos = channelVideos.slice(0, REDUCE_MAX);
-        if (channelVideos.length > REDUCE_MAX) {
-          logger.info(
-            `SOP reduce: including top ${REDUCE_MAX} of ${channelVideos.length} videos by views in the SOP context (aggregate stats reflect all ${channelVideos.length}).`,
-          );
-        }
-        const videosData = buildVideosSummaryText(reduceVideos, summaries);
+        // BOUND the reduce by char budget, never by dropping videos. Render ALL videos
+        // (views DESC, already ordered) as summary blocks; if they fit the budget, single
+        // reduce as before (the common case). If not, hierarchically reduce into compact
+        // partials so any number of videos is synthesized with zero content loss. The
+        // intermediate reduce is type-agnostic — run once, shared by both SOP types.
+        const reduceBlocks = channelVideos.map((v, i) =>
+          renderVideoSummaryBlock(v, summaries, i + 1),
+        );
+        const reduceLimit = pLimit(VIDEO_CONCURRENCY);
+        const videosData = await buildReducedVideosData({
+          blocks: reduceBlocks,
+          language,
+          videoCount: channelVideos.length,
+          limitFn: (fn) => reduceLimit(fn),
+        });
 
         // Fetch + summarize top comments for the #1 video to feed Hottest SOP.
         // Failures are non-blocking — SOP still runs without comments.

@@ -239,6 +239,39 @@ Constraints:
   return language === 'zh' ? CHINESE_WRAPPER(inner) : inner;
 }
 
+type SopPartialReduceArgs = {
+  // Concatenated buildVideosSummaryText output for ONE chunk of videos.
+  videosData: string;
+  language?: 'en' | 'zh';
+};
+
+// INTERMEDIATE reduce of the SOP map-reduce: collapse one chunk of per-video pattern
+// summaries into ONE compact "partial pattern set" in the same bullet shape as a video
+// map summary. Type-agnostic — its output is concatenated and fed to BOTH SOP types, so
+// it must stay neutral (no SOP template structure, no English-only assumption). Same
+// grounding discipline as the map prompt and the buildVideosSummaryText note.
+export function buildSopPartialReducePrompt(args: SopPartialReduceArgs): string {
+  const language = args.language ?? 'en';
+  const inner = `You are consolidating the per-video pattern summaries of ONE batch of a creator's videos into a single compact "partial pattern set". A later step merges several of these partials into the channel's full scriptwriting SOP, so capture this batch's transferable patterns faithfully — nothing should be lost.
+
+## This batch's per-video pattern summaries
+${args.videosData}
+
+## Instructions
+Write compact markdown bullets (no headers above ###) synthesizing ACROSS the videos in this batch, covering where the summaries support it:
+- **Opening hooks**: the recurring hook types and any distinctive one-offs, with a brief grounded example each.
+- **Structure / framework**: the shared content frameworks and script shapes; note variants.
+- **Retention & re-hooks**: recurring open loops, rehook phrases, specificity spikes, pattern breaks, pacing.
+- **CTA**: how and where calls-to-action recur.
+- **Signature moves**: distinctive recurring devices, catchphrases, or structural tics across this batch.
+
+Constraints:
+- Ground EVERY claim in the summaries above — never invent specifics (prices, names, stats, quotes, timecodes) not present. Carry through only the verbatim quotes and [m:ss] timecodes that already appear in the summaries; if a summary has no timecodes, locate moments approximately (opening / early / mid / late), never fabricate.
+- Distinguish patterns that recur across multiple videos from one-offs; do not assert frequency counts beyond what the summaries state.
+- Keep it tight: ~400-700 words, compact bullets, NO preamble and NO closing summary. Start directly with the first bullet.`;
+  return language === 'zh' ? CHINESE_WRAPPER(inner) : inner;
+}
+
 type SopArgs = {
   channelName: string;
   videoCount: number;
