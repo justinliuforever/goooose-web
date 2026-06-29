@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 
 import { clerkSops, clerkVideos, competitorAccounts } from "@singularity/db";
 
-import { ActiveRunsBanner } from "@/components/active-runs-banner";
 import { BackLink } from "@/components/back-link";
 import { Badge } from "@/components/ui/badge";
 import { CompetitorAvatar } from "@/components/competitor-avatar";
@@ -117,8 +116,6 @@ export default async function ClerkCompetitorPage({ params }: Props) {
         platform={competitor.platform}
         initialActive={activeRun}
       />
-
-      <ActiveRunsBanner competitorAccountId={competitor.id} />
 
       {videos.length > 0 ? (
         <div className="flex justify-end">
