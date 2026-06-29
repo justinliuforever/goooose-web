@@ -223,10 +223,15 @@ type RawNoteDetailResp = {
   };
 };
 
-// XHS share_info_v2.title comes as "@昵称的个人主页"; strip wrapper.
+// XHS share_info_v2.title comes wrapped as "@昵称的个人主页" (zh) or "@昵称's profile" (en
+// locale); strip both wrappers so the stored name isn't "昵称's profile".
 function cleanNickname(raw: string | undefined): string {
   if (!raw) return "";
-  return raw.replace(/^@/, "").replace(/的个人主页$/, "").trim();
+  return raw
+    .replace(/^@/, "")
+    .replace(/的个人主页$/, "")
+    .replace(/['’]s profile$/i, "")
+    .trim();
 }
 
 // XHS API sometimes returns literal "无标题" even when creator set a title;

@@ -70,6 +70,12 @@ ${draft}`;
       args.logger?.warn?.(`grounding pass truncated (length cap); keeping original draft`);
       return args.draft;
     }
+    // Catastrophic shrink: intermittent over-redaction can gut the draft (seen 0.16×); a
+    // complete draft beats a hollow one. Normal redaction removes well under 40%.
+    if (out.length < draft.length * 0.6) {
+      args.logger?.warn?.(`grounding pass shrank ${draft.length}→${out.length} (<0.6x); keeping draft`);
+      return args.draft;
+    }
     args.logger?.info?.(`grounding pass: ${draft.length} → ${out.length} chars`);
     return out;
   } catch (err) {

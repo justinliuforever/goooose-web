@@ -41,7 +41,9 @@ Return a JSON object:
 
 Return ONLY valid JSON.
 `;
-  if (args.language !== "zh") return inner;
+  if (args.language !== "zh") {
+    return `${inner}\n\nWrite the rejection_reason and topic_classification values in English.`;
+  }
   return (
     CHINESE_WRAPPER(inner) +
     '\n\nIMPORTANT: JSON keys must remain in English (relevant, topic_classification, rejection_reason). Only the rejection_reason string and topic_classification label should be in Simplified Chinese.'
@@ -80,11 +82,15 @@ Identify the VIRAL TRIGGER:
 2. **Watch Trigger**: What kept them watching?
 3. **Share Trigger**: What would make someone share this?
 
-Synthesize into 2-3 sentences covering: why people click, why they keep watching, why they would share — then end with a one-line statement of the core viral mechanism. Base this ONLY on the transcript above; do not invent specifics that are not present in it. Write in the output language naturally; do not use bracketed placeholders or an English template.
+Synthesize into 2-3 sentences covering: why people click, why they keep watching, why they would share — then end with a one-line statement of the core viral mechanism. Base this ONLY on the transcript above; do not invent specifics that are not present in it. Do not use bracketed placeholders or an English template.
 
 Return ONLY plain text (not JSON).
 `;
-  return args.language === "zh" ? CHINESE_WRAPPER(inner) : inner;
+  // The en path had no language directive and DeepSeek drifted to German ~1/3 of the time;
+  // name the language explicitly (zh is forced by CHINESE_WRAPPER).
+  return args.language === "zh"
+    ? CHINESE_WRAPPER(inner)
+    : `${inner}\n\nWrite the entire analysis in English.`;
 }
 
 type IdeaGenerationArgs = {
@@ -147,7 +153,9 @@ Return JSON:
 
 Return ONLY valid JSON. Generate exactly ${args.numIdeas} ideas.
 `;
-  if (args.language !== "zh") return inner;
+  if (args.language !== "zh") {
+    return `${inner}\n\nWrite every field value in English.`;
+  }
   return (
     CHINESE_WRAPPER(inner) +
     '\n\nIMPORTANT: JSON keys must remain in English (ideas, story_angle, facts_and_data, why_similar, viral_trigger, cover_concept, suggested_hook_type, risk_factors). Only the VALUES should be in Simplified Chinese.'

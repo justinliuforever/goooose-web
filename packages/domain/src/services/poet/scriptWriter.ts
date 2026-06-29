@@ -228,6 +228,7 @@ async function writeScriptLong(
   const charsPerToken = language === "zh" ? 1.5 : 0.75;
   const scriptParts: string[] = [];
   let prevTail = "(This is the opening section — start strong.)";
+  let emptyCount = 0;
 
   for (let idx = 0; idx < outline.sections.length; idx++) {
     const section = outline.sections[idx]!;
@@ -278,13 +279,32 @@ async function writeScriptLong(
         `[poet:long-form] empty section ${section.marker} on attempt ${attempt + 1}, retrying`,
       );
     }
+    if (sectionText.length === 0) {
+      // Pro intermittently empties a section (reasoning ate the budget); Flash usually fills it.
+      const flash = await generateText({
+        model: llm("flash"),
+        prompt: expandPrompt,
+        temperature: 0.5,
+        maxOutputTokens: sectionMaxTokens,
+        maxRetries: 2,
+      });
+      sectionText = flash.text.trim();
+    }
 
     if (sectionText.length === 0) {
       // eslint-disable-next-line no-console
-      console.warn(
-        `[poet:long-form] section ${section.marker} stayed empty; aborting long-form path so caller can fall back to single-call`,
-      );
-      return null;
+      console.warn(`[poet:long-form] section ${section.marker} empty after Pro+Flash`);
+      // The opening sets up the whole script — without it, fall back to single-call. Otherwise
+      // SKIP this one section and keep the assembled long script: collapsing a large target to a
+      // single short-call undershoots badly (a stuck [CTA] dropped a 4000-char target to 0.53x).
+      if (idx === 0) return null;
+      emptyCount++;
+      if (emptyCount > Math.ceil(outline.sections.length / 3)) {
+        // eslint-disable-next-line no-console
+        console.warn(`[poet:long-form] ${emptyCount} empty sections; falling back to single-call`);
+        return null;
+      }
+      continue;
     }
 
     scriptParts.push(`${section.marker}\n${sectionText}`);
