@@ -5,6 +5,7 @@ import { channels, poetBible } from "@singularity/db";
 
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/back-link";
+import { Markdown } from "@/components/markdown";
 import { getActiveAgentRun } from "@/lib/agent-run";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
@@ -88,9 +89,7 @@ export default async function AccountBiblePage({ params }: Props) {
               生效中
             </Badge>
           </header>
-          <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap font-sans text-sm leading-relaxed">
-            {activeBible.content}
-          </pre>
+          <Markdown text={activeBible.content} className="max-h-96 overflow-y-auto" />
           <footer className="font-mono text-xs text-muted-foreground">
             {formatDateTime(activeBible.updatedAt)} 更新
           </footer>

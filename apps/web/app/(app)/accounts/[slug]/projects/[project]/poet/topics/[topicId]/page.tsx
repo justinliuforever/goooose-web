@@ -8,6 +8,7 @@ import type { CustomTopicReference } from "@singularity/db";
 
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/back-link";
+import { Markdown } from "@/components/markdown";
 import { PoetFactList } from "@/components/poet-fact-list";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
@@ -18,14 +19,14 @@ import { CustomTopicActions } from "../../_components/custom-topic-actions";
 
 type Props = { params: Promise<{ slug: string; project: string; topicId: string }> };
 
-function Section({ title, body }: { title: string; body: string | null }) {
+function Section({ title, body, markdown }: { title: string; body: string | null; markdown?: boolean }) {
   if (!body) return null;
   return (
     <section className="flex flex-col gap-2">
       <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
         {title}
       </h3>
-      <p className="text-sm whitespace-pre-wrap">{body}</p>
+      {markdown ? <Markdown text={body} /> : <p className="text-sm whitespace-pre-wrap">{body}</p>}
     </section>
   );
 }
@@ -155,7 +156,7 @@ export default async function PoetTopicDetailPage({ params }: Props) {
       ) : null}
 
       <Section title="故事角度" body={topic.storyAngle} />
-      <Section title="事实与数据" body={topic.factsAndData} />
+      <Section title="事实与数据" body={topic.factsAndData} markdown />
       {topic.factChecks.length > 0 ? (
         <section className="flex flex-col gap-2">
           <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">

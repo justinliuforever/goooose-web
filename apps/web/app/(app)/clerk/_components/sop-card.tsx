@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/copy-button";
+import { Markdown } from "@/components/markdown";
 import { formatDateTime } from "@/lib/datetime";
 import { sopTypeLabel } from "@/lib/sop-labels";
 
@@ -67,12 +68,6 @@ export function SopCard({
   );
 }
 
-export async function SopContent({ text }: { text: string }) {
-  const { default: ReactMarkdown } = await import("react-markdown");
-  const { default: remarkGfm } = await import("remark-gfm");
-  return (
-    <article className="prose-clerk max-w-3xl border-t pt-4 text-sm leading-relaxed">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-    </article>
-  );
+export function SopContent({ text }: { text: string }) {
+  return <Markdown text={text} className="max-w-3xl border-t pt-4" />;
 }

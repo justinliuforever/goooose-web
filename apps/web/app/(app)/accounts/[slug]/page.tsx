@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/lib/db";
+import { stripMarkdown } from "@/lib/strip-markdown";
 import { ensureCurrentUser } from "@/lib/users";
 
 import { EditChannelSheet } from "../_components/edit-channel-sheet";
@@ -96,7 +97,7 @@ export default async function AccountDetailPage({ params }: Props) {
               </CardHeader>
               <CardContent>
                 <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">
-                  {activeBible.content}
+                  {stripMarkdown(activeBible.content)}
                 </p>
               </CardContent>
             </Card>
