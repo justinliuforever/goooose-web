@@ -59,6 +59,15 @@ ${innerPrompt}`;
 const QUOTE_GROUNDING_EN =
   'Put a phrase in quotation marks and attach a [Video N]/[Partial N] source citation ONLY if that exact phrase appears verbatim in the provided summaries/partials. If you are paraphrasing, generalizing, or inferring, do NOT use quotation marks and do NOT attach a source citation. Never invent example lines, prompt fragments, numbers, names, or rhetorical questions and present them as sourced.';
 
+// A zh summary/SOP of an English (or any other-language) video must keep the verbatim in the
+// transcript's ORIGINAL language — translating a quote and then citing it is fabrication. Prose
+// follows the target language; quotes never do. Used on the MAP -> partial-reduce -> SOP chain
+// (NOT in ZH_STYLE_GUIDE, where a zh Poet script legitimately wants full Chinese).
+const KEEP_QUOTE_LANG_EN =
+  "Quoted evidence — any phrase in quotation marks plus its [m:ss] — MUST be copied VERBATIM in the transcript's ORIGINAL language; never translate a quoted line. Your synthesis/prose may be in the target language, but a quote stays in its source language exactly as written — otherwise drop the quotation marks and the citation (it is not a quote).";
+const KEEP_QUOTE_LANG_ZH =
+  "【原文引用·重要】带引号的证据短语（连同 [m:ss]）必须按转写的原始语言逐字照抄，绝不翻译；把英文台词译成中文再加引号当出处 = 编造。你自己的归纳用中文，但引语保持原文，否则就别加引号和出处。";
+
 type SponsorChapterArg = {
   start_time: number;
   end_time: number;
@@ -243,10 +252,11 @@ Write compact markdown bullets (no headers above ###) covering, where the source
 Constraints:
 - ${tcRule}
 - ${garbledRule}
+- ${KEEP_QUOTE_LANG_EN}
 - Ground EVERY claim in the title, structured analysis, or transcript above — do NOT invent specifics (prices, names, stats, quotes, timecodes) that are not present.
 - Keep it tight: ~300-550 words, compact bullets, NO preamble and NO closing summary. Start directly with the first bullet.`;
 
-  return language === 'zh' ? CHINESE_WRAPPER(inner) : inner;
+  return language === 'zh' ? `${CHINESE_WRAPPER(inner)}\n\n${KEEP_QUOTE_LANG_ZH}` : inner;
 }
 
 type SopPartialReduceArgs = {
@@ -278,9 +288,10 @@ Write compact markdown bullets (no headers above ###) synthesizing ACROSS the vi
 Constraints:
 - Ground EVERY claim in the summaries above — never invent specifics (prices, names, stats, quotes, timecodes) not present. Carry through only the verbatim quotes and [m:ss] timecodes that already appear in the summaries; if a summary has no timecodes, locate moments approximately (opening / early / mid / late), never fabricate.
 - ${QUOTE_GROUNDING_EN}
+- ${KEEP_QUOTE_LANG_EN}
 - Distinguish patterns that recur across multiple videos from one-offs; do not assert frequency counts beyond what the summaries state.
 - Keep it tight: ~400-700 words, compact bullets, NO preamble and NO closing summary. Start directly with the first bullet.`;
-  return language === 'zh' ? CHINESE_WRAPPER(inner) : inner;
+  return language === 'zh' ? `${CHINESE_WRAPPER(inner)}\n\n${KEEP_QUOTE_LANG_ZH}` : inner;
 }
 
 type SopArgs = {
@@ -376,9 +387,12 @@ Translate the SOP into a 10-15-bullet actionable checklist a writer can tick bef
 
 Format as clean markdown. Cite \`[m:ss]\` timestamps from the analyzed transcripts wherever quoting a line — do NOT invent timestamps.
 ${QUOTE_GROUNDING_EN}
+${KEEP_QUOTE_LANG_EN}
 `;
   const note = transcriptCoverageNote(args.transcriptCount, args.videoCount);
-  return args.language === 'zh' ? CHINESE_WRAPPER(note + inner) : note + inner;
+  return args.language === 'zh'
+    ? `${CHINESE_WRAPPER(note + inner)}\n\n${KEEP_QUOTE_LANG_ZH}`
+    : note + inner;
 }
 
 export function buildAiSopReferencePrompt(args: SopArgs): string {
