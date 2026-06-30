@@ -6,6 +6,7 @@ import { redactUngrounded } from "../grounding";
 import {
   buildLongFormOutlinePrompt,
   buildScriptCompressPrompt,
+  buildScriptExpandPrompt,
   buildScriptWritingPrompt,
   buildSectionExpandPrompt,
 } from "@singularity/prompts/poet";
@@ -318,10 +319,60 @@ async function writeScriptLong(
     });
   }
 
-  const scriptText = scriptParts.join("\n\n");
-  const wordCount =
-    language === "zh" ? scriptText.length : scriptText.trim().split(/\s+/).length;
+  let scriptText = scriptParts.join("\n\n");
+  let wordCount = language === "zh" ? scriptText.length : scriptText.trim().split(/\s+/).length;
+  // Large long-form sometimes under-delivers per section (esp Flash-filled ones), landing
+  // well short of target. Enrich the existing sections once (grounded, no new sections);
+  // any resulting overshoot is trimmed by the budget gate back in writeScript.
+  if (wordCount < targetWordCount * 0.8) {
+    const grown = await expandToBudget(scriptText, wordCount, {
+      language,
+      targetWordCount,
+      referencesContext: refsBlockSection,
+    });
+    scriptText = grown.scriptText;
+    wordCount = grown.wordCount;
+  }
   return { scriptText, wordCount };
+}
+
+// Long-form counterpart to compressToBudget: when the assembled script falls well under
+// target, deepen the existing sections (grounded in references) toward the window. Accepts
+// only growth; runaway/ truncated expansions are rejected. Up to two passes.
+async function expandToBudget(
+  scriptText: string,
+  wordCount: number,
+  args: Pick<WriteScriptArgs, "language" | "targetWordCount"> & { referencesContext: string },
+): Promise<ScriptResult> {
+  const floor = Math.round(args.targetWordCount * 0.85);
+  const ceiling = Math.round(args.targetWordCount * 1.5);
+  let bestText = scriptText;
+  let bestCount = wordCount;
+  for (let attempt = 0; attempt < 2 && bestCount < floor; attempt++) {
+    const expanded = await generateTextWithFallback({
+      prompt: buildScriptExpandPrompt({
+        scriptText: bestText,
+        language: args.language,
+        targetWordCount: args.targetWordCount,
+        referencesContext: args.referencesContext,
+      }),
+      temperature: 0.5,
+      maxOutputTokens: 16384,
+      maxRetries: 2,
+    });
+    const et = expanded.text.trim();
+    const ec = args.language === "zh" ? et.length : et.split(/\s+/).length;
+    if (!et || expanded.finishReason === "length" || ec <= bestCount || ec > ceiling) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[poet:expand] attempt ${attempt + 1} rejected (finish=${expanded.finishReason}, count=${ec}/${bestCount})`,
+      );
+      break;
+    }
+    bestText = et;
+    bestCount = ec;
+  }
+  return { scriptText: bestText, wordCount: bestCount };
 }
 
 export async function writeScript(

@@ -432,3 +432,38 @@ ${args.scriptText}
 
 Output ONLY the compressed script, no explanation.`;
 }
+
+export function buildScriptExpandPrompt(args: {
+  scriptText: string;
+  language: "zh" | "en";
+  targetWordCount: number;
+  referencesContext: string;
+}): string {
+  const lengthUnit = args.language === "zh" ? "characters (字)" : "words";
+  const minCount = Math.round(args.targetWordCount * 0.9);
+  const maxCount = Math.round(args.targetWordCount * 1.15);
+  return `You are a long-form script editor. The draft below runs SHORT of its target spoken length. Lengthen it to **${minCount}–${maxCount} ${lengthUnit}** by deepening the EXISTING sections — never pad.
+
+How to lengthen (priority order):
+- Add specific, concrete detail, examples, and explanation drawn from the References below.
+- Develop the existing points further: fuller reasoning, sharper transitions, more vivid storytelling/emotion.
+- Do NOT add new [SECTION] markers or new top-level sections — expand within the ones already there.
+- Do NOT repeat, restate, or add filler; every added sentence must carry new information or feeling.
+
+Rules:
+- Keep the script's original language exactly.
+- Keep EVERY section marker ([HOOK], [TEASE], [ITEM …], [CLIMAX], [CTA], [CLOSE]) in place, each on its own line.
+- Every number, name, price, model, date already present stays character-for-character; only add facts grounded in the References — never invent specifics.
+
+## References
+
+${args.referencesContext}
+
+## Draft
+
+${args.scriptText}
+
+## Output
+
+Output ONLY the expanded script, no explanation.`;
+}

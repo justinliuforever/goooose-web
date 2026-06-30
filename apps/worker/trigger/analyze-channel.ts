@@ -191,9 +191,9 @@ function renderVideoAnalysisFields(v: typeof clerkVideos.$inferSelect): string {
     ["cover_diagnosis", v.coverDiagnosis],
   ];
   const lines = fields.filter(([, val]) => val).map(([k, val]) => `- ${k}: ${val}`);
-  if (v.coverTitleSuggestions && v.coverTitleSuggestions.length > 0) {
-    lines.push(`- cover_title_suggestions: ${v.coverTitleSuggestions.join(" | ")}`);
-  }
+  // cover_title_suggestions is a GENERATED field (vision proposes alt titles, sometimes with
+  // numbers absent from the source) — kept on the video row + shown in the UI, but NOT fed
+  // into the SOP map/reduce, where it seeded fabricated specifics.
   return lines.join("\n");
 }
 

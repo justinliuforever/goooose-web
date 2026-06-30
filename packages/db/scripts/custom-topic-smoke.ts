@@ -156,7 +156,7 @@ async function testAnalyzeTopic() {
   // aren't corrupted; only the four narrative fields are checked for zh.
   const requireChinese = new Set(["storyAngle", "factsAndData", "whySimilar", "viralTrigger"]);
   for (const [k, v] of Object.entries(analysis)) {
-    const text = String(v);
+    const text = typeof v === "string" ? v : JSON.stringify(v);
     const isChinese = /[一-鿿]/.test(text);
     const want = requireChinese.has(k);
     const pass = want ? isChinese : true;

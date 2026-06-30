@@ -433,7 +433,7 @@ For each hook type used by the channel:
 \`\`\`
 TYPE: <hook type name>
 TEMPLATE: <template with [PLACEHOLDER] variables>
-EXAMPLE_TITLES: <2-3 example titles from analyzed videos>
+EXAMPLE_TITLES: <2-3 ACTUAL video titles copied verbatim from the Analyzed Videos Data above — never invent or restyle a title>
 EXAMPLE_OPENING: <verbatim opening line + [m:ss] from one analyzed video>
 USE_WHEN: <one-sentence trigger condition>
 PSYCHOLOGY: <one-sentence cognitive lever>
