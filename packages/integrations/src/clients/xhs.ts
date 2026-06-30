@@ -1,5 +1,5 @@
-// TikHub XHS client. web_v3/fetch_note_detail needs xsec_token (422 without),
-// the web/* endpoints used here don't.
+// TikHub XHS client. All routes use the app_v2 series — the legacy /xiaohongshu/web/*
+// and /app/* prefixes are deprecated (scheduled for removal per the 2026-06 TikHub notice).
 
 const BASE = "https://api.tikhub.io";
 
@@ -197,6 +197,7 @@ type RawNote = {
   desc?: string;
   type?: string;
   create_time?: number;
+  time?: number;
 likes?: number;
   share_count?: number;
 liked_count?: number;
@@ -214,6 +215,7 @@ collected_count?: number;
 };
 
 type RawNoteListResp = { data?: { data?: { notes?: RawNote[] } } };
+// app_v2/get_image_note_detail wraps the note as {user, note_list} (same as legacy v4).
 type RawNoteDetailResp = {
   data?: {
     data?: Array<{
@@ -222,6 +224,8 @@ type RawNoteDetailResp = {
     }>;
   };
 };
+// app_v2/get_video_note_detail returns the note itself at data.data[0] (carries video_info_v2).
+type RawVideoDetailResp = { data?: { data?: RawNote[] } };
 
 // XHS share_info_v2.title comes wrapped as "@昵称的个人主页" (zh) or "@昵称's profile" (en
 // locale); strip both wrappers so the stored name isn't "昵称's profile".
@@ -319,7 +323,7 @@ function normalizeNote(raw: RawNote, parentUser?: { nickname?: string; userid?: 
     type,
     title,
     desc: raw.desc ?? "",
-    createTime: Number(raw.create_time ?? 0),
+    createTime: Number(raw.create_time ?? raw.time ?? 0),
     likes,
     collectedCount,
     commentsCount,
@@ -378,15 +382,35 @@ export async function getXhsUserNotes(
   return raws.slice(0, limit).map((n) => normalizeNote(n));
 }
 
-// Single-note fetch via v4. xsec_token is optional (the endpoint accepts both).
-// Used when the only handle we have is a note URL (e.g. Custom Topic references).
+// Single-note fetch (note URL is the only handle, e.g. Custom Topic references or XHS
+// "urls" analysis). get_image_note_detail returns the requested note for BOTH image and
+// video ids ({user, note_list} — the legacy v4 shape), so it's the reliable identity/text
+// source; but it omits video streams. For video notes we supplement from
+// get_video_note_detail, whose data.data[0] is the note with video_info_v2 — reliable only
+// for video ids (it returns recommended notes for non-video ids), so we guard on id match.
 export async function getXhsNoteDetail(noteId: string): Promise<XhsNote | null> {
-  const j = await get<RawNoteDetailResp>("/api/v1/xiaohongshu/web/get_note_info_v4", {
+  const j = await get<RawNoteDetailResp>("/api/v1/xiaohongshu/app_v2/get_image_note_detail", {
     note_id: noteId,
   });
   const first = j.data?.data?.[0];
   if (!first) return null;
   const noteRaw = first.note_list?.[0];
   if (!noteRaw) return null;
+
+  if (noteRaw.type === "video") {
+    try {
+      const vj = await get<RawVideoDetailResp>(
+        "/api/v1/xiaohongshu/app_v2/get_video_note_detail",
+        { note_id: noteId },
+      );
+      const vEl = vj.data?.data?.[0];
+      if (vEl && (vEl.id === noteId || vEl.cursor === noteId) && vEl.video_info_v2) {
+        noteRaw.video_info_v2 = vEl.video_info_v2;
+      }
+    } catch {
+      // streams unavailable — keep text/metadata/cover from the image endpoint
+    }
+  }
+
   return normalizeNote(noteRaw, first.user);
 }
