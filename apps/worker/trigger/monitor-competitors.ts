@@ -401,6 +401,14 @@ export const monitorCompetitors = task({
             phase: "classifying video",
             detail: `[${i + 1}/${fresh.length}] ${ref.title} · AI 分类中`,
           });
+          // Two-axis language: analysis follows the SOURCE language (forcing a zh read of an
+          // English video translates+distorts), while idea generation uses the user's target
+          // language. Detect per video from the transcript (fallback title).
+          const sourceLang = likelyChineseText(
+            (finalTranscript && finalTranscript.trim()) || title,
+          )
+            ? "zh"
+            : "en";
           const cls = await classifyVideo({
             channelDescription,
             title,
@@ -408,7 +416,7 @@ export const monitorCompetitors = task({
             views,
             durationSec,
             transcript: finalTranscript,
-            language,
+            language: sourceLang,
           });
 
           const [inserted] = await db
@@ -550,6 +558,12 @@ export const monitorCompetitors = task({
             ...etaField(0.65 + (0.35 * i) / relevantRows.length),
           });
           try {
+            // Analysis follows the source language (faithful); ideas below use the target.
+            const sourceLang = likelyChineseText(
+              (row.transcript && row.transcript.trim()) || row.title,
+            )
+              ? "zh"
+              : "en";
             const viralTrigger = await analyzeViralTrigger({
               channelDescription,
               title: row.title,
@@ -557,7 +571,7 @@ export const monitorCompetitors = task({
               views: row.views,
               durationSec: row.durationSec,
               transcript: row.transcript,
-              language,
+              language: sourceLang,
             });
 
             if (!viralTrigger) {

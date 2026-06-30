@@ -331,6 +331,9 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
                   </button>
                 ))}
               </div>
+              <p className="text-xs text-muted-foreground">
+                对标无论中文还是英文，分析按各自源语言进行；选题统一用这个语言生成。
+              </p>
             </Field>
 
             <div className="rounded-md border bg-muted/30 p-3 text-xs">
