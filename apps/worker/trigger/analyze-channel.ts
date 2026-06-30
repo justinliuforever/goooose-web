@@ -408,7 +408,7 @@ async function parseAnalysis(rawText: string): Promise<ReturnType<typeof clerkAn
       : obj[k] == null
         ? ""
         : Array.isArray(obj[k])
-          ? (obj[k] as unknown[]).join("\n")
+          ? (obj[k] as unknown[]).map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join("\n")
           : JSON.stringify(obj[k]);
 
   const candidate = {

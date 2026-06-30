@@ -154,7 +154,7 @@ Follow the SOP structure precisely:
 - Copy every number, date, name, price, and model name exactly as it appears in the references. Do not round, normalise, or convert.
 - Do not invent any fact not present in the references. If a fact isn't there, leave it out.
 
-Output the script as plain text, with section markers in this EXACT order: [HOOK], [TEASE], [ITEM 1], [CLIMAX], [CTA], [CLOSE]. Use each marker once; [CLIMAX] must come before [CTA]; [CLOSE] is the single final sign-off. No meta-commentary, no preamble.
+${markerLine} No meta-commentary, no preamble.
 `, args.language);
 }
 

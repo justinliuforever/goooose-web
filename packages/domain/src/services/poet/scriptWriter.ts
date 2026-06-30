@@ -493,32 +493,40 @@ async function compressToBudget(
 ): Promise<ScriptResult> {
   const ceiling = Math.round(args.targetWordCount * OVERSHOOT_LIMIT);
   const floor = Math.round(args.targetWordCount * 0.5);
+  const charsPerToken = args.language === "zh" ? 1.5 : 0.75;
+  // Cap output near the target so a model can't burn the whole budget on reasoning and
+  // return an empty/length-truncated result — the failure that let overshoot through (a
+  // zh 5-min draft stayed at 1.25x because every Pro+Flash compress came back empty).
+  const maxOutputTokens = Math.round((ceiling / charsPerToken) * 1.4) + 800;
   let bestText = scriptText;
   let bestCount = wordCount;
   for (let attempt = 0; attempt < 3 && bestCount > ceiling; attempt++) {
-    // Pro→Flash fallback: Pro's reasoning intermittently burns the whole budget and
-    // returns empty, which silently skipped compression entirely.
-    const compressed = await generateTextWithFallback({
+    // Flash, not Pro: compression is mechanical and Pro's reasoning intermittently ate the
+    // budget. RETRY a bad attempt instead of giving up, so the 1.2x cap actually holds.
+    const compressed = await generateText({
+      model: llm("flash"),
       prompt: buildScriptCompressPrompt({
         scriptText: bestText,
         language: args.language,
         targetWordCount: args.targetWordCount,
       }),
       temperature: 0.3,
-      maxOutputTokens: 16384,
+      maxOutputTokens,
       maxRetries: 2,
     });
     const ct = compressed.text.trim();
     const cc = args.language === "zh" ? ct.length : ct.split(/\s+/).length;
-    if (!ct || compressed.finishReason === "length" || cc < floor || cc >= bestCount) {
+    if (!ct || compressed.finishReason === "length" || cc < floor) {
       // eslint-disable-next-line no-console
       console.warn(
-        `[poet:compress] attempt ${attempt + 1} rejected (tier=${compressed.usedTier}, finish=${compressed.finishReason}, count=${cc}/${bestCount})`,
+        `[poet:compress] attempt ${attempt + 1} unusable (finish=${compressed.finishReason}, count=${cc}); retrying`,
       );
-      break;
+      continue;
     }
-    bestText = ct;
-    bestCount = cc;
+    if (cc < bestCount) {
+      bestText = ct;
+      bestCount = cc;
+    }
   }
   return { scriptText: bestText, wordCount: bestCount };
 }
