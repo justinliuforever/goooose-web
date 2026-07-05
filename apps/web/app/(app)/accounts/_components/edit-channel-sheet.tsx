@@ -16,7 +16,6 @@ import {
   SelectGroup,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import {
   Sheet,
@@ -173,7 +172,7 @@ export function EditChannelSheet({ channel }: Props) {
                 onValueChange={(v) => setPlatform(v as "youtube" | "xhs")}
               >
                 <SelectTrigger id="edit-platform">
-                  <SelectValue>{(v: string) => (v === "youtube" ? "YouTube" : "XHS (小红书)")}</SelectValue>
+                  {platform === "youtube" ? "YouTube" : "XHS (小红书)"}
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>

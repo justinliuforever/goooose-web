@@ -13,7 +13,6 @@ import {
   SelectGroup,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import {
@@ -90,7 +89,7 @@ export function CreateChannelForm() {
           <FieldLabel htmlFor="platform">平台</FieldLabel>
           <Select value={platform} onValueChange={(v) => setPlatform(v as "youtube" | "xhs")}>
             <SelectTrigger id="platform">
-              <SelectValue>{(v: string) => (v === "youtube" ? "YouTube" : "XHS (小红书)")}</SelectValue>
+              {platform === "youtube" ? "YouTube" : "XHS (小红书)"}
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>

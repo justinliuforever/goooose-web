@@ -14,7 +14,6 @@ import {
   SelectGroup,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import {
   Sheet,
@@ -120,7 +119,7 @@ export function NewAccountSheet({ size = "sm", trigger }: Props) {
               <FieldLabel htmlFor="account-platform">平台</FieldLabel>
               <Select value={platform} onValueChange={(v) => setPlatform(v as "youtube" | "xhs")}>
                 <SelectTrigger id="account-platform">
-                  <SelectValue>{(v: string) => (v === "youtube" ? "YouTube" : "XHS (小红书)")}</SelectValue>
+                  {platform === "youtube" ? "YouTube" : "XHS (小红书)"}
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>

@@ -29,7 +29,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import {
   Sheet,
@@ -541,9 +540,7 @@ export function AdminPanel({ selfId }: { selfId: string }) {
                           }
                         >
                           <SelectTrigger size="sm" className="w-28">
-                            <SelectValue>
-                              {(v: string) => STATUS_LABEL[v] ?? v}
-                            </SelectValue>
+                            {STATUS_LABEL[u.accessStatus] ?? u.accessStatus}
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="approved">已通过</SelectItem>
@@ -564,9 +561,7 @@ export function AdminPanel({ selfId }: { selfId: string }) {
                           }
                         >
                           <SelectTrigger size="sm" className="w-28">
-                            <SelectValue>
-                              {(v: string) => ROLE_LABEL[v] ?? v}
-                            </SelectValue>
+                            {ROLE_LABEL[u.role] ?? u.role}
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="member">成员</SelectItem>

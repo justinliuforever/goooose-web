@@ -14,7 +14,6 @@ import {
   SelectGroup,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import {
   Sheet,
@@ -143,9 +142,7 @@ export function CustomTopicCreateSheet({ channelId, projectId, hasActiveBible }:
                         }
                       >
                         <SelectTrigger size="sm">
-                          <SelectValue>
-                            {(v: string) => KIND_LABEL[v as keyof typeof KIND_LABEL] ?? v}
-                          </SelectValue>
+                          {KIND_LABEL[r.kind]}
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>
