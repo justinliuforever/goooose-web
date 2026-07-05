@@ -39,6 +39,7 @@ import { provisionalCompetitorKey } from "@singularity/domain/services/competito
 
 import { db } from "@/lib/db";
 import { ETA_JOB_COMMANDS } from "@/lib/eta-jobs";
+import { accessRouter, adminRouter } from "./access";
 import { protectedProcedure, router } from "./init";
 import {
   createChannelInput,
@@ -351,6 +352,8 @@ async function assertProjectOwner(userId: string, projectId: string) {
 }
 
 export const appRouter = router({
+  access: accessRouter,
+  admin: adminRouter,
   channels: router({
     list: protectedProcedure.query(async ({ ctx }) => {
       return db

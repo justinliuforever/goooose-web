@@ -1,4 +1,5 @@
 export * from "./users";
+export * from "./access";
 export * from "./channels";
 export * from "./own-account";
 export * from "./competitor";

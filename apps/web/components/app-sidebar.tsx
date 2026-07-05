@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, Plus, ScanSearch, Tv } from "lucide-react";
+import { ChevronDown, Plus, ScanSearch, ShieldCheck, Tv } from "lucide-react";
 
 import { NewAccountSheet } from "@/app/(app)/accounts/_components/new-account-sheet";
 import type { SidebarAccount } from "@/lib/sidebar-data";
@@ -22,7 +22,13 @@ import {
 // SOP 库 is now a tab inside Clerk (clerk-tabs.tsx), not its own nav slot.
 const ANALYSIS = [{ label: "Clerk · 分析师", href: "/clerk", icon: ScanSearch }];
 
-export function AppSidebar({ accounts }: { accounts: SidebarAccount[] }) {
+export function AppSidebar({
+  accounts,
+  isAdmin = false,
+}: {
+  accounts: SidebarAccount[];
+  isAdmin?: boolean;
+}) {
   const pathname = usePathname();
   const [accountsOpen, setAccountsOpen] = useState(true);
 
@@ -96,6 +102,22 @@ export function AppSidebar({ accounts }: { accounts: SidebarAccount[] }) {
             </SidebarGroupContent>
           ) : null}
         </SidebarGroup>
+
+        {isAdmin ? (
+          <SidebarGroup>
+            <SidebarGroupLabel>管理</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton render={<Link href="/admin" />} isActive={isActive("/admin")}>
+                    <ShieldCheck />
+                    <span>管理后台</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
       </SidebarContent>
     </Sidebar>
   );

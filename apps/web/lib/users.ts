@@ -1,8 +1,10 @@
 import "server-only";
 
+import { eq } from "drizzle-orm";
+
 import { getLogtoContext } from "@logto/next/server-actions";
 
-import { users, type User } from "@singularity/db";
+import { allowedEmails, users, type User } from "@singularity/db";
 
 import { db } from "./db";
 import { logtoConfig } from "./logto";
@@ -31,16 +33,33 @@ async function upsertFromIdentity(identity: LogtoIdentity): Promise<User> {
   return row!;
 }
 
+async function autoApproveIfInvited(user: User): Promise<User> {
+  if (user.accessStatus !== "pending" || !user.email) return user;
+  const [invited] = await db
+    .select({ email: allowedEmails.email })
+    .from(allowedEmails)
+    .where(eq(allowedEmails.email, user.email.toLowerCase()))
+    .limit(1);
+  if (!invited) return user;
+  const [updated] = await db
+    .update(users)
+    .set({ accessStatus: "approved" })
+    .where(eq(users.id, user.id))
+    .returning();
+  return updated ?? user;
+}
+
 export async function ensureCurrentUser(): Promise<User | null> {
   const { isAuthenticated, claims } = await getLogtoContext(logtoConfig);
   if (!isAuthenticated || !claims) {
     return null;
   }
 
-  return upsertFromIdentity({
+  const user = await upsertFromIdentity({
     sub: claims.sub,
     email: claims.email,
     username: claims.username,
     name: claims.name,
   });
+  return autoApproveIfInvited(user);
 }

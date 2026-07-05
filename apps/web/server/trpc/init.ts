@@ -23,7 +23,8 @@ const t = initTRPC.context<Context>().create({
 export const router = t.router;
 export const publicProcedure = t.procedure;
 
-export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
+// Authenticated but not necessarily approved — only for the request-access flow.
+export const authedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
@@ -33,4 +34,18 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
       user: ctx.user,
     },
   });
+});
+
+export const protectedProcedure = authedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.accessStatus !== "approved") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "内测资格待审批" });
+  }
+  return next();
+});
+
+export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role !== "admin") {
+    throw new TRPCError({ code: "FORBIDDEN" });
+  }
+  return next();
 });

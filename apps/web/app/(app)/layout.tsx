@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import { AppSidebar } from "@/components/app-sidebar";
 import { AuthChip } from "@/components/auth-chip";
 import { ContextHeader } from "@/components/context-header";
@@ -9,6 +11,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getSidebarAccounts } from "@/lib/sidebar-data";
 import { ensureCurrentUser } from "@/lib/users";
+import { APP_VERSION_LABEL } from "@/lib/version";
 
 export default async function AppLayout({
   children,
@@ -16,11 +19,14 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await ensureCurrentUser();
+  if (user && user.accessStatus !== "approved") {
+    redirect("/request-access");
+  }
   const accounts = user ? await getSidebarAccounts(user.id) : [];
 
   return (
     <SidebarProvider>
-      <AppSidebar accounts={accounts} />
+      <AppSidebar accounts={accounts} isAdmin={user?.role === "admin"} />
       <SidebarInset className="min-w-0">
         <header className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
           <div className="flex items-center gap-1 md:hidden">
@@ -31,7 +37,7 @@ export default async function AppLayout({
           <div className="ml-auto flex items-center gap-3">
             <GlobalRunsIndicator />
             <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
-              内测 · 2026 Q3
+              {APP_VERSION_LABEL}
             </span>
             <AuthChip />
           </div>
