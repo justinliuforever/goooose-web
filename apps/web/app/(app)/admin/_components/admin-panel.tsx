@@ -55,6 +55,11 @@ const STATUS_LABEL: Record<string, string> = {
   blocked: "已停用",
 };
 
+const ROLE_LABEL: Record<string, string> = {
+  member: "成员",
+  admin: "管理员",
+};
+
 const MINUTE_PRESETS = [50, 100, 300, 600];
 
 function statusBadge(status: string) {
@@ -209,11 +214,14 @@ export function AdminPanel({ selfId }: { selfId: string }) {
 
   const [inviteEmail, setInviteEmail] = useState("");
   const addAllowed = trpc.admin.addAllowedEmail.useMutation({
-    onSuccess: () => {
-      toast.success("已加入预邀请名单");
+    onSuccess: (res) => {
+      toast.success(
+        res.approved > 0 ? "已加入名单并放行该用户" : "已加入预邀请名单",
+      );
       setInviteEmail("");
       void utils.admin.listAllowedEmails.invalidate();
       void utils.admin.listUsers.invalidate();
+      void utils.admin.listRequests.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -223,9 +231,16 @@ export function AdminPanel({ selfId }: { selfId: string }) {
   });
 
   const setAccess = trpc.admin.setUserAccess.useMutation({
-    onSuccess: () => {
-      toast.success("已更新");
+    onSuccess: (res, vars) => {
+      if (vars.accessStatus === "approved") {
+        toast.success(
+          res.emailSent ? "已通过，通知邮件已发送" : "已通过（邮件未配置，请人工通知对方）",
+        );
+      } else {
+        toast.success("已更新");
+      }
       void utils.admin.listUsers.invalidate();
+      void utils.admin.listRequests.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -512,7 +527,9 @@ export function AdminPanel({ selfId }: { selfId: string }) {
                           }
                         >
                           <SelectTrigger size="sm" className="w-28">
-                            <SelectValue />
+                            <SelectValue>
+                              {(v: string) => STATUS_LABEL[v] ?? v}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="approved">已通过</SelectItem>
@@ -533,7 +550,9 @@ export function AdminPanel({ selfId }: { selfId: string }) {
                           }
                         >
                           <SelectTrigger size="sm" className="w-28">
-                            <SelectValue />
+                            <SelectValue>
+                              {(v: string) => ROLE_LABEL[v] ?? v}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="member">成员</SelectItem>

@@ -90,7 +90,7 @@ export function CreateChannelForm() {
           <FieldLabel htmlFor="platform">平台</FieldLabel>
           <Select value={platform} onValueChange={(v) => setPlatform(v as "youtube" | "xhs")}>
             <SelectTrigger id="platform">
-              <SelectValue />
+              <SelectValue>{(v: string) => (v === "youtube" ? "YouTube" : "XHS (小红书)")}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>

@@ -143,7 +143,9 @@ export function CustomTopicCreateSheet({ channelId, projectId, hasActiveBible }:
                         }
                       >
                         <SelectTrigger size="sm">
-                          <SelectValue />
+                          <SelectValue>
+                            {(v: string) => KIND_LABEL[v as keyof typeof KIND_LABEL] ?? v}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>

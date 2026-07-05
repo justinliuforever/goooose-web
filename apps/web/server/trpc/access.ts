@@ -35,6 +35,19 @@ function generateCode(): string {
   return `SING-${chars.slice(0, 4).join("")}-${chars.slice(4).join("")}`;
 }
 
+// Send the approval email only on a real pending→approved transition, so every
+// approval path (request card, status dropdown, allowlist) notifies exactly once.
+async function emailIfApproved(transitioned: boolean, userId: string) {
+  if (!transitioned) return { emailSent: false, emailSkipReason: "already_approved" };
+  const [u] = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const r = await sendApprovalEmail(u?.email ?? "");
+  return { emailSent: r.sent, emailSkipReason: r.reason };
+}
+
 export const accessRouter = router({
   status: authedProcedure.query(async ({ ctx }) => {
     const [latest] = await db
@@ -157,6 +170,9 @@ export const adminRouter = router({
       })
       .from(accessRequests)
       .innerJoin(users, eq(users.id, accessRequests.userId))
+      // The queue is "who still needs a decision" — approving via any path
+      // (dropdown, allowlist) drops them here without touching access_requests.
+      .where(eq(users.accessStatus, "pending"))
       .orderBy(desc(accessRequests.createdAt));
   }),
 
@@ -169,11 +185,16 @@ export const adminRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const [request] = await db
-        .select()
+        .select({ userId: accessRequests.userId })
         .from(accessRequests)
         .where(eq(accessRequests.id, input.requestId))
         .limit(1);
       if (!request) throw new TRPCError({ code: "NOT_FOUND" });
+      const [beforeUser] = await db
+        .select({ status: users.accessStatus })
+        .from(users)
+        .where(eq(users.id, request.userId))
+        .limit(1);
 
       const nextStatus = input.decision === "approve" ? "approved" : "rejected";
       await db.transaction(async (tx) => {
@@ -190,13 +211,7 @@ export const adminRouter = router({
       });
 
       if (input.decision !== "approve") return { emailSent: false };
-      const [target] = await db
-        .select({ email: users.email })
-        .from(users)
-        .where(eq(users.id, request.userId))
-        .limit(1);
-      const email = await sendApprovalEmail(target?.email ?? "");
-      return { emailSent: email.sent, emailSkipReason: email.reason };
+      return emailIfApproved(beforeUser?.status !== "approved", request.userId);
     }),
 
   listAllowedEmails: adminProcedure.query(async () => {
@@ -215,12 +230,19 @@ export const adminRouter = router({
         .insert(allowedEmails)
         .values({ email: input.email, note: input.note ?? null, createdBy: ctx.user.id })
         .onConflictDoNothing();
-      // Invitee may have already logged in and be waiting — approve them in place.
-      await db
-        .update(users)
-        .set({ accessStatus: "approved" })
+      // Invitee may have already logged in and be waiting — approve + notify in place.
+      const matched = await db
+        .select({ id: users.id, status: users.accessStatus })
+        .from(users)
         .where(sql`lower(${users.email}) = ${input.email}`);
-      return { ok: true };
+      let approved = 0;
+      for (const m of matched) {
+        if (m.status === "approved") continue;
+        await db.update(users).set({ accessStatus: "approved" }).where(eq(users.id, m.id));
+        await emailIfApproved(true, m.id);
+        approved++;
+      }
+      return { ok: true, approved };
     }),
 
   removeAllowedEmail: adminProcedure
@@ -324,11 +346,19 @@ export const adminRouter = router({
       if (input.userId === ctx.user.id) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "不能修改自己的访问状态" });
       }
+      const [before] = await db
+        .select({ status: users.accessStatus })
+        .from(users)
+        .where(eq(users.id, input.userId))
+        .limit(1);
       await db
         .update(users)
         .set({ accessStatus: input.accessStatus })
         .where(eq(users.id, input.userId));
-      return { ok: true };
+      if (input.accessStatus === "approved") {
+        return emailIfApproved(before?.status !== "approved", input.userId);
+      }
+      return { emailSent: false };
     }),
 
   setUserRole: adminProcedure

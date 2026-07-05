@@ -173,7 +173,7 @@ export function EditChannelSheet({ channel }: Props) {
                 onValueChange={(v) => setPlatform(v as "youtube" | "xhs")}
               >
                 <SelectTrigger id="edit-platform">
-                  <SelectValue />
+                  <SelectValue>{(v: string) => (v === "youtube" ? "YouTube" : "XHS (小红书)")}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
