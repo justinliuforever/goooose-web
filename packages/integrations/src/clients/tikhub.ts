@@ -46,25 +46,7 @@ async function get<T>(endpoint: string, params: Record<string, string> = {}): Pr
 }
 
 // Validates a YouTube channel landing URL (not a video URL).
-export function isValidYoutubeChannelUrl(input: string): boolean {
-  const s = input.trim();
-  if (!s) return false;
-  try {
-    const u = new URL(s);
-    if (!u.hostname.endsWith("youtube.com") && !u.hostname.endsWith("youtu.be")) {
-      return false;
-    }
-    const p = u.pathname;
-    return (
-      /^\/@[\w.-]+/.test(p) ||
-      /^\/channel\/UC[\w-]+/.test(p) ||
-      /^\/c\/[\w.-]+/.test(p) ||
-      /^\/user\/[\w.-]+/.test(p)
-    );
-  } catch {
-    return false;
-  }
-}
+export { isValidYoutubeChannelUrl } from "../validators";
 
 export type YouTubeChannelMeta = {
   channel_id: string;

@@ -89,18 +89,7 @@ export function extractXhsNoteId(input: string): string | null {
   return null;
 }
 
-export function isValidXhsProfileUrl(input: string): boolean {
-  const s = input.trim();
-  if (!s) return false;
-  if (XHS_USER_ID_RE.test(s)) return true;
-  try {
-    const u = new URL(s);
-    if (!u.hostname.endsWith("xiaohongshu.com")) return false;
-    return /\/user\/profile\/[a-f0-9]{24}/i.test(u.pathname);
-  } catch {
-    return false;
-  }
-}
+export { isValidXhsProfileUrl } from "../validators";
 
 export function isValidXhsNoteUrl(input: string): boolean {
   return extractXhsNoteId(input) !== null;

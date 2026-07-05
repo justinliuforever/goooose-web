@@ -14,6 +14,7 @@
     "./clients/xhs": "./src/clients/xhs.ts",
     "./clients/ytdlp": "./src/clients/ytdlp.ts",
     "./utils": "./src/utils.ts",
+    "./validators": "./src/validators.ts",
     "./metering": "./src/metering.ts",
     "./proxy": "./src/proxy/index.ts"
   },

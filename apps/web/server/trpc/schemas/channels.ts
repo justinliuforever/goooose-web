@@ -1,7 +1,9 @@
 import { z } from "zod";
 
-import { isValidYoutubeChannelUrl } from "@singularity/integrations/clients/tikhub";
-import { isValidXhsProfileUrl } from "@singularity/integrations/clients/xhs";
+import {
+  isValidXhsProfileUrl,
+  isValidYoutubeChannelUrl,
+} from "@singularity/integrations/validators";
 
 export const platformSchema = z.enum(["youtube", "xhs"]);
 
