@@ -3,6 +3,17 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +24,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -30,10 +48,133 @@ const STATUS_LABEL: Record<string, string> = {
   blocked: "已停用",
 };
 
+const MINUTE_PRESETS = [50, 100, 300, 600];
+
 function statusBadge(status: string) {
   const variant =
     status === "approved" ? "success" : status === "pending" ? "secondary" : "destructive";
   return <Badge variant={variant}>{STATUS_LABEL[status] ?? status}</Badge>;
+}
+
+function UserDetailSheet({
+  userId,
+  onClose,
+}: {
+  userId: string | null;
+  onClose: () => void;
+}) {
+  const detail = trpc.admin.userDetail.useQuery(
+    { userId: userId ?? "" },
+    { enabled: !!userId },
+  );
+  const d = detail.data;
+  return (
+    <Sheet open={!!userId} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>{d?.user.displayName ?? d?.user.email ?? "用户详情"}</SheetTitle>
+          <SheetDescription>{d?.user.email}</SheetDescription>
+        </SheetHeader>
+        {d ? (
+          <div className="flex flex-col gap-5 px-4 pb-8 text-sm">
+            <div className="flex flex-wrap gap-2">
+              {statusBadge(d.user.accessStatus)}
+              <Badge variant="outline">{d.user.role === "admin" ? "管理员" : "成员"}</Badge>
+              <Badge variant="outline">{d.user.plan}</Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+              <span className="text-muted-foreground">注册时间</span>
+              <span>{new Date(d.user.createdAt).toLocaleString("zh-CN")}</span>
+              <span className="text-muted-foreground">最近登录</span>
+              <span>
+                {d.user.lastSeenAt ? new Date(d.user.lastSeenAt).toLocaleString("zh-CN") : "—"}
+              </span>
+              <span className="text-muted-foreground">登录次数</span>
+              <span>{d.loginCount}</span>
+              <span className="text-muted-foreground">任务次数</span>
+              <span>{d.runCount}</span>
+              <span className="text-muted-foreground">本月时长</span>
+              <span className="font-mono">
+                {d.minutes.used} / {d.minutes.base}
+                {d.minutes.bonus > 0 ? ` +${d.minutes.bonus}` : ""} 分钟
+              </span>
+            </div>
+
+            {d.latestRequest ? (
+              <div className="flex flex-col gap-1 rounded-md border p-3">
+                <span className="text-xs text-muted-foreground">
+                  内测申请（{STATUS_LABEL[d.latestRequest.status] ?? d.latestRequest.status}）
+                </span>
+                <p className="whitespace-pre-wrap">{d.latestRequest.message}</p>
+                {d.latestRequest.contact ? (
+                  <span className="text-xs text-muted-foreground">
+                    联系方式：{d.latestRequest.contact}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="flex flex-col gap-2">
+              <span className="font-medium">用量（近 6 个月）</span>
+              {d.usageByMonth.length ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>月份</TableHead>
+                      <TableHead className="text-right">tokens 入/出</TableHead>
+                      <TableHead className="text-right">ASR 分</TableHead>
+                      <TableHead className="text-right">成本</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {d.usageByMonth.map((row) => (
+                      <TableRow key={row.month}>
+                        <TableCell className="font-mono text-xs">{row.month}</TableCell>
+                        <TableCell className="text-right font-mono text-xs">
+                          {Number(row.llmInputTokens).toLocaleString()}/
+                          {Number(row.llmOutputTokens).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs">
+                          {(Number(row.asrSeconds) / 60).toFixed(1)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs">
+                          ${Number(row.costUsd).toFixed(3)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-xs text-muted-foreground">暂无用量记录</p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="font-medium">最近登录（10 次）</span>
+              {d.logins.length ? (
+                <div className="flex flex-col gap-1.5">
+                  {d.logins.map((l, i) => (
+                    <div key={i} className="flex items-baseline justify-between gap-2 text-xs">
+                      <span className="text-muted-foreground">
+                        {new Date(l.createdAt).toLocaleString("zh-CN")}
+                      </span>
+                      <span className="font-mono">{l.ip ?? "—"}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  暂无记录（登录跟踪自本版本上线起生效）
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="px-4 text-sm text-muted-foreground">加载中…</p>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
 }
 
 export function AdminPanel() {
@@ -42,6 +183,7 @@ export function AdminPanel() {
   const allowed = trpc.admin.listAllowedEmails.useQuery();
   const usersQuery = trpc.admin.listUsers.useQuery();
   const usage = trpc.admin.usageSummary.useQuery();
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
 
   const decide = trpc.admin.decideRequest.useMutation({
     onSuccess: (res, vars) => {
@@ -80,12 +222,27 @@ export function AdminPanel() {
     },
     onError: (err) => toast.error(err.message),
   });
+  const setRole = trpc.admin.setUserRole.useMutation({
+    onSuccess: () => {
+      toast.success("角色已更新");
+      void utils.admin.listUsers.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const deleteUser = trpc.admin.deleteUser.useMutation({
+    onSuccess: () => {
+      toast.success("用户已删除");
+      void utils.admin.listUsers.invalidate();
+      void utils.admin.listRequests.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   const codes = trpc.admin.listCodes.useQuery();
-  const [codeForm, setCodeForm] = useState({ contents: "50", generations: "20", accounts: "0" });
+  const [codeMinutes, setCodeMinutes] = useState("100");
   const createCode = trpc.admin.createCode.useMutation({
     onSuccess: (created) => {
-      toast.success(`已生成：${created.code}`);
+      toast.success(`已生成：${created.code}（${created.grant?.minutes ?? 0} 分钟）`);
       void utils.admin.listCodes.invalidate();
     },
     onError: (err) => toast.error(err.message),
@@ -202,100 +359,32 @@ export function AdminPanel() {
 
       <Card>
         <CardHeader>
-          <CardTitle>用户</CardTitle>
-          <CardDescription>全部注册用户与访问状态</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>用户</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>角色</TableHead>
-                <TableHead>注册时间</TableHead>
-                <TableHead className="text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(usersQuery.data ?? []).map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span>{u.displayName ?? "—"}</span>
-                      <span className="text-xs text-muted-foreground">{u.email}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{statusBadge(u.accessStatus)}</TableCell>
-                  <TableCell className="text-sm">{u.role === "admin" ? "管理员" : "成员"}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {new Date(u.createdAt).toLocaleDateString("zh-CN")}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      {u.accessStatus !== "approved" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={setAccess.isPending}
-                          onClick={() => setAccess.mutate({ userId: u.id, accessStatus: "approved" })}
-                        >
-                          放行
-                        </Button>
-                      ) : null}
-                      {u.accessStatus !== "blocked" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={setAccess.isPending}
-                          onClick={() => setAccess.mutate({ userId: u.id, accessStatus: "blocked" })}
-                        >
-                          停用
-                        </Button>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>兑换码</CardTitle>
-          <CardDescription>生成后发给用户，在「用量与额度」页兑换；额度进奖励池不随月重置</CardDescription>
+          <CardTitle>时长兑换码</CardTitle>
+          <CardDescription>
+            生成后发给用户，在「用量与额度」页兑换；加到对方当月额度，本月有效
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-end gap-3">
-            {(
-              [
-                ["解析（条）", "contents"],
-                ["生成（次）", "generations"],
-                ["账号（个）", "accounts"],
-              ] as const
-            ).map(([label, key]) => (
-              <div key={key} className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">{label}</span>
-                <Input
-                  value={codeForm[key]}
-                  onChange={(e) =>
-                    setCodeForm((f) => ({ ...f, [key]: e.target.value.replace(/\D/g, "") }))
-                  }
-                  className="w-24 font-mono"
-                />
-              </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {MINUTE_PRESETS.map((p) => (
+              <Button
+                key={p}
+                size="sm"
+                variant={codeMinutes === String(p) ? "default" : "outline"}
+                onClick={() => setCodeMinutes(String(p))}
+              >
+                {p} 分钟
+              </Button>
             ))}
+            <Input
+              value={codeMinutes}
+              onChange={(e) => setCodeMinutes(e.target.value.replace(/\D/g, ""))}
+              className="w-24 font-mono"
+              placeholder="自定义"
+            />
             <Button
-              disabled={createCode.isPending}
-              onClick={() =>
-                createCode.mutate({
-                  contents: Number(codeForm.contents) || 0,
-                  generations: Number(codeForm.generations) || 0,
-                  accounts: Number(codeForm.accounts) || 0,
-                  maxUses: 1,
-                })
-              }
+              disabled={createCode.isPending || !Number(codeMinutes)}
+              onClick={() => createCode.mutate({ minutes: Number(codeMinutes) })}
             >
               生成兑换码
             </Button>
@@ -305,7 +394,7 @@ export function AdminPanel() {
               <TableHeader>
                 <TableRow>
                   <TableHead>码</TableHead>
-                  <TableHead>额度</TableHead>
+                  <TableHead>时长</TableHead>
                   <TableHead>使用</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead className="text-right">操作</TableHead>
@@ -318,15 +407,7 @@ export function AdminPanel() {
                   return (
                     <TableRow key={c.id}>
                       <TableCell className="font-mono text-xs">{c.code}</TableCell>
-                      <TableCell className="text-xs">
-                        {[
-                          c.grant?.contents ? `解析${c.grant.contents}` : null,
-                          c.grant?.generations ? `生成${c.grant.generations}` : null,
-                          c.grant?.accounts ? `账号${c.grant.accounts}` : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" / ")}
-                      </TableCell>
+                      <TableCell className="text-xs">{c.grant?.minutes ?? 0} 分钟</TableCell>
                       <TableCell className="font-mono text-xs">
                         {c.usedCount}/{c.maxUses}
                       </TableCell>
@@ -357,6 +438,108 @@ export function AdminPanel() {
               </TableBody>
             </Table>
           ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>用户</CardTitle>
+          <CardDescription>点击「详情」查看用量、登录记录与申请信息</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>用户</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>角色</TableHead>
+                <TableHead>注册时间</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(usersQuery.data ?? []).map((u) => (
+                <TableRow key={u.id}>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span>{u.displayName ?? "—"}</span>
+                      <span className="text-xs text-muted-foreground">{u.email}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{statusBadge(u.accessStatus)}</TableCell>
+                  <TableCell className="text-sm">{u.role === "admin" ? "管理员" : "成员"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {new Date(u.createdAt).toLocaleDateString("zh-CN")}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setDetailUserId(u.id)}>
+                        详情
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={setRole.isPending}
+                        onClick={() =>
+                          setRole.mutate({
+                            userId: u.id,
+                            role: u.role === "admin" ? "member" : "admin",
+                          })
+                        }
+                      >
+                        {u.role === "admin" ? "取消管理员" : "设为管理员"}
+                      </Button>
+                      {u.accessStatus !== "approved" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={setAccess.isPending}
+                          onClick={() => setAccess.mutate({ userId: u.id, accessStatus: "approved" })}
+                        >
+                          放行
+                        </Button>
+                      ) : null}
+                      {u.accessStatus !== "blocked" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={setAccess.isPending}
+                          onClick={() => setAccess.mutate({ userId: u.id, accessStatus: "blocked" })}
+                        >
+                          停用
+                        </Button>
+                      ) : null}
+                      <AlertDialog>
+                        <AlertDialogTrigger
+                          render={
+                            <Button size="sm" variant="destructive" disabled={deleteUser.isPending} />
+                          }
+                        >
+                          删除
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>删除用户 {u.email}？</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              将永久删除该用户及其全部账号、项目、分析、SOP、圣经、选题与脚本，不可恢复。
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>取消</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteUser.mutate({ userId: u.id })}
+                            >
+                              确认删除
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
@@ -406,6 +589,8 @@ export function AdminPanel() {
           )}
         </CardContent>
       </Card>
+
+      <UserDetailSheet userId={detailUserId} onClose={() => setDetailUserId(null)} />
     </div>
   );
 }

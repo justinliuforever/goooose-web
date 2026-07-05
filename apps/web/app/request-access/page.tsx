@@ -1,5 +1,8 @@
+import { signOut } from "@logto/next/server-actions";
 import { redirect } from "next/navigation";
 
+import { Button } from "@/components/ui/button";
+import { logtoConfig } from "@/lib/logto";
 import { ensureCurrentUser } from "@/lib/users";
 import { APP_VERSION_LABEL } from "@/lib/version";
 
@@ -22,6 +25,16 @@ export default async function RequestAccessPage() {
         email={user.email}
         blocked={user.accessStatus === "blocked"}
       />
+      <form
+        action={async () => {
+          "use server";
+          await signOut(logtoConfig, new URL("/signed-out", logtoConfig.baseUrl).toString());
+        }}
+      >
+        <Button variant="ghost" size="sm" type="submit" className="text-muted-foreground">
+          退出登录 / 换个邮箱
+        </Button>
+      </form>
     </div>
   );
 }

@@ -17,6 +17,7 @@ export const users = pgTable("users", {
   role: text("role", { enum: ["member", "admin"] }).notNull().default("member"),
   plan: text("plan").notNull().default("free"),
   bonusBalances: jsonb("bonus_balances").$type<BonusBalances>().notNull().default({}),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

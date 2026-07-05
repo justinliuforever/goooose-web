@@ -4,8 +4,8 @@ import { and, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import {
   channels,
   competitorAccounts,
-  consumeQuota,
-  contentUnits,
+  consumeMinutes,
+  videoMinutes,
   flushProxyPool,
   loadProxyPool,
   museIdeas,
@@ -648,8 +648,8 @@ export const monitorCompetitors = task({
           .select({ durationSec: museMonitorVideos.durationSec })
           .from(museMonitorVideos)
           .where(eq(museMonitorVideos.runId, payload.runId));
-        const units = processed.reduce((s, v) => s + contentUnits(v.durationSec), 0);
-        await consumeQuota(db, { userId: payload.userId, unit: "contents", amount: units });
+        const minutes = processed.reduce((s, v) => s + videoMinutes(v.durationSec), 0);
+        await consumeMinutes(db, { userId: payload.userId, amount: minutes });
       }
 
       await db

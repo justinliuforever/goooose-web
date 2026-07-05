@@ -9,15 +9,15 @@ import { z } from "zod";
 import {
   accessRequests,
   allowedEmails,
-  checkQuota,
+  checkMinutes,
   codeRedemptions,
-  countAccounts,
-  planQuota,
+  grantMinutes,
+  loginEvents,
+  pipelineRuns,
   quotaAdjustments,
   redemptionCodes,
   usageEvents,
   users,
-  type BonusBalances,
 } from "@singularity/db";
 
 import { db } from "@/lib/db";
@@ -86,22 +86,10 @@ export const accessRouter = router({
     }),
 
   myUsage: protectedProcedure.query(async ({ ctx }) => {
-    const base = planQuota(ctx.user.plan ?? "free");
-    const bonus = (ctx.user.bonusBalances ?? {}) as BonusBalances;
-    const [contents, generations, accountsUsed] = await Promise.all([
-      checkQuota(db, { userId: ctx.user.id, unit: "contents" }),
-      checkQuota(db, { userId: ctx.user.id, unit: "generations" }),
-      countAccounts(db, ctx.user.id),
-    ]);
+    const minutes = await checkMinutes(db, { userId: ctx.user.id });
     return {
       plan: ctx.user.plan ?? "free",
-      accounts: { used: accountsUsed, base: base.accounts, bonus: Math.max(bonus.accounts ?? 0, 0) },
-      contents: { used: contents.monthUsed, base: contents.base, bonus: contents.bonusRemaining },
-      generations: {
-        used: generations.monthUsed,
-        base: generations.base,
-        bonus: generations.bonusRemaining,
-      },
+      minutes: { used: minutes.used, base: minutes.base, bonus: minutes.bonus },
     };
   }),
 
@@ -134,27 +122,19 @@ export const accessRouter = router({
           .update(redemptionCodes)
           .set({ usedCount: sql`${redemptionCodes.usedCount} + 1` })
           .where(eq(redemptionCodes.id, code.id));
-        const grant = code.grant ?? {};
-        await tx
-          .update(users)
-          .set({
-            bonusBalances: sql`jsonb_build_object(
-              'accounts', coalesce((${users.bonusBalances}->>'accounts')::int, 0) + ${grant.accounts ?? 0},
-              'contents', coalesce((${users.bonusBalances}->>'contents')::int, 0) + ${grant.contents ?? 0},
-              'generations', coalesce((${users.bonusBalances}->>'generations')::int, 0) + ${grant.generations ?? 0}
-            )`,
-          })
-          .where(eq(users.id, ctx.user.id));
+        const minutes = code.grant?.minutes ?? 0;
+        if (minutes <= 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "兑换码额度无效" });
+        }
+        await grantMinutes(tx, { userId: ctx.user.id, amount: minutes });
         await tx.insert(quotaAdjustments).values({
           userId: ctx.user.id,
           source: "code",
           codeId: code.id,
-          accountsDelta: grant.accounts ?? 0,
-          contentsDelta: grant.contents ?? 0,
-          generationsDelta: grant.generations ?? 0,
+          minutesDelta: minutes,
           note: code.note,
         });
-        return { granted: grant };
+        return { minutes };
       });
     }),
 });
@@ -266,27 +246,18 @@ export const adminRouter = router({
   createCode: adminProcedure
     .input(
       z.object({
-        accounts: z.number().int().min(0).max(1000).default(0),
-        contents: z.number().int().min(0).max(100000).default(0),
-        generations: z.number().int().min(0).max(100000).default(0),
+        minutes: z.number().int().min(1).max(100000),
         maxUses: z.number().int().min(1).max(1000).default(1),
         expiresInDays: z.number().int().min(1).max(365).optional(),
         note: z.string().trim().max(200).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      if (!input.accounts && !input.contents && !input.generations) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "至少给一项额度" });
-      }
       const [created] = await db
         .insert(redemptionCodes)
         .values({
           code: generateCode(),
-          grant: {
-            ...(input.accounts ? { accounts: input.accounts } : {}),
-            ...(input.contents ? { contents: input.contents } : {}),
-            ...(input.generations ? { generations: input.generations } : {}),
-          },
+          grant: { minutes: input.minutes },
           maxUses: input.maxUses,
           expiresAt: input.expiresInDays
             ? new Date(Date.now() + input.expiresInDays * 86400_000)
@@ -346,5 +317,104 @@ export const adminRouter = router({
         .set({ accessStatus: input.accessStatus })
         .where(eq(users.id, input.userId));
       return { ok: true };
+    }),
+
+  setUserRole: adminProcedure
+    .input(
+      z.object({
+        userId: z.string().uuid(),
+        role: z.enum(["member", "admin"]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.userId === ctx.user.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "不能修改自己的角色" });
+      }
+      await db.update(users).set({ role: input.role }).where(eq(users.id, input.userId));
+      return { ok: true };
+    }),
+
+  deleteUser: adminProcedure
+    .input(z.object({ userId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.userId === ctx.user.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "不能删除自己" });
+      }
+      // FK cascades wipe channels/projects/runs/analyses; usage_events keep rows
+      // with user_id nulled for cost history.
+      await db.delete(users).where(eq(users.id, input.userId));
+      return { ok: true };
+    }),
+
+  userDetail: adminProcedure
+    .input(z.object({ userId: z.string().uuid() }))
+    .query(async ({ input }) => {
+      const [user] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+      const month = sql<string>`to_char(${usageEvents.createdAt} at time zone 'Asia/Shanghai', 'YYYY-MM')`;
+      const [usageByMonth, logins, [loginStats], [runStats], [latestRequest]] = await Promise.all([
+        db
+          .select({
+            month,
+            llmInputTokens: sql<number>`coalesce(sum(${usageEvents.inputTokens}), 0)`,
+            llmOutputTokens: sql<number>`coalesce(sum(${usageEvents.outputTokens}), 0)`,
+            asrSeconds: sql<number>`coalesce(sum(${usageEvents.audioSeconds}), 0)`,
+            scrapeCalls: sql<number>`coalesce(sum(${usageEvents.apiCalls}) filter (where ${usageEvents.resourceType} = 'scrape'), 0)`,
+            costUsd: sql<number>`coalesce(sum(${usageEvents.estimatedCostUsd}), 0)`,
+          })
+          .from(usageEvents)
+          .where(eq(usageEvents.userId, input.userId))
+          .groupBy(month)
+          .orderBy(desc(month))
+          .limit(6),
+        db
+          .select({
+            ip: loginEvents.ip,
+            userAgent: loginEvents.userAgent,
+            createdAt: loginEvents.createdAt,
+          })
+          .from(loginEvents)
+          .where(eq(loginEvents.userId, input.userId))
+          .orderBy(desc(loginEvents.createdAt))
+          .limit(10),
+        db
+          .select({ total: sql<number>`count(*)::int` })
+          .from(loginEvents)
+          .where(eq(loginEvents.userId, input.userId)),
+        db
+          .select({ total: sql<number>`count(*)::int` })
+          .from(pipelineRuns)
+          .where(eq(pipelineRuns.userId, input.userId)),
+        db
+          .select({
+            message: accessRequests.message,
+            contact: accessRequests.contact,
+            status: accessRequests.status,
+            createdAt: accessRequests.createdAt,
+          })
+          .from(accessRequests)
+          .where(eq(accessRequests.userId, input.userId))
+          .orderBy(desc(accessRequests.createdAt))
+          .limit(1),
+      ]);
+      const minutes = await checkMinutes(db, { userId: input.userId });
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          displayName: user.displayName,
+          accessStatus: user.accessStatus,
+          role: user.role,
+          plan: user.plan,
+          createdAt: user.createdAt,
+          lastSeenAt: user.lastSeenAt,
+        },
+        minutes: { used: minutes.used, base: minutes.base, bonus: minutes.bonus },
+        usageByMonth,
+        logins,
+        loginCount: loginStats?.total ?? 0,
+        runCount: runStats?.total ?? 0,
+        latestRequest: latestRequest ?? null,
+      };
     }),
 });

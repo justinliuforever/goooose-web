@@ -8,12 +8,13 @@ import { z } from "zod";
 import {
   channels,
   channelSeries,
-  checkAccountQuota,
-  checkQuota,
+  checkAccountRail,
+  checkMinutes,
   clerkSops,
   clerkVideos,
   competitorAccounts,
-  consumeQuota,
+  consumeMinutes,
+  GENERATION_MINUTES,
   museIdeas,
   ownAccounts,
   pipelineRuns,
@@ -23,6 +24,7 @@ import {
   projectCompetitors,
   projects,
   projectSops,
+  scriptMinutes,
 } from "@singularity/db";
 import {
   getChannelInfo,
@@ -168,35 +170,28 @@ async function triggerOrFailRun(
   }
 }
 
-// 生成数: consumed 1-per-run at trigger. 解析数: threshold-checked here, actuals
-// settled by the worker per processed video (overshoot bounded by concurrency cap).
-const GENERATION_TASKS = new Set([
-  "poet-generate-script",
-  "poet-generate-bible",
-  "poet-analyze-custom-topic",
-  "clerk-analyze-single-video",
-]);
+// Single minutes pool. Generation tasks charge fixed/target-duration minutes at
+// trigger; analysis tasks are threshold-checked here and the worker settles actual
+// video minutes at run end (overshoot bounded by the per-user concurrency cap).
+const GENERATION_TASK_MINUTES: Record<string, number> = {
+  "poet-generate-bible": GENERATION_MINUTES.bible,
+  "poet-analyze-custom-topic": GENERATION_MINUTES.topic,
+  "clerk-analyze-single-video": GENERATION_MINUTES.singleVideo,
+};
 const CONTENT_TASKS = new Set(["clerk-analyze-channel", "muse-monitor-competitors"]);
 
-async function assertRunQuota(userId: string, taskId: string) {
-  if (GENERATION_TASKS.has(taskId)) {
-    const q = await checkQuota(db, { userId, unit: "generations" });
-    if (!q.allowed) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: `本月生成额度已用完（${q.base} 次/月${q.bonusRemaining > 0 ? ` + 奖励 ${q.bonusRemaining}` : ""}）。可在「用量与额度」页兑换额度码，或联系我们。`,
-      });
-    }
-    await consumeQuota(db, { userId, unit: "generations", amount: 1 });
-  } else if (CONTENT_TASKS.has(taskId)) {
-    const q = await checkQuota(db, { userId, unit: "contents" });
-    if (!q.allowed) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: `本月解析额度已用完（${q.base} 条/月，超过 10 分钟的长视频按每 10 分钟计 1 条）。可在「用量与额度」页兑换额度码，或联系我们。`,
-      });
-    }
+async function assertRunQuota(userId: string, taskId: string, quotaMinutes?: number) {
+  const charge =
+    quotaMinutes ?? (taskId === "poet-generate-script" ? scriptMinutes() : GENERATION_TASK_MINUTES[taskId]);
+  if (charge === undefined && !CONTENT_TASKS.has(taskId)) return;
+  const q = await checkMinutes(db, { userId, need: charge ?? 1 });
+  if (!q.allowed) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `本月时长额度不足（剩余 ${Math.max(q.remaining, 0)} 分钟${charge ? `，本次需 ${charge} 分钟` : ""}）。可在「用量与额度」页兑换额度码，或联系我们。`,
+    });
   }
+  if (charge) await consumeMinutes(db, { userId, amount: charge });
 }
 
 // The staged-run dance shared by every agent-start mutation: insert the pending run
@@ -210,8 +205,9 @@ async function stageAndTriggerRun(args: {
   payload: Record<string, unknown>;
   projectId?: string;
   userId: string;
+  quotaMinutes?: number;
 }) {
-  await assertRunQuota(args.userId, args.taskId);
+  await assertRunQuota(args.userId, args.taskId, args.quotaMinutes);
   const [run] = await db
     .insert(pipelineRuns)
     .values({
@@ -318,11 +314,11 @@ async function upsertCompetitor(
     )
     .limit(1);
   if (live) return { status: "duplicate", id: live.id };
-  const accountQuota = await checkAccountQuota(db, { userId });
-  if (!accountQuota.allowed) {
+  const rail = await checkAccountRail(db, userId);
+  if (!rail.allowed) {
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: `账号额度已用完（自有+对标共 ${accountQuota.base + accountQuota.bonusRemaining} 个）。删除不用的账号可释放名额，或在「用量与额度」页兑换额度码。`,
+      message: `账号数已达内测上限（${rail.max} 个）。删除不用的账号可释放名额，或联系我们。`,
     });
   }
   const [dead] = await db
@@ -479,11 +475,11 @@ export const appRouter = router({
     create: protectedProcedure
       .input(createChannelInput)
       .mutation(async ({ ctx, input }) => {
-        const accountQuota = await checkAccountQuota(db, { userId: ctx.user.id });
-        if (!accountQuota.allowed) {
+        const rail = await checkAccountRail(db, ctx.user.id);
+        if (!rail.allowed) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: `账号额度已用完（自有+对标共 ${accountQuota.base + accountQuota.bonusRemaining} 个）。删除不用的账号可释放名额，或在「用量与额度」页兑换额度码。`,
+            message: `账号数已达内测上限（${rail.max} 个）。删除不用的账号可释放名额，或联系我们。`,
           });
         }
         const slug = await uniqueSlug(ctx.user.id, slugify(input.name));
@@ -1906,8 +1902,19 @@ export const appRouter = router({
 
         await assertNoActiveRun(channel.id, "poet");
 
+        const chargeDuration =
+          input.durationSeconds ??
+          (
+            await db
+              .select({ d: projects.targetDurationSeconds })
+              .from(projects)
+              .where(eq(projects.id, input.projectId))
+              .limit(1)
+          )[0]?.d;
+
         return stageAndTriggerRun({
           userId: ctx.user.id,
+          quotaMinutes: scriptMinutes(chargeDuration),
           owner: { channelId: channel.id },
           projectId: input.projectId,
           agent: "poet",
@@ -2216,8 +2223,21 @@ export const appRouter = router({
 
         await assertNoActiveRun(channel.id, "poet");
 
+        const chargeDuration =
+          input.durationSeconds ??
+          (input.projectId
+            ? (
+                await db
+                  .select({ d: projects.targetDurationSeconds })
+                  .from(projects)
+                  .where(eq(projects.id, input.projectId))
+                  .limit(1)
+              )[0]?.d
+            : undefined);
+
         return stageAndTriggerRun({
           userId: ctx.user.id,
+          quotaMinutes: scriptMinutes(chargeDuration),
           owner: { channelId: channel.id },
           projectId: input.projectId,
           agent: "poet",

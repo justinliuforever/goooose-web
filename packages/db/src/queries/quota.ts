@@ -4,25 +4,33 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { channels } from "../schema/channels";
 import { competitorAccounts } from "../schema/competitor";
 import { usageCounters } from "../schema/quota";
-import { users, type BonusBalances } from "../schema/users";
+import { users } from "../schema/users";
 
+// Structural: accepts the bare worker client, the schema-typed web client, and
+// transaction handles alike.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyDb = PostgresJsDatabase<any>;
+type AnyDb = Pick<PostgresJsDatabase<any>, "select" | "insert" | "update">;
 
-export type QuotaUnit = "contents" | "generations";
-
-export const PLAN_QUOTAS: Record<string, { accounts: number; contents: number; generations: number }> = {
-  free: { accounts: 5, contents: 50, generations: 20 },
+// Single monthly minutes pool: analysis charges actual video minutes (image post
+// = flat equivalent), generation charges target-duration minutes or a flat rate.
+export const PLAN_LIMITS: Record<string, { minutesPerMonth: number; accountsMax: number }> = {
+  free: { minutesPerMonth: 300, accountsMax: 30 },
 };
 
-export function planQuota(plan: string) {
-  return PLAN_QUOTAS[plan] ?? PLAN_QUOTAS.free!;
+export function planLimits(plan: string) {
+  return PLAN_LIMITS[plan] ?? PLAN_LIMITS.free!;
 }
 
-// 1 条 = ≤10min video or one image post; each extra 10min counts one more.
-export function contentUnits(durationSec?: number | null): number {
-  if (!durationSec || durationSec <= 0) return 1;
-  return Math.max(1, Math.ceil(durationSec / 600));
+export const IMAGE_POST_MINUTES = 5;
+export const GENERATION_MINUTES = { bible: 5, topic: 3, singleVideo: 2 } as const;
+
+export function videoMinutes(durationSec?: number | null): number {
+  if (!durationSec || durationSec <= 0) return IMAGE_POST_MINUTES;
+  return Math.max(1, Math.ceil(durationSec / 60));
+}
+
+export function scriptMinutes(durationSec?: number | null): number {
+  return Math.max(2, Math.ceil((durationSec ?? 300) / 60));
 }
 
 // Quota months roll over on the Asia/Shanghai calendar.
@@ -37,80 +45,69 @@ export function currentPeriod(date = new Date()): string {
   return `${year}-${month}`;
 }
 
-const COUNTER_COLUMN = {
-  contents: usageCounters.contentsUsed,
-  generations: usageCounters.generationsUsed,
-} as const;
-
-export type QuotaSnapshot = {
+export type MinutesSnapshot = {
   allowed: boolean;
   base: number;
-  monthUsed: number;
-  bonusRemaining: number;
+  used: number;
+  bonus: number;
   remaining: number;
 };
 
-export async function checkQuota(
+export async function checkMinutes(
   db: AnyDb,
-  args: { userId: string; unit: QuotaUnit; need?: number },
-): Promise<QuotaSnapshot> {
+  args: { userId: string; need?: number },
+): Promise<MinutesSnapshot> {
   const need = args.need ?? 1;
   const [user] = await db
-    .select({ plan: users.plan, bonus: users.bonusBalances })
+    .select({ plan: users.plan })
     .from(users)
     .where(eq(users.id, args.userId))
     .limit(1);
-  const base = planQuota(user?.plan ?? "free")[args.unit];
-  const bonusRemaining = Math.max((user?.bonus as BonusBalances | null)?.[args.unit] ?? 0, 0);
+  const base = planLimits(user?.plan ?? "free").minutesPerMonth;
   const [counter] = await db
-    .select({ used: COUNTER_COLUMN[args.unit] })
+    .select({ used: usageCounters.minutesUsed, bonus: usageCounters.bonusMinutes })
     .from(usageCounters)
     .where(and(eq(usageCounters.userId, args.userId), eq(usageCounters.period, currentPeriod())))
     .limit(1);
-  const monthUsed = counter?.used ?? 0;
-  const remaining = base + bonusRemaining - monthUsed;
-  return { allowed: remaining >= need, base, monthUsed, bonusRemaining, remaining };
+  const used = counter?.used ?? 0;
+  const bonus = counter?.bonus ?? 0;
+  const remaining = base + bonus - used;
+  return { allowed: remaining >= need, base, used, bonus, remaining };
 }
 
-// Increment the monthly counter; overflow past the plan base consumes the
-// one-time bonus pool (floor 0). Two statements — per-user run concurrency
-// caps make the race window negligible at beta scale.
-export async function consumeQuota(
+export async function consumeMinutes(
   db: AnyDb,
-  args: { userId: string; unit: QuotaUnit; amount: number },
+  args: { userId: string; amount: number },
 ): Promise<void> {
   if (args.amount <= 0) return;
-  const [user] = await db
-    .select({ plan: users.plan, bonus: users.bonusBalances })
-    .from(users)
-    .where(eq(users.id, args.userId))
-    .limit(1);
-  if (!user) return;
-  const base = planQuota(user.plan ?? "free")[args.unit];
-  const column = COUNTER_COLUMN[args.unit];
-  const values =
-    args.unit === "contents"
-      ? { userId: args.userId, period: currentPeriod(), contentsUsed: args.amount }
-      : { userId: args.userId, period: currentPeriod(), generationsUsed: args.amount };
-  const [row] = await db
+  await db
     .insert(usageCounters)
-    .values(values)
+    .values({ userId: args.userId, period: currentPeriod(), minutesUsed: args.amount })
     .onConflictDoUpdate({
       target: [usageCounters.userId, usageCounters.period],
-      set: { [args.unit === "contents" ? "contentsUsed" : "generationsUsed"]: sql`${column} + ${args.amount}`, updatedAt: new Date() },
-    })
-    .returning({ used: column });
-  const usedAfter = row?.used ?? args.amount;
-  const overflow = Math.min(Math.max(usedAfter - base, 0), args.amount);
-  if (overflow > 0) {
-    const key = sql.raw(`'{${args.unit}}'`);
-    await db
-      .update(users)
-      .set({
-        bonusBalances: sql`jsonb_set(coalesce(${users.bonusBalances}, '{}'::jsonb), ${key}, to_jsonb(greatest(coalesce((${users.bonusBalances}->>${args.unit})::int, 0) - ${overflow}, 0)))`,
-      })
-      .where(eq(users.id, args.userId));
-  }
+      set: {
+        minutesUsed: sql`${usageCounters.minutesUsed} + ${args.amount}`,
+        updatedAt: new Date(),
+      },
+    });
+}
+
+// Code-granted minutes live on the current period row and expire with it.
+export async function grantMinutes(
+  db: AnyDb,
+  args: { userId: string; amount: number },
+): Promise<void> {
+  if (args.amount <= 0) return;
+  await db
+    .insert(usageCounters)
+    .values({ userId: args.userId, period: currentPeriod(), bonusMinutes: args.amount })
+    .onConflictDoUpdate({
+      target: [usageCounters.userId, usageCounters.period],
+      set: {
+        bonusMinutes: sql`${usageCounters.bonusMinutes} + ${args.amount}`,
+        updatedAt: new Date(),
+      },
+    });
 }
 
 export async function countAccounts(db: AnyDb, userId: string): Promise<number> {
@@ -125,19 +122,17 @@ export async function countAccounts(db: AnyDb, userId: string): Promise<number> 
   return (own?.n ?? 0) + (comp?.n ?? 0);
 }
 
-export async function checkAccountQuota(
+// Hidden anti-abuse rail — not surfaced as a user-facing quota, only errors at the cap.
+export async function checkAccountRail(
   db: AnyDb,
-  args: { userId: string; need?: number },
-): Promise<QuotaSnapshot> {
-  const need = args.need ?? 1;
+  userId: string,
+): Promise<{ allowed: boolean; max: number; used: number }> {
   const [user] = await db
-    .select({ plan: users.plan, bonus: users.bonusBalances })
+    .select({ plan: users.plan })
     .from(users)
-    .where(eq(users.id, args.userId))
+    .where(eq(users.id, userId))
     .limit(1);
-  const base = planQuota(user?.plan ?? "free").accounts;
-  const bonusRemaining = Math.max((user?.bonus as BonusBalances | null)?.accounts ?? 0, 0);
-  const monthUsed = await countAccounts(db, args.userId);
-  const remaining = base + bonusRemaining - monthUsed;
-  return { allowed: remaining >= need, base, monthUsed, bonusRemaining, remaining };
+  const max = planLimits(user?.plan ?? "free").accountsMax;
+  const used = await countAccounts(db, userId);
+  return { allowed: used < max, max, used };
 }

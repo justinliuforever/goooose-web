@@ -1,8 +1,10 @@
-import { integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-import { users, type BonusBalances } from "./users";
+import { users } from "./users";
 
-// period = 'YYYY-MM' (Asia/Shanghai) — monthly action counters for quota checks.
+// period = 'YYYY-MM' (Asia/Shanghai). Single minutes pool per month; bonus_minutes
+// comes from redemption codes and expires with the period (row) itself.
+// contents_used/generations_used are dormant leftovers from the pre-minutes model.
 export const usageCounters = pgTable(
   "usage_counters",
   {
@@ -10,6 +12,8 @@ export const usageCounters = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     period: text("period").notNull(),
+    minutesUsed: integer("minutes_used").notNull().default(0),
+    bonusMinutes: integer("bonus_minutes").notNull().default(0),
     contentsUsed: integer("contents_used").notNull().default(0),
     generationsUsed: integer("generations_used").notNull().default(0),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -19,10 +23,12 @@ export const usageCounters = pgTable(
   }),
 );
 
+export type CodeGrant = { minutes?: number };
+
 export const redemptionCodes = pgTable("redemption_codes", {
   id: uuid("id").primaryKey().defaultRandom(),
   code: text("code").notNull().unique(),
-  grant: jsonb("grant").$type<BonusBalances>().notNull(),
+  grant: jsonb("grant").$type<CodeGrant>().notNull(),
   maxUses: integer("max_uses").notNull().default(1),
   usedCount: integer("used_count").notNull().default(0),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
@@ -55,6 +61,7 @@ export const quotaAdjustments = pgTable("quota_adjustments", {
     .references(() => users.id, { onDelete: "cascade" }),
   source: text("source", { enum: ["code", "admin"] }).notNull(),
   codeId: uuid("code_id"),
+  minutesDelta: integer("minutes_delta").notNull().default(0),
   accountsDelta: integer("accounts_delta").notNull().default(0),
   contentsDelta: integer("contents_delta").notNull().default(0),
   generationsDelta: integer("generations_delta").notNull().default(0),
@@ -62,6 +69,24 @@ export const quotaAdjustments = pgTable("quota_adjustments", {
   createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// One row per completed Logto sign-in (callback route) — admin 用户详情 needs
+// login count + IP history.
+export const loginEvents = pgTable(
+  "login_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("login_events_user_idx").on(table.userId, table.createdAt),
+  }),
+);
 
 export type RedemptionCode = typeof redemptionCodes.$inferSelect;
 export type UsageCounter = typeof usageCounters.$inferSelect;
