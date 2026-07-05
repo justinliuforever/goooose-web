@@ -423,6 +423,7 @@ export function AdminPanel({ selfId }: { selfId: string }) {
                   <TableHead>码</TableHead>
                   <TableHead>时长</TableHead>
                   <TableHead>使用</TableHead>
+                  <TableHead>使用者</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead className="text-right">操作</TableHead>
                 </TableRow>
@@ -449,6 +450,19 @@ export function AdminPanel({ selfId }: { selfId: string }) {
                       <TableCell className="text-xs">{c.grant?.minutes ?? 0} 分钟</TableCell>
                       <TableCell className="font-mono text-xs">
                         {c.usedCount}/{c.maxUses}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {c.redeemers.length ? (
+                          <div className="flex flex-col gap-0.5">
+                            {c.redeemers.map((r, i) => (
+                              <span key={i} title={new Date(r.redeemedAt).toLocaleString("zh-CN")}>
+                                {r.email}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {expired ? (

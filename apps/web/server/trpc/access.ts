@@ -304,7 +304,25 @@ export const adminRouter = router({
     }),
 
   listCodes: adminProcedure.query(async () => {
-    return db.select().from(redemptionCodes).orderBy(desc(redemptionCodes.createdAt)).limit(100);
+    return db
+      .select({
+        id: redemptionCodes.id,
+        code: redemptionCodes.code,
+        grant: redemptionCodes.grant,
+        maxUses: redemptionCodes.maxUses,
+        usedCount: redemptionCodes.usedCount,
+        expiresAt: redemptionCodes.expiresAt,
+        note: redemptionCodes.note,
+        createdAt: redemptionCodes.createdAt,
+        redeemers: sql<Array<{ email: string; redeemedAt: string }>>`coalesce((
+          select json_agg(json_build_object('email', u.email, 'redeemedAt', cr.redeemed_at) order by cr.redeemed_at)
+          from code_redemptions cr join users u on u.id = cr.user_id
+          where cr.code_id = ${redemptionCodes.id}
+        ), '[]'::json)`,
+      })
+      .from(redemptionCodes)
+      .orderBy(desc(redemptionCodes.createdAt))
+      .limit(100);
   }),
 
   disableCode: adminProcedure
