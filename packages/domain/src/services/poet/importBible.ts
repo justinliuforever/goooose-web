@@ -1,0 +1,97 @@
+// Bible file import stage-2: anchored bible generation from a faithful document
+// transcript, with build-time digit audit (content numbers ⊆ transcript numbers).
+// Thresholds validated in the R6 bake-off (notes/round6-bible导入-研究与决策.md).
+
+import type { ImportFlag } from "@singularity/integrations/clients/docTranscribe";
+import { generateTextWithFallback } from "@singularity/integrations/clients/llm";
+import { buildBibleFromDocumentPrompt } from "@singularity/prompts/poet";
+import { redactUngrounded } from "../grounding";
+import { checkDrift, extractHostLine, extractTopicLine } from "./bible";
+import type { DriftWarning } from "../../schemas/poet";
+
+export type { ImportFlag };
+
+type Logger = { info?: (m: string) => void; warn?: (m: string) => void };
+
+const digitTokens = (s: string) => new Set(s.match(/\d+(?:\.\d+)?/g) ?? []);
+
+export type BibleFromDocumentResult = {
+  content: string;
+  topicClaimed: string;
+  hostName: string | null;
+  driftWarning: DriftWarning | null;
+  flags: ImportFlag[];
+};
+
+export async function generateBibleFromDocument(
+  args: {
+    transcript: string;
+    channelName?: string;
+    language?: "en" | "zh";
+    logger?: Logger;
+  },
+  onProgress?: (chars: number) => void | Promise<void>,
+): Promise<BibleFromDocumentResult> {
+  const flags: ImportFlag[] = [];
+  const prompt = buildBibleFromDocumentPrompt({
+    transcript: args.transcript,
+    channelName: args.channelName,
+    language: args.language,
+  });
+  // Pro-first: fidelity restructuring benefits from the stronger model (bake-off: 0 digit violations).
+  let { text: content } = await generateTextWithFallback({ prompt, maxOutputTokens: 16384, temperature: 0.3 });
+  content = content.trim();
+  if (!content) throw new Error("Bible generation returned empty content");
+  await onProgress?.(content.length);
+
+  content = await redactUngrounded({
+    draft: content,
+    source: args.transcript,
+    language: args.language,
+    mode: "doc",
+    logger: args.logger,
+  });
+
+  // Build-time digit audit: every number in the bible must exist in the transcript.
+  const transcriptDigits = digitTokens(args.transcript);
+  let violations = [...digitTokens(content)].filter((n) => !transcriptDigits.has(n));
+  if (violations.length > 0) {
+    args.logger?.warn?.(`bible digit audit: ${violations.length} violations, regenerating once`);
+    const retryPrompt = `${prompt}\n\n## PREVIOUS ATTEMPT REJECTED\nYour previous output contained numbers NOT present in the transcript: ${violations.join(", ")}. Regenerate strictly — every number must be copied verbatim from the transcript.`;
+    const retry = await generateTextWithFallback({ prompt: retryPrompt, maxOutputTokens: 16384, temperature: 0.2 });
+    const retryContent = retry.text.trim();
+    if (retryContent) {
+      const retryViolations = [...digitTokens(retryContent)].filter((n) => !transcriptDigits.has(n));
+      if (retryViolations.length < violations.length) {
+        content = await redactUngrounded({
+          draft: retryContent,
+          source: args.transcript,
+          language: args.language,
+          mode: "doc",
+          logger: args.logger,
+        });
+        violations = [...digitTokens(content)].filter((n) => !transcriptDigits.has(n));
+      }
+    }
+  }
+  if (violations.length > 0) {
+    // Better no number than a wrong number: drop body lines still carrying unsupported digits.
+    const lines = content.split("\n");
+    const kept = lines.filter((line) => {
+      if (/^(##|TOPIC:|HOST:)/.test(line.trim())) return true;
+      return !violations.some((v) => line.includes(v));
+    });
+    if (kept.length < lines.length) {
+      content = kept.join("\n");
+      flags.push({
+        type: "audit",
+        detail: `数字审计：${violations.length} 个数字无法在转写中找到，包含它们的 ${lines.length - kept.length} 行已移除（${violations.slice(0, 8).join(", ")}${violations.length > 8 ? "…" : ""}）`,
+      });
+    }
+  }
+
+  const topicClaimed = extractTopicLine(content);
+  const hostName = extractHostLine(content);
+  const driftWarning = checkDrift(args.transcript.slice(0, 4000), topicClaimed, content);
+  return { content, topicClaimed, hostName, driftWarning, flags };
+}

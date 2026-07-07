@@ -10,6 +10,7 @@
     "./clients/tikhub": "./src/clients/tikhub.ts",
     "./clients/asr": "./src/clients/asr.ts",
     "./clients/vision": "./src/clients/vision.ts",
+    "./clients/docTranscribe": "./src/clients/docTranscribe.ts",
     "./clients/youtube-data": "./src/clients/youtube-data.ts",
     "./clients/xhs": "./src/clients/xhs.ts",
     "./clients/ytdlp": "./src/clients/ytdlp.ts",
@@ -26,7 +27,11 @@
     "@ai-sdk/deepseek": "^2.0.35",
     "@ai-sdk/provider": "^3.0.10",
     "ai": "^6.0.184",
-    "jsonrepair": "^3.14.0"
+    "fflate": "^0.8.3",
+    "jsonrepair": "^3.14.0",
+    "mammoth": "^1.12.0",
+    "pdf-lib": "^1.17.1",
+    "unpdf": "^1.6.2"
   },
   "devDependencies": {
     "typescript": "^5.7.0"

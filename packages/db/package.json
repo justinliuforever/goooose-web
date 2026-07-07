@@ -34,7 +34,8 @@
     "create-pipeline-run": "tsx scripts/trigger-detect-series.ts",
     "clerk-video-stats": "tsx scripts/clerk-video-stats.ts",
     "inspect-video-metadata": "tsx scripts/inspect-video-metadata.ts",
-    "smoke-analyze-channel": "tsx scripts/smoke-analyze-channel.ts"
+    "smoke-analyze-channel": "tsx scripts/smoke-analyze-channel.ts",
+    "bible-import-smoke": "tsx scripts/bible-import-smoke.ts"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.35",

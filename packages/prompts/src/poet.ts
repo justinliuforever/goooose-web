@@ -37,27 +37,39 @@ Begin your response with a single machine-parseable line:
 \`\`\`
 TOPIC: <the one-sentence topic from Step 0>
 \`\`\`
+If (and ONLY if) the Channel Idea explicitly names the host person, add a second line \`HOST: <that name>\`. Never invent a host name.
 
-Then produce the following sections.
+Then produce these sections, each starting with its exact anchor heading (downstream systems select sections by these anchors). If the inputs give no material for a section, write a single line （暂无，可后续补充） under it — do not pad or invent.
 
-## 1. CHANNEL DESCRIPTION — <topic>
-- What the channel is about (core topic, tone, format, audience)
-- What makes this channel distinct in its niche
+## POSITIONING — <topic>
+- What the channel is about (core topic, tone, format), what makes it distinct in its niche
 - Specific products, brands, sub-topics, or recurring concepts this channel covers (name them — e.g. for a Leica channel, name actual lens models / camera bodies / film stocks)
-- Content pillars (3-5 recurring formats)
-- The typical viewer and why they watch
 
-## 2. INFORMATION SOURCES — <topic>
-Where to find content for this channel:
-- Primary research sources for THIS specific topic (name the actual sites, communities, publications, or marketplaces — not generic platforms)
-- How to find fresh topics consistently
-- What signals to watch for high-performing ideas in this niche
+## PERSONA — <topic>
+- Host identity as the user described it: role, credentials, backstory — ONLY what the Channel Idea/Description states about THIS account's host
 
-## 3. TOPIC GENERATION FRAMEWORK — <topic>
-How to consistently come up with new video topics that fit this channel:
-- The structural pattern to follow when generating an idea
-- What makes a topic on-brand vs. off-brand for this channel
-- 3 concrete sample topics this channel could publish next week. Each must be specific to the niche named in Step 0.
+## AUDIENCE — <topic>
+- The typical viewer, their needs, and why they watch
+
+## CONTENT_PILLARS — <topic>
+- 3-5 recurring content pillars/formats
+
+## CONTENT_RULES — <topic>
+- Tone, do/don'ts, on-brand vs off-brand rules the inputs support
+
+## METHODOLOGY — <topic>
+- Named methods/systems/frameworks the host uses, with their concrete specifics — ONLY if stated in the inputs
+
+## INFORMATION_SOURCES — <topic>
+- Primary research sources for THIS specific topic (name actual sites, communities, publications, or marketplaces — not generic platforms)
+- How to find fresh topics consistently; signals of high-performing ideas in this niche
+
+## TOPIC_FRAMEWORK — <topic>
+- The structural pattern to follow when generating an idea; what makes a topic on-brand vs off-brand
+- 3 concrete sample topics this channel could publish next week, each specific to the niche named in Step 0
+
+## FACT_SHEET — <topic>
+- Bullet list of verbatim atomic facts from the inputs worth citing in scripts (numbers/names exactly as given). Omit entirely if the inputs contain none — never fabricate.
 
 ## OUTPUT RULES
 - No fluff. No hype. No motivational language.
@@ -69,8 +81,56 @@ How to consistently come up with new video topics that fit this channel:
   if (args.language !== "zh") return inner;
   return (
     CHINESE_WRAPPER(inner) +
-    '\n\nIMPORTANT: 第一行的 TOPIC: 标记必须保留英文前缀（TOPIC:），后面跟一句简体中文话题。章节标号与英文 SECTION 锚点保留（CHANNEL DESCRIPTION / INFORMATION SOURCES / TOPIC GENERATION FRAMEWORK），但描述内容全部使用简体中文。'
+    "\n\nIMPORTANT: 第一行的 TOPIC: 标记（以及可选的 HOST: 行）必须保留英文前缀，后面跟简体中文内容。章节锚点保留英文（## POSITIONING / ## PERSONA / ## AUDIENCE / ## CONTENT_PILLARS / ## CONTENT_RULES / ## METHODOLOGY / ## INFORMATION_SOURCES / ## TOPIC_FRAMEWORK / ## FACT_SHEET），描述内容全部使用简体中文。"
   );
+}
+
+type BibleFromDocumentArgs = {
+  transcript: string;
+  channelName?: string;
+  language?: "en" | "zh";
+};
+
+// Import mode: the source is the creator's OWN persona/IP document (faithful transcript).
+// Fidelity over invention — every specific must come from the transcript. Validated on
+// real MCN samples in the R6 bake-off (digit audit 0 violations).
+export function buildBibleFromDocumentPrompt(args: BibleFromDocumentArgs): string {
+  const zh = (args.language ?? "zh") === "zh";
+  return `You are a content strategist. Below is a FAITHFUL TRANSCRIPT of a creator's own persona/IP document (人设文档). Restructure it into a Channel Bible — a strategic brief that will condition all AI content generation for this creator's account${args.channelName ? ` ("${args.channelName}")` : ""}.
+
+## ABSOLUTE RULES
+- Every number, name, coordinate, dosage, and proper noun you include MUST be copied verbatim from the transcript. Invent NOTHING that is not in the transcript.
+- This document describes THIS account's own host. Their name, credentials, and methodology are the account's identity.
+- Total length ≤ 7000 ${zh ? "Chinese characters" : "words"}. You need NOT reproduce every table cell — the full transcript is preserved separately as a grounding source. Prioritize: identity, methodology names + their concrete specifics, content rules, audience.
+- ${zh ? "Body in 简体中文." : "Body in English."} Keep the machine-parseable lines and section anchors in English exactly as specified.
+- If the transcript contains ${"`[无法辨识]`"} marks or visibly truncated table rows, do not guess the missing values — skip them.
+
+## OUTPUT FORMAT (exact)
+First line:  TOPIC: <one-sentence topic of this channel>
+Second line: HOST: <the host's personal name as stated in the document, or omit this line if none>
+
+Then these sections, each starting with the exact anchor line:
+## POSITIONING
+(what this channel/IP is, its core thesis and differentiation)
+## PERSONA
+(host identity, credentials, titles, signature methods — as stated about THIS account's host)
+## AUDIENCE
+(who this content serves, their needs — derive only from the document)
+## CONTENT_PILLARS
+(3-5 recurring content pillars grounded in the document's methodology/topics)
+## CONTENT_RULES
+(dos/don'ts, tone, taboos, ratios — only what the document supports)
+## METHODOLOGY
+(the named systems with their concrete specifics: lists, coordinates, dosages, sequences — verbatim key facts)
+## INFORMATION_SOURCES
+(where this creator's content material comes from per the document; if the document is silent, derive conservatively from the niche)
+## TOPIC_FRAMEWORK
+(how to generate on-brand topics from the methodology/pillars; 3 concrete sample topics grounded in the document)
+## FACT_SHEET
+(bullet list of verbatim atomic facts worth citing in scripts: "- <fact>". Numbers/names exactly as in transcript)
+
+## TRANSCRIPT
+${args.transcript}`;
 }
 
 type ScriptWritingArgs = {
@@ -85,14 +145,18 @@ type ScriptWritingArgs = {
   language: "en" | "zh";
   targetWordCount: number;
   channelName?: string;
+  hostName?: string | null;
 };
 
 // Bible/SOP can carry the ANALYZED creator's self-references ("我是孟娇") — a self-name is
-// therefore allowed only when it is the account's own name.
-export function identityRule(channelName: string | undefined): string {
+// therefore allowed only when it is the account's own name, or the Bible-declared host
+// (imported persona docs describe THIS account's host, e.g. HOST: 徐艳梅).
+export function identityRule(channelName: string | undefined, hostName?: string | null): string {
+  const host = hostName?.trim() || undefined;
   const forChannel = channelName ? ` You are writing for the account "${channelName}".` : "";
-  const nameGate = channelName
-    ? `The ONLY name the host may use for themselves is "${channelName}". If the Bible or SOP mentions a different personal name (e.g. "我是孟娇"), that is the ANALYZED creator, not this account's host — never use that name, and omit name-based self-introductions and sign-offs entirely.`
+  const allowed = [channelName, host].filter(Boolean).map((n) => `"${n}"`).join(" or ");
+  const nameGate = allowed
+    ? `The ONLY name(s) the host may use for themselves: ${allowed}.${host ? ` The Channel Bible declares this account's host is "${host}" — self-introductions with that name are correct.` : ""} If the Bible or SOP mentions a different personal name (e.g. "我是孟娇"), that is the ANALYZED creator, not this account's host — never use that name, and omit name-based self-introductions and sign-offs entirely.`
     : `Do not use ANY personal name for the host — no "我是XX" / "I'm XX" self-introductions or named sign-offs.`;
   return `**Speaker identity (HARD RULE).**${forChannel} The SOP below is a STRUCTURAL voice model distilled from analyzed videos: imitate its structure, rhythm, hook patterns, and retention devices — never the source creator's identity. ${nameGate} Do not claim the analyzed creator's credentials or backstory (e.g. "做了20年医美") as the host's own unless the Channel Bible explicitly states it about THIS account. When identity is uncertain, write host-neutral first person with no name and no invented personal history.`;
 }
@@ -120,7 +184,7 @@ ${args.channelBible}
 ## Step 2: SOP Reference (Voice, Structure & Retention Mechanics)
 This SOP was generated from analysis of top-performing videos. It defines voice, tone, hook formulas, beat-by-beat structure, and retention devices. This is your primary guide for HOW to write — structure and rhythm, not identity.
 
-${identityRule(args.channelName)}
+${identityRule(args.channelName, args.hostName)}
 
 ${args.sopReference}
 
@@ -241,6 +305,7 @@ type SectionExpandArgs = {
   targetCount: number;
   emotionalNote: string;
   channelName?: string;
+  hostName?: string | null;
 };
 
 export function buildSectionExpandPrompt(args: SectionExpandArgs): string {
@@ -251,7 +316,7 @@ export function buildSectionExpandPrompt(args: SectionExpandArgs): string {
   return withZhStyle(`You are writing one section of a long-form YouTube script in **${languageName}**.
 
 ## SOP Reference (this is your VOICE MODEL — follow the tone, rhythm, and retention devices exactly)
-${identityRule(args.channelName)}
+${identityRule(args.channelName, args.hostName)}
 
 ${args.sopReference}
 

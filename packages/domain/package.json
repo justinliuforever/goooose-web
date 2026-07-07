@@ -13,6 +13,7 @@
     "./services/clerk-map": "./src/services/clerkMap.ts",
     "./services/grounding": "./src/services/grounding.ts",
     "./services/poet/bible": "./src/services/poet/bible.ts",
+    "./services/poet/import-bible": "./src/services/poet/importBible.ts",
     "./services/poet/script-writer": "./src/services/poet/scriptWriter.ts",
     "./services/poet/humanizer": "./src/services/poet/humanizer.ts",
     "./services/poet/fact-check": "./src/services/poet/factCheck.ts",

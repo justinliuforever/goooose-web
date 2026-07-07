@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, customType, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { channels } from "./channels";
 import { clerkSops } from "./clerk";
@@ -7,8 +7,54 @@ import { museIdeas } from "./muse";
 import { ownAccounts } from "./own-account";
 import { projects } from "./project";
 import { pipelineRuns } from "./runs";
+import { users } from "./users";
 
 export const languageEnum = pgEnum("language", ["zh", "en"]);
+
+const bytea = customType<{ data: Uint8Array }>({ dataType: () => "bytea" });
+
+export type ImportFlag = {
+  type: "illegible" | "truncated" | "audit" | "image_failed";
+  detail: string;
+  context?: string;
+  resolved?: boolean;
+};
+
+export const bibleImportFiles = pgTable(
+  "bible_import_files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
+    filename: text("filename").notNull(),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    sha256: text("sha256").notNull(),
+    expectedChunks: integer("expected_chunks").notNull(),
+    status: text("status", { enum: ["uploading", "ready", "processing", "consumed", "invalid", "expired"] })
+      .notNull()
+      .default("uploading"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true })
+      .notNull()
+      .default(sql`now() + interval '2 hours'`),
+  },
+  (table) => ({
+    userIdx: index("bible_import_files_user_idx").on(table.userId, table.createdAt),
+  }),
+);
+
+export const bibleImportChunks = pgTable(
+  "bible_import_chunks",
+  {
+    fileId: uuid("file_id").notNull().references(() => bibleImportFiles.id, { onDelete: "cascade" }),
+    idx: integer("idx").notNull(),
+    bytes: bytea("bytes").notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.fileId, table.idx] }),
+  }),
+);
 
 export const poetBible = pgTable(
   "poet_bible",
@@ -19,6 +65,11 @@ export const poetBible = pgTable(
     name: text("name").notNull(),
     content: text("content").notNull(),
     sourceIdea: text("source_idea"),
+    sourceKind: text("source_kind", { enum: ["idea", "file"] }).notNull().default("idea"),
+    sourceTranscript: text("source_transcript"),
+    hostName: text("host_name"),
+    importFileId: uuid("import_file_id").references(() => bibleImportFiles.id, { onDelete: "set null" }),
+    importFlags: jsonb("import_flags").$type<ImportFlag[]>().notNull().default([]),
     isActive: boolean("is_active").notNull().default(true),
     generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

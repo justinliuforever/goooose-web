@@ -63,6 +63,46 @@ function extractTopicLine(content: string): string {
   return m ? m[1]!.trim() : "";
 }
 
+export function extractHostLine(content: string): string | null {
+  const m = content.match(/^\s*HOST:\s*(.+?)\s*$/m);
+  return m ? m[1]!.trim() || null : null;
+}
+
+export const BIBLE_ANCHORS = [
+  "POSITIONING",
+  "PERSONA",
+  "AUDIENCE",
+  "CONTENT_PILLARS",
+  "CONTENT_RULES",
+  "METHODOLOGY",
+  "INFORMATION_SOURCES",
+  "TOPIC_FRAMEWORK",
+  "FACT_SHEET",
+] as const;
+
+export type BibleAnchor = (typeof BIBLE_ANCHORS)[number];
+
+// Per-consumer section selection. Legacy bibles (no anchors) fall back to the whole
+// content so pre-R6 rows keep exactly their current behavior.
+export function selectBibleSections(content: string, anchors: readonly BibleAnchor[]): string {
+  const hasAnyAnchor = BIBLE_ANCHORS.some((a) => new RegExp(`^##\\s+${a}\\b`, "m").test(content));
+  if (!hasAnyAnchor) return content;
+  const parts: string[] = [];
+  for (const anchor of anchors) {
+    const re = new RegExp(`^(##\\s+${anchor}\\b[^\\n]*)\\n([\\s\\S]*?)(?=^##\\s|(?![\\s\\S]))`, "m");
+    const m = content.match(re);
+    if (!m) continue;
+    const body = m[2]!.trim();
+    if (!body || body === "（暂无，可后续补充）") continue;
+    parts.push(`${m[1]!.trim()}\n${body}`);
+  }
+  if (parts.length === 0) return content;
+  const topic = extractTopicLine(content);
+  const host = extractHostLine(content);
+  const head = [topic ? `TOPIC: ${topic}` : "", host ? `HOST: ${host}` : ""].filter(Boolean).join("\n");
+  return [head, ...parts].filter(Boolean).join("\n\n");
+}
+
 function intersects(a: Set<string>, b: Set<string>): boolean {
   for (const t of a) if (b.has(t)) return true;
   return false;
