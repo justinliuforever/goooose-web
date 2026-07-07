@@ -52,7 +52,8 @@ AI 内容教练 web SaaS。目标用户：中国小型创作者（主战 XHS + Y
 - 长稿阈值：中文 ≥2000 字 / 英文 ≥1500 词（约 10 min+）触发 outline → section expand 路径（即走 Trigger.dev）。来源 archive `script_writer.py:_write_script_long_form()`
 - 用词避免"拍死""完胜""硬伤"等口语化措辞
 - **注释最简**：只写非常重要的（非显然的 WHY）；其余一律不写，保持代码文件简洁。注释用英文
-- commit message 用简洁英文，**不**加 Co-Authored-By trailer
+- commit message 用简洁英文，**不**加 Co-Authored-By trailer；用 Conventional Commits + 版本 scope（如 `feat(v0.6): ...` / `fix(v0.6): ...` / `docs(v0.6): ...`），版本号随当前 Beta 版本走
+- 圣经为锚点化格式：`TOPIC:`/`HOST:` 行 + 9 个英文锚点章节（POSITIONING/PERSONA/AUDIENCE/CONTENT_PILLARS/CONTENT_RULES/METHODOLOGY/INFORMATION_SOURCES/TOPIC_FRAMEWORK/FACT_SHEET）；下游用 `selectBibleSections` 按需取节（无锚点旧圣经回退整块）
 - commit 后**不要**自动 `git push`；push 由用户自己执行，除非用户在当前消息里明确要求 push
 - 改完 `packages/{domain,integrations,prompts}/**` 或 `apps/worker/**` 后**必须**重新部署 Trigger.dev（Vercel 自动部署，Trigger.dev 不会）
 
