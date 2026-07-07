@@ -3,6 +3,7 @@ import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import { pipelineRuns } from "../schema";
+import { refundRunQuota } from "./quota";
 
 // Owns the three pieces of run-lifecycle boilerplate that must never drift
 // between Trigger tasks: client creation, the failed-status write (losing
@@ -23,6 +24,8 @@ export async function withRunDb<T>(
         .update(pipelineRuns)
         .set({ status: "failed", errorMessage: message, completedAt: new Date() })
         .where(eq(pipelineRuns.id, runId));
+      // Failed run produced no artifact — give the charged minutes back (exactly once).
+      await refundRunQuota(db, runId);
     } catch {
       /* the original error matters more than the bookkeeping write */
     }

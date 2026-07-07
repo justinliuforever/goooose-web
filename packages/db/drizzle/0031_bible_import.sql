@@ -28,6 +28,10 @@ ALTER TABLE "poet_bible" ADD COLUMN "host_name" text;
 ALTER TABLE "poet_bible" ADD COLUMN "import_file_id" uuid REFERENCES "bible_import_files"("id") ON DELETE SET NULL;
 ALTER TABLE "poet_bible" ADD COLUMN "import_flags" jsonb NOT NULL DEFAULT '[]'::jsonb;
 
+-- Quota refund-on-failure: stamp the charge on the run; refund flips the flag exactly once.
+ALTER TABLE "pipeline_runs" ADD COLUMN "quota_charged" integer NOT NULL DEFAULT 0;
+ALTER TABLE "pipeline_runs" ADD COLUMN "quota_refunded" boolean NOT NULL DEFAULT false;
+
 -- Mirror 0030: RLS on, app connects as postgres (bypass); REST roles locked out.
 ALTER TABLE "bible_import_files" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "bible_import_chunks" ENABLE ROW LEVEL SECURITY;

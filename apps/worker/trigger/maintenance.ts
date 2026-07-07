@@ -3,7 +3,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
-import { bibleImportFiles, pipelineRuns, proxySessions } from "@singularity/db";
+import { bibleImportFiles, pipelineRuns, proxySessions, refundRunQuota } from "@singularity/db";
 
 function openDb() {
   const client = postgres(process.env.DATABASE_URL!, { prepare: false });
@@ -33,6 +33,9 @@ export const reapStuckRuns = schedules.task({
           )`,
         )
         .returning({ id: pipelineRuns.id });
+      for (const r of reaped) {
+        await refundRunQuota(db, r.id).catch(() => {});
+      }
       logger.info(`reaped ${reaped.length} stuck runs`);
       return { reaped: reaped.length };
     } finally {

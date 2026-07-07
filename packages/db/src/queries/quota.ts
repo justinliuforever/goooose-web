@@ -1,9 +1,10 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 import { channels } from "../schema/channels";
 import { competitorAccounts } from "../schema/competitor";
 import { usageCounters } from "../schema/quota";
+import { pipelineRuns } from "../schema/runs";
 import { users } from "../schema/users";
 
 // Structural: accepts the bare worker client, the schema-typed web client, and
@@ -108,6 +109,36 @@ export async function grantMinutes(
         updatedAt: new Date(),
       },
     });
+}
+
+// Refund a failed/canceled run's charge exactly once: the atomic quota_refunded flip
+// makes concurrent callers (cancel vs reaper vs worker catch) race-safe. Refund lands
+// in the current period floored at 0 — charge and refund are virtually always same-month.
+export async function refundRunQuota(db: AnyDb, runId: string): Promise<number> {
+  const [row] = await db
+    .update(pipelineRuns)
+    .set({ quotaRefunded: true })
+    .where(
+      and(
+        eq(pipelineRuns.id, runId),
+        eq(pipelineRuns.quotaRefunded, false),
+        gt(pipelineRuns.quotaCharged, 0),
+        isNotNull(pipelineRuns.userId),
+      ),
+    )
+    .returning({ userId: pipelineRuns.userId, charged: pipelineRuns.quotaCharged });
+  if (!row?.userId || !row.charged) return 0;
+  await db
+    .insert(usageCounters)
+    .values({ userId: row.userId, period: currentPeriod(), minutesUsed: 0 })
+    .onConflictDoUpdate({
+      target: [usageCounters.userId, usageCounters.period],
+      set: {
+        minutesUsed: sql`GREATEST(${usageCounters.minutesUsed} - ${row.charged}, 0)`,
+        updatedAt: new Date(),
+      },
+    });
+  return row.charged;
 }
 
 export async function countAccounts(db: AnyDb, userId: string): Promise<number> {

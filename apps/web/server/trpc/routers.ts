@@ -28,6 +28,7 @@ import {
   projectCompetitors,
   projects,
   projectSops,
+  refundRunQuota,
   scriptMinutes,
 } from "@singularity/db";
 import {
@@ -175,6 +176,7 @@ async function triggerOrFailRun(
         completedAt: new Date(),
       })
       .where(eq(pipelineRuns.id, runId));
+    await refundRunQuota(db, runId).catch(() => {});
     throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "无法启动后台任务，请稍后重试" });
   }
 }
@@ -190,10 +192,10 @@ const GENERATION_TASK_MINUTES: Record<string, number> = {
 };
 const CONTENT_TASKS = new Set(["clerk-analyze-channel", "muse-monitor-competitors"]);
 
-async function assertRunQuota(userId: string, taskId: string, quotaMinutes?: number) {
+async function assertRunQuota(userId: string, taskId: string, quotaMinutes?: number): Promise<number> {
   const charge =
     quotaMinutes ?? (taskId === "poet-generate-script" ? scriptMinutes() : GENERATION_TASK_MINUTES[taskId]);
-  if (charge === undefined && !CONTENT_TASKS.has(taskId)) return;
+  if (charge === undefined && !CONTENT_TASKS.has(taskId)) return 0;
   const q = await checkMinutes(db, { userId, need: charge ?? 1 });
   if (!q.allowed) {
     throw new TRPCError({
@@ -202,6 +204,7 @@ async function assertRunQuota(userId: string, taskId: string, quotaMinutes?: num
     });
   }
   if (charge) await consumeMinutes(db, { userId, amount: charge });
+  return charge ?? 0;
 }
 
 // The staged-run dance shared by every agent-start mutation: insert the pending run
@@ -217,7 +220,7 @@ async function stageAndTriggerRun(args: {
   userId: string;
   quotaMinutes?: number;
 }) {
-  await assertRunQuota(args.userId, args.taskId, args.quotaMinutes);
+  const charged = await assertRunQuota(args.userId, args.taskId, args.quotaMinutes);
   const [run] = await db
     .insert(pipelineRuns)
     .values({
@@ -228,6 +231,7 @@ async function stageAndTriggerRun(args: {
       status: "pending",
       configJson: args.config,
       userId: args.userId,
+      quotaCharged: charged,
     })
     .returning();
   if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -1241,6 +1245,7 @@ export const appRouter = router({
           .update(pipelineRuns)
           .set({ status: "failed", errorMessage: "User canceled", completedAt: new Date() })
           .where(eq(pipelineRuns.id, run.id));
+        await refundRunQuota(db, run.id).catch(() => {});
         return { runId: run.id };
       }),
   }),
@@ -1727,6 +1732,7 @@ export const appRouter = router({
             completedAt: new Date(),
           })
           .where(eq(pipelineRuns.id, active.id));
+        await refundRunQuota(db, active.id).catch(() => {});
 
         return { runId: active.id, cancelled: true };
       }),

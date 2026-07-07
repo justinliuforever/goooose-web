@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { channels } from "./channels";
 import { competitorAccounts } from "./competitor";
@@ -21,6 +21,9 @@ export const pipelineRuns = pgTable(
     projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
     ownAccountId: uuid("own_account_id").references(() => ownAccounts.id, { onDelete: "set null" }),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    // Minutes charged at trigger; refunded exactly once if the run ends without its artifact.
+    quotaCharged: integer("quota_charged").notNull().default(0),
+    quotaRefunded: boolean("quota_refunded").notNull().default(false),
     agent: agentEnum("agent").notNull(),
     command: text("command").notNull(),
     status: runStatusEnum("status").notNull().default("pending"),

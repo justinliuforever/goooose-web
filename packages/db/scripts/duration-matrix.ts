@@ -26,7 +26,8 @@ const idea = {
 const references = ((t.references as any[]) ?? []).map((r) => ({ type: r.kind, title: r.title ?? "Reference", url: r.url, content: r.text ?? "" })).filter((r) => r.content.trim());
 
 const CASES: Array<{ label: string; dur: number }> = [
-  { label: "G-1200s-A", dur: 1200 }, { label: "G-1200s-B", dur: 1200 },
+  { label: "R5-300s", dur: 300 }, { label: "R5-600s", dur: 600 },
+  { label: "R5-1200s", dur: 1200 },
 ];
 mkdirSync("/tmp/duration-matrix", { recursive: true });
 

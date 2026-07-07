@@ -34,6 +34,9 @@ await sql`ALTER TABLE poet_bible ADD COLUMN IF NOT EXISTS host_name text`;
 await sql`ALTER TABLE poet_bible ADD COLUMN IF NOT EXISTS import_file_id uuid REFERENCES bible_import_files(id) ON DELETE SET NULL`;
 await sql`ALTER TABLE poet_bible ADD COLUMN IF NOT EXISTS import_flags jsonb NOT NULL DEFAULT '[]'::jsonb`;
 
+await sql`ALTER TABLE pipeline_runs ADD COLUMN IF NOT EXISTS quota_charged integer NOT NULL DEFAULT 0`;
+await sql`ALTER TABLE pipeline_runs ADD COLUMN IF NOT EXISTS quota_refunded boolean NOT NULL DEFAULT false`;
+
 await sql`ALTER TABLE bible_import_files ENABLE ROW LEVEL SECURITY`;
 await sql`ALTER TABLE bible_import_chunks ENABLE ROW LEVEL SECURITY`;
 await sql`REVOKE ALL ON bible_import_files, bible_import_chunks FROM anon, authenticated`;
@@ -43,6 +46,8 @@ const verify = await sql`SELECT
   to_regclass('bible_import_chunks') AS chunks_table,
   (SELECT count(*) FROM information_schema.columns WHERE table_name = 'poet_bible'
     AND column_name IN ('source_kind','source_transcript','host_name','import_file_id','import_flags')) AS bible_cols,
-  (SELECT relrowsecurity FROM pg_class WHERE relname = 'bible_import_files') AS files_rls`;
+  (SELECT relrowsecurity FROM pg_class WHERE relname = 'bible_import_files') AS files_rls,
+  (SELECT count(*) FROM information_schema.columns WHERE table_name = 'pipeline_runs'
+    AND column_name IN ('quota_charged','quota_refunded')) AS run_quota_cols`;
 console.log("verify:", verify[0]);
 await sql.end();
