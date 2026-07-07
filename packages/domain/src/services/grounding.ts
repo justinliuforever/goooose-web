@@ -18,11 +18,17 @@ export async function redactUngrounded(args: {
   if (!draft) return args.draft;
   const tag = (args.language ?? "zh") === "zh" ? "「待核实」" : "[unverified]";
   const isScript = args.mode === "script";
+  // Script mode keeps stable common knowledge: scripts routinely cite well-known facts
+  // (launch years, founders, classic specs) that a thin per-topic source can't support,
+  // and redacting those was gutting the specificity that makes scripts land.
   const fixRule = isScript
-    ? `rewrite it into natural, general spoken wording, or drop it. This text is READ ALOUD — do NOT insert ${tag} or any bracketed note; the result must be speakable.`
+    ? `judge it by tier:
+  (a) STABLE public knowledge — a fact that has sat unchanged in public records for years (a product's launch year, a company's founder, a classic model's specs) — and you are HIGHLY confident of it → keep it;
+  (b) TIME-SENSITIVE or private specifics (current prices, sales or view counts, inventory, anyone's recent statements or activities) → rewrite into natural, general spoken wording, or drop it — even if you believe you know the value. This text is READ ALOUD — do NOT insert ${tag} or any bracketed note; the result must be speakable;
+  (c) a NEGATIVE claim about a real person (death, illness, wrongdoing, or a specific line attributed to them) → drop it entirely, no exceptions.`
     : `make the smallest fix: replace the exact figure/name with a general phrasing, drop the false precision, or mark it ${tag}.`;
   const emptyRule = isScript
-    ? `If the SOURCE is empty or has no concrete data, the DRAFT must end up with NO specific prices / specs / stats / named products / fabricated quotes — generalize them into natural spoken wording (never insert ${tag}).`
+    ? `If the SOURCE is empty or has no concrete data, apply the same tiers: keep only STABLE public knowledge you are HIGHLY confident of; every other specific price / spec / stat / named product / quote must be generalized into natural spoken wording (never insert ${tag}).`
     : `If the SOURCE is empty or has no concrete data, the DRAFT must end up with NO specific prices / specs / stats / named products / quotes — generalize or ${tag} all of them (strategy-level wording is fine).`;
   // A sectioned script's [HOOK]/[ITEM]/[CTA]/etc markers are structure the UI splits on — a
   // heavy rewrite was dropping them. They are not factual claims; keep every one in place.
@@ -33,7 +39,7 @@ export async function redactUngrounded(args: {
 
 Go through the DRAFT. For every SPECIFIC factual claim — price, number, percentage, statistic, measurement or spec, model / product / brand name, person name, social handle, date or year, and any line presented as a verbatim quote — decide:
 - SOURCE supports it → keep it exactly.
-- SOURCE does NOT support it → ${fixRule} A quoted line not found in the SOURCE must not be presented as a real quote. Never leave an unsupported specific stated as fact.
+- SOURCE does NOT support it → ${fixRule} A quoted line not found in the SOURCE must not be presented as a real quote.${isScript ? "" : " Never leave an unsupported specific stated as fact."}
 - GARBLED ASR in the SOURCE → never reproduce a nonsensical garbled quote / number / name (e.g. "六年两百九十三个零件", "新一4.4百币"); correct it from context if the intent is clear, otherwise drop it${isScript ? "" : ` or mark ${tag}`}.
 - CLEAR FACTUAL ERROR about a real, widely-known entity (e.g. a wrong launch year for a famous product, a misattributed quote) → if you are HIGHLY confident of the correct value, fix it to the correct value; if unsure, do not guess${isScript ? ", soften to safe general wording" : ` — mark it ${tag}`}.
 
