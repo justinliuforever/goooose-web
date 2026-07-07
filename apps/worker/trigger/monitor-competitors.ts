@@ -17,6 +17,7 @@ import {
 
 import { withMeteredRunDb } from "../lib/metered-run";
 import { userRunsQueue } from "../lib/queues";
+import { selectBibleSections } from "@singularity/domain/services/poet/bible";
 import {
   likelyChineseText,
   renderTranscriptWithTimestamps,
@@ -166,7 +167,10 @@ export const monitorCompetitors = task({
 
       // Bible is optional here — ideas still generate without it, just less positioning-aware.
       const resolvedBible = await resolveActiveBible(db, projectId, channel.id);
-      const biblePositioning = resolvedBible?.bible.content ?? undefined;
+      // Muse needs a positioning digest, not the whole bible (facts there are off-limits anyway).
+      const biblePositioning = resolvedBible
+        ? selectBibleSections(resolvedBible.bible.content, ["POSITIONING", "AUDIENCE", "CONTENT_RULES"])
+        : undefined;
       if (resolvedBible?.viaFallback) {
         logger.warn(`Project ${channel.id} has no Bible pin; used channel active-bible fallback`);
       }

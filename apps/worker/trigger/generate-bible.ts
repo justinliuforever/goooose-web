@@ -1,12 +1,13 @@
 import { logger, metadata, task } from "@trigger.dev/sdk";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { generateText } from "ai";
 
-import { channels, clerkVideos, pipelineRuns, poetBible, poetDriftEvents, projects } from "@singularity/db";
+import { channels, clerkVideos, pipelineRuns } from "@singularity/db";
 
 import { withMeteredRunDb } from "../lib/metered-run";
+import { persistBible } from "../lib/persist-bible";
 import { userRunsQueue } from "../lib/queues";
-import { generateChannelBible } from "@singularity/domain/services/poet/bible";
+import { extractHostLine, generateChannelBible } from "@singularity/domain/services/poet/bible";
 import { llm } from "@singularity/integrations/clients/llm";
 import { safeText } from "@singularity/integrations/utils";
 
@@ -101,48 +102,15 @@ export const generateBible = task({
       const cleanContent = safeText(bible.content) ?? "";
       if (!cleanContent) throw new Error("Bible generation returned empty content");
 
-      // Never clobber an active bible (extras stay inactive for explicit switch); auto-activate
-      // only when none is active yet — even a drifted first one, so the channel is never left empty.
-      const [existingActive] = await db
-        .select({ id: poetBible.id })
-        .from(poetBible)
-        .where(and(eq(poetBible.channelId, channel.id), eq(poetBible.isActive, true)))
-        .limit(1);
-      const shouldActivate = !existingActive;
-
-      const [inserted] = await db
-        .insert(poetBible)
-        .values({
-          channelId: channel.id,
-          ownAccountId: channel.id,
-          name: payload.name ?? (bible.topicClaimed || "未命名"),
-          content: cleanContent,
-          sourceIdea: payload.ideaText,
-          isActive: shouldActivate,
-        })
-        .returning();
-
-      // Keep the project's hard pin in sync with the active Bible.
-      if (shouldActivate && inserted) {
-        await db
-          .update(projects)
-          .set({ activeBibleId: inserted.id, updatedAt: new Date() })
-          .where(eq(projects.id, channel.id));
-      }
-
-      if (drifted && bible.driftWarning && inserted) {
-        await db.insert(poetDriftEvents).values({
-          channelId: channel.id,
-          ownAccountId: channel.id,
-          bibleId: inserted.id,
-          reason: bible.driftWarning.reason,
-          claimedTopic: bible.driftWarning.claimedTopic,
-          humanMessage: bible.driftWarning.humanMessage,
-        });
-        logger.warn(`Bible drift: ${bible.driftWarning.reason}`, {
-          topic: bible.driftWarning.claimedTopic,
-        });
-      }
+      const { inserted } = await persistBible(db, {
+        channelId: channel.id,
+        name: payload.name ?? (bible.topicClaimed || "未命名"),
+        content: cleanContent,
+        sourceIdea: payload.ideaText,
+        sourceKind: "idea",
+        hostName: extractHostLine(cleanContent),
+        driftWarning: bible.driftWarning,
+      });
 
       await db
         .update(pipelineRuns)

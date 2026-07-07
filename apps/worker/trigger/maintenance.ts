@@ -1,9 +1,9 @@
 import { logger, schedules } from "@trigger.dev/sdk";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
-import { pipelineRuns, proxySessions } from "@singularity/db";
+import { bibleImportFiles, pipelineRuns, proxySessions } from "@singularity/db";
 
 function openDb() {
   const client = postgres(process.env.DATABASE_URL!, { prepare: false });
@@ -35,6 +35,31 @@ export const reapStuckRuns = schedules.task({
         .returning({ id: pipelineRuns.id });
       logger.info(`reaped ${reaped.length} stuck runs`);
       return { reaped: reaped.length };
+    } finally {
+      await client.end();
+    }
+  },
+});
+
+// Abandoned bible-import uploads hold bytea chunk rows; purge past their TTL
+// (CASCADE drops the chunks). Consumed/invalid rows keep metadata but no bytes.
+export const gcBibleImports = schedules.task({
+  id: "maint-gc-bible-imports",
+  cron: { pattern: "30 * * * *", environments: ["PRODUCTION"] },
+  run: async () => {
+    const { client, db } = openDb();
+    try {
+      const purged = await db
+        .delete(bibleImportFiles)
+        .where(
+          and(
+            inArray(bibleImportFiles.status, ["uploading", "ready"]),
+            sql`${bibleImportFiles.expiresAt} < now()`,
+          ),
+        )
+        .returning({ id: bibleImportFiles.id });
+      logger.info(`purged ${purged.length} expired bible import uploads`);
+      return { purged: purged.length };
     } finally {
       await client.end();
     }

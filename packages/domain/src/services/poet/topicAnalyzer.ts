@@ -1,6 +1,7 @@
 import { generateTextWithFallback } from "@singularity/integrations/clients/llm";
 import { parseLlmJson } from "@singularity/integrations/utils";
 import { redactUngrounded } from "../grounding";
+import { selectBibleSections } from "./bible";
 import { buildTopicAnalysisPrompt } from "@singularity/prompts/poet";
 import { factCheckVerbatim, type CheckedFact } from "./factCheck";
 import { formatReferencesBlock, type ScriptReference } from "./scriptWriter";
@@ -37,7 +38,16 @@ function toText(value: unknown): string {
 
 export async function analyzeTopic(args: AnalyzeTopicArgs): Promise<TopicAnalysis> {
   const prompt = buildTopicAnalysisPrompt({
-    channelBible: args.bibleText,
+    // Positioning/rules only: PERSONA/METHODOLOGY/FACT_SHEET are the fact-leak surface
+    // this prompt's hardest rule exists to suppress.
+    channelBible: selectBibleSections(args.bibleText, [
+      "POSITIONING",
+      "AUDIENCE",
+      "CONTENT_PILLARS",
+      "CONTENT_RULES",
+      "TOPIC_FRAMEWORK",
+      "INFORMATION_SOURCES",
+    ]),
     sopReference: args.sopText,
     topic: args.topic,
     referencesContext: formatReferencesBlock(args.references ?? null),

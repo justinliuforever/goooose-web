@@ -11,6 +11,7 @@ import {
   buildSectionExpandPrompt,
 } from "@singularity/prompts/poet";
 import { countWords, isLongForm } from "../../schemas/poet";
+import { selectBibleSections } from "./bible";
 import type { CheckedFact } from "./factCheck";
 import { humanizeChinese } from "./humanizer";
 
@@ -104,6 +105,10 @@ export type WriteScriptArgs = {
   factChecks?: CheckedFact[] | null;
   // Anchors speaker identity so the SOP's source creator never becomes the persona.
   channelName?: string;
+  // Bible-declared host (imported persona docs): allowed self-name beyond channelName.
+  hostName?: string | null;
+  // Extra grounding-only source (import transcript) — never enters the writing prompt.
+  groundingSource?: string | null;
 };
 
 export type ScriptResult = {
@@ -261,6 +266,7 @@ async function writeScriptLong(
       targetCount: section.target_count,
       emotionalNote: section.emotional_note,
       channelName: args.channelName,
+      hostName: args.hostName,
     });
 
     let sectionText = "";
@@ -396,6 +402,7 @@ export async function writeScript(
   // Grounding (script mode: generalize, no tags — read aloud). Bible counts as source.
   const source = [
     args.bibleText,
+    args.groundingSource ?? "",
     formatReferencesBlock(args.references),
     formatVerbatimFacts(args.verbatimFacts, args.factChecks),
     args.idea.factsAndData,
@@ -438,8 +445,9 @@ export async function writeScript(
   return { ...result, humanized };
 }
 
-export function scrubForeignSelfIntro(scriptText: string, args: Pick<WriteScriptArgs, "channelName" | "bibleText" | "sopText" | "language">): string {
+export function scrubForeignSelfIntro(scriptText: string, args: Pick<WriteScriptArgs, "channelName" | "hostName" | "bibleText" | "sopText" | "language">): string {
   const channelName = (args.channelName ?? "").trim();
+  const hostName = (args.hostName ?? "").trim();
   const sources = `${args.bibleText}\n${args.sopText}`;
   const pattern =
     args.language === "zh"
@@ -448,6 +456,8 @@ export function scrubForeignSelfIntro(scriptText: string, args: Pick<WriteScript
   return scriptText.replace(pattern, (full, name: string) => {
     if (!name || name === channelName) return full;
     if (channelName && channelName.includes(name)) return full;
+    // Bible-declared host of THIS account (imported persona) is not a leak.
+    if (hostName && (name === hostName || hostName.includes(name))) return full;
     // Only a name that exists in the analyzed sources is a persona leak.
     if (!sources.includes(name)) return full;
     if (channelName) return args.language === "zh" ? `我是${channelName}` : full.replace(name, channelName);
@@ -489,7 +499,8 @@ export async function writeScriptShort(args: WriteScriptArgs): Promise<ScriptRes
     `Why Similar: ${args.idea.whySimilar}`;
 
   const prompt = buildScriptWritingPrompt({
-    channelBible: args.bibleText,
+    // Script needs identity + rules + methodology; sources/topic-framework are ideation noise here.
+    channelBible: selectBibleSections(args.bibleText, ["POSITIONING", "PERSONA", "CONTENT_RULES", "METHODOLOGY"]),
     sopReference: args.sopText,
     referencesContext: formatReferencesBlock(args.references),
     verbatimFactsContext: formatVerbatimFacts(args.verbatimFacts, args.factChecks),
