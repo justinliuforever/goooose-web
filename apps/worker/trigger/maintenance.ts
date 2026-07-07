@@ -1,5 +1,5 @@
 import { logger, schedules } from "@trigger.dev/sdk";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -52,13 +52,14 @@ export const gcBibleImports = schedules.task({
   run: async () => {
     const { client, db } = openDb();
     try {
+      // 'processing' leftovers are failed imports whose task never reached cleanup.
       const purged = await db
         .delete(bibleImportFiles)
         .where(
-          and(
-            inArray(bibleImportFiles.status, ["uploading", "ready"]),
-            sql`${bibleImportFiles.expiresAt} < now()`,
-          ),
+          sql`(
+            (${bibleImportFiles.status} IN ('uploading','ready') AND ${bibleImportFiles.expiresAt} < now())
+            OR (${bibleImportFiles.status} = 'processing' AND ${bibleImportFiles.createdAt} < now() - interval '24 hours')
+          )`,
         )
         .returning({ id: bibleImportFiles.id });
       logger.info(`purged ${purged.length} expired bible import uploads`);

@@ -341,8 +341,10 @@ async function transcribePdfDocument(
 
   if (isDigital) {
     // Deterministic cross-check: transcription digits must exist in the file's own text layer.
+    // Our own PAGE markers carry digits the text layer never has — strip them first.
     const layerDigits = digitTokens(textLayer);
-    const suspect = [...digitTokens(transcript)].filter((n) => !layerDigits.has(n));
+    const withoutMarkers = transcript.replace(/^--- PAGE \d+ ---$/gm, "");
+    const suspect = [...digitTokens(withoutMarkers)].filter((n) => !layerDigits.has(n));
     if (suspect.length > 0) {
       flags.push({
         type: "audit",
