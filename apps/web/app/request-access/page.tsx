@@ -16,7 +16,9 @@ export default async function RequestAccessPage() {
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-8 p-8">
       <div className="flex flex-col items-center gap-2 text-center">
-        <span className="font-display text-3xl italic leading-none">搬砖小鹅 Goooose</span>
+        <span className="font-brand text-3xl leading-none">
+          搬砖小鹅 <span className="font-display italic">Goooose</span>
+        </span>
         <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
           {APP_VERSION_LABEL}
         </span>

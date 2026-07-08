@@ -55,8 +55,8 @@ export function Splash({ redirectTo, duration = 1500 }: Props) {
       </svg>
 
       <div className="relative flex flex-col items-center gap-12">
-        <h1 className="font-display text-6xl leading-none select-none sm:text-7xl">
-          搬砖小鹅 Goooose
+        <h1 className="font-brand text-6xl leading-none select-none sm:text-7xl">
+          搬砖小鹅 <span className="font-display italic">Goooose</span>
         </h1>
         <p className="-mt-8 text-sm tracking-wide text-muted-foreground select-none">
           看对标 → 出选题 → 写稿

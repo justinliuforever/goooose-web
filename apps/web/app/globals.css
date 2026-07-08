@@ -11,6 +11,7 @@
   --font-mono: var(--font-mono);
   --font-display: var(--font-display);
   --font-heading: var(--font-display);
+  --font-brand: var(--font-brand-cjk), var(--font-display);
   --color-clerk: var(--clerk);
   --color-clerk-foreground: var(--clerk-foreground);
   --color-muse: var(--muse);
