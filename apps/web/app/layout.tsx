@@ -36,6 +36,7 @@ const kuaile = localFont({
 
 export const metadata: Metadata = {
   title: "搬砖小鹅 Goooose",
+  description: "AI 内容教练——帮内容创作者看对标、出选题、写稿的全链路工具。",
 };
 
 export default function RootLayout({
