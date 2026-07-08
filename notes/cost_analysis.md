@@ -1,5 +1,7 @@
 # Goooose 运行成本测算
 
+> 数据快照：2026-05-31（单价逐家查证 + 生产库真实用量）。此后的两处口径变化尚未回填进下文数字：备用 ASR 已由 Groq Whisper 换成 Qwen3-ASR-Flash（DashScope，中文 / 小红书优先走 Qwen）；SOP 生成改为 map-reduce（每视频多一次 Flash 小结调用，Flash 单价低，影响很小）。成本大头（住宅代理 / ASR / vision）的结论不受影响，beta 流量打开后整体回填。
+
 ## Summary
 
 - 固定月费：约 $55（Trigger.dev $10 + Vercel $20 + Supabase $25；Logto 免费档 $0，TikHub 按请求计无月费）。

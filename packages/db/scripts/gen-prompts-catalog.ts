@@ -6,6 +6,8 @@ import { resolve } from "node:path";
 
 import {
   buildVideoAnalysisPrompt,
+  buildVideoMapSummaryPrompt,
+  buildSopPartialReducePrompt,
   buildHumanSopPrompt,
   buildAiSopReferencePrompt,
   buildHottestSopPrompt,
@@ -19,11 +21,15 @@ import {
 } from "@goooose/prompts/muse";
 import {
   buildChannelBiblePrompt,
+  buildBibleFromDocumentPrompt,
   buildScriptWritingPrompt,
   buildLongFormOutlinePrompt,
   buildSectionExpandPrompt,
   buildTopicAnalysisPrompt,
+  buildFactCheckPrompt,
   buildChineseHumanizerPrompt,
+  buildScriptCompressPrompt,
+  buildScriptExpandPrompt,
 } from "@goooose/prompts/poet";
 
 type Entry = {
@@ -47,8 +53,9 @@ const P = {
   url: "{{视频 URL}}",
   transcript: "{{视频文字稿（带 [mm:ss] 时间戳）}}",
   transcriptPreview: "{{文字稿前段（约 2000 字）}}",
-  videosData: "{{已分析视频的汇总数据}}",
+  videosData: "{{各视频拆解小结（map 步产出）}}",
   analysisSummary: "{{该视频的结构化分析摘要}}",
+  docTranscript: "{{人设文档的忠实转写（Claude 视觉转写产出）}}",
   commentsSummary: "{{热门评论总结}}",
   date: "{{生成日期}}",
   ideaText: "{{选题想法}}",
@@ -76,8 +83,8 @@ const entries: Entry[] = [
   {
     fn: "buildVideoAnalysisPrompt",
     title: "逐条视频 / 笔记拆解",
-    model: "DeepSeek Pro",
-    source: "../packages/prompts/src/clerk.ts#L58",
+    model: "DeepSeek Pro（截断 / 空输出时用 Flash 重试一次）",
+    source: "../packages/prompts/src/clerk.ts#L104",
     flow: "Clerk 1.2 · 步骤 3.2",
     purpose: "把单条视频的文字稿 + 元数据拆成结构化「爆款 DNA」（钩子 / 框架 / 节奏 / 选题角度，带 [mm:ss] 引用）。",
     note: "展示 YouTube 视频版（中文）。小红书图文 / 视频会在最前面加一段说明；章节、赞助片段等可选段落有则插入。",
@@ -93,13 +100,45 @@ const entries: Entry[] = [
       }),
   },
   {
+    fn: "buildVideoMapSummaryPrompt",
+    title: "单视频拆解小结（SOP map 步）",
+    model: "DeepSeek Flash",
+    source: "../packages/prompts/src/clerk.ts#L209",
+    flow: "Clerk 1.2 · 步骤 5（map）",
+    purpose: "把单条视频的拆解压缩成一份可复用的「打法小结」，后续 SOP 在小结之上归并（控制上下文规模）；结果缓存在库里，增量分析不重算。",
+    note: "无文字稿 / 转写乱码时按「无文字稿」处理，禁止引用台词或编时间码。",
+    render: () =>
+      buildVideoMapSummaryPrompt({
+        title: P.videoTitle,
+        views: 1_000_000,
+        durationSec: 510,
+        contentType: "video",
+        transcript: P.transcript,
+        analysis: P.analysisSummary,
+        language: lang,
+      }),
+  },
+  {
+    fn: "buildSopPartialReducePrompt",
+    title: "SOP 分批归并（partial reduce）",
+    model: "DeepSeek Pro",
+    source: "../packages/prompts/src/clerk.ts#L273",
+    flow: "Clerk 1.2 · 步骤 5（reduce）",
+    purpose: "把一批视频的拆解小结归并成一份「部分套路集」；各批结果拼接后再喂给三份 SOP 的最终合成。",
+    render: () =>
+      buildSopPartialReducePrompt({
+        videosData: P.videosData,
+        language: lang,
+      }),
+  },
+  {
     fn: "buildHumanSopPrompt",
     title: "真人版 SOP（创作者手册）",
     model: "DeepSeek Pro",
-    source: "../packages/prompts/src/clerk.ts#L156",
+    source: "../packages/prompts/src/clerk.ts#L318",
     flow: "Clerk 1.2 · 步骤 5",
     purpose: "把所有视频拆解汇总成给创作者本人看的创作手册（内容支柱 / 品牌嗓音 / 观众旅程 / 写作清单等）。",
-    note: "中文 / 英文由 language 控制，此处中文版。",
+    note: "中文 / 英文由 language 控制，此处中文版。输入为 map/reduce 后的小结汇总，不是原始文字稿。",
     render: () =>
       buildHumanSopPrompt({
         channelName: P.channelName,
@@ -114,7 +153,7 @@ const entries: Entry[] = [
     fn: "buildAiSopReferencePrompt",
     title: "AI 参考版 SOP",
     model: "DeepSeek Pro",
-    source: "../packages/prompts/src/clerk.ts#L231",
+    source: "../packages/prompts/src/clerk.ts#L398",
     flow: "Clerk 1.2 · 步骤 5",
     purpose: "把汇总拆解整理成给 Poet 写稿 AI 读的结构化参考。",
     note: "强制英文输出（供 AI 阅读，不给终端用户看），与 language 无关。",
@@ -132,10 +171,10 @@ const entries: Entry[] = [
     fn: "buildHottestSopPrompt",
     title: "爆款版 SOP（最高播放深拆）",
     model: "DeepSeek Pro",
-    source: "../packages/prompts/src/clerk.ts#L329",
+    source: "../packages/prompts/src/clerk.ts#L501",
     flow: "Clerk 1.2 · 步骤 5",
     purpose: "对播放量第一的视频做逐段深拆，提炼可复用套路；可叠加热门评论总结。",
-    note: "中文 / 英文由 language 控制。评论总结为可选输入。",
+    note: "中文 / 英文由 language 控制。评论总结为可选输入。「单视频 SOP」（clerk-analyze-single-video 任务）复用本 prompt。",
     render: () =>
       buildHottestSopPrompt({
         channelName: P.channelName,
@@ -206,8 +245,8 @@ const entries: Entry[] = [
   {
     fn: "buildViralTriggerPrompt",
     title: "爆款触发器提炼",
-    model: "DeepSeek Pro",
-    source: "../packages/prompts/src/muse.ts#L61",
+    model: "DeepSeek Pro（空输出回退 Flash）",
+    source: "../packages/prompts/src/muse.ts#L63",
     flow: "Muse 2.2 · 步骤 5",
     purpose: "读完整文字稿，提炼「点击 / 观看 / 转发」三类触发点。",
     render: () =>
@@ -224,8 +263,8 @@ const entries: Entry[] = [
   {
     fn: "buildIdeaGenerationPrompt",
     title: "选题生成",
-    model: "DeepSeek Pro",
-    source: "../packages/prompts/src/muse.ts#L101",
+    model: "DeepSeek Pro（空输出回退 Flash）",
+    source: "../packages/prompts/src/muse.ts#L107",
     flow: "Muse 2.2 · 步骤 6",
     purpose: "基于触发器，为本频道生成 N 条选题（故事角度 / 事实数据 / 为何相似 / 封面概念 / 钩子类型 / 风险点）。",
     render: () =>
@@ -243,10 +282,11 @@ const entries: Entry[] = [
   {
     fn: "buildChannelBiblePrompt",
     title: "频道圣经生成",
-    model: "DeepSeek Pro",
-    source: "../packages/prompts/src/poet.ts#L9",
+    model: "DeepSeek Flash（流式）",
+    source: "../packages/prompts/src/poet.ts#L14",
     flow: "Poet 3.1 · 步骤 2",
-    purpose: "把频道想法固化成基准文档（TOPIC + 频道定位 / 信息源 / 选题框架），后续写稿围绕它防跑题。",
+    purpose:
+      "把频道想法固化成锚点化圣经：首行 TOPIC:（可选 HOST:）+ 9 个英文锚点章节（POSITIONING / PERSONA / AUDIENCE / CONTENT_PILLARS / CONTENT_RULES / METHODOLOGY / INFORMATION_SOURCES / TOPIC_FRAMEWORK / FACT_SHEET）。写稿 / 选题 / Muse 各自按需取节。",
     render: () =>
       buildChannelBiblePrompt({
         ideaText: P.ideaText,
@@ -255,12 +295,29 @@ const entries: Entry[] = [
       }),
   },
   {
+    fn: "buildBibleFromDocumentPrompt",
+    title: "圣经文件导入（文档 → 圣经）",
+    model: "DeepSeek Pro（空输出回退 Flash）",
+    source: "../packages/prompts/src/poet.ts#L97",
+    flow: "Poet 3.1b · 文件导入 · 步骤 2",
+    purpose:
+      "把用户上传的人设 / IP 文档的忠实转写重组为锚点化圣经；数字 / 专名必须逐字来自转写，生成后另跑数字审计（违规行删除并标记存疑）。",
+    note: "上游的文档转写由 Claude Sonnet 4.6 完成（integrations/docTranscribe，模板不在 prompts 包，暂不收录本目录）。",
+    render: () =>
+      buildBibleFromDocumentPrompt({
+        transcript: P.docTranscript,
+        channelName: P.channelName,
+        language: lang,
+      }),
+  },
+  {
     fn: "buildTopicAnalysisPrompt",
     title: "选题分析",
-    model: "DeepSeek Pro",
-    source: "../packages/prompts/src/poet.ts#L274",
+    model: "DeepSeek Pro（空输出回退 Flash）",
+    source: "../packages/prompts/src/poet.ts#L365",
     flow: "Poet 3.2 · 步骤 2",
-    purpose: "把用户给的选题 + 参考拆成结构化选题（与 Muse 选题同构）。",
+    purpose:
+      "把用户给的选题 + 参考拆成结构化选题（与 Muse 选题同构）。圣经只取无事实类章节（不取 PERSONA / METHODOLOGY，防张冠李戴）；导入圣经的已核实事实另走独立区块。",
     render: () =>
       buildTopicAnalysisPrompt({
         channelBible: P.bible,
@@ -274,7 +331,7 @@ const entries: Entry[] = [
     fn: "buildScriptWritingPrompt",
     title: "短稿写作",
     model: "DeepSeek Pro",
-    source: "../packages/prompts/src/poet.ts#L84",
+    source: "../packages/prompts/src/poet.ts#L164",
     flow: "Poet 3.3 · 短稿步骤 1",
     purpose: "结合选题 + 圣经 + SOP，一次性写出完整短稿。",
     render: () =>
@@ -295,7 +352,7 @@ const entries: Entry[] = [
     fn: "buildLongFormOutlinePrompt",
     title: "长稿大纲",
     model: "DeepSeek Pro",
-    source: "../packages/prompts/src/poet.ts#L166",
+    source: "../packages/prompts/src/poet.ts#L249",
     flow: "Poet 3.3 · 长稿步骤 1",
     purpose: "长稿先列大纲，按比例分配各段字数（钩子 / 铺垫 / 正文 / CTA / 高潮 / 收尾）。",
     render: () =>
@@ -311,8 +368,8 @@ const entries: Entry[] = [
   {
     fn: "buildSectionExpandPrompt",
     title: "长稿逐段扩写",
-    model: "DeepSeek Pro",
-    source: "../packages/prompts/src/poet.ts#L226",
+    model: "DeepSeek Pro（空输出时用 Flash 重试该段）",
+    source: "../packages/prompts/src/poet.ts#L311",
     flow: "Poet 3.3 · 长稿步骤 2",
     purpose: "按大纲把每一段扩写成正文，逐段调用后拼接。",
     render: () =>
@@ -331,13 +388,62 @@ const entries: Entry[] = [
       }),
   },
   {
+    fn: "buildFactCheckPrompt",
+    title: "原文事实核查",
+    model: "DeepSeek Pro（空输出回退 Flash）",
+    source: "../packages/prompts/src/poet.ts#L435",
+    flow: "Poet 3.2 · 步骤 3（写稿前亦复核）",
+    purpose:
+      "对参考里提取的原文事实逐条用世界知识分类 verified / disputed / unsupported——只标注不改写；disputed 的事实在写稿 prompt 里带 ⚠️ 提示。刻意保守：拿不准一律 verified，核查失败整体放行。",
+    render: () =>
+      buildFactCheckPrompt({
+        items: [
+          { index: 1, fact: "{{原文事实 1}}", src: "{{来源标题}}" },
+          { index: 2, fact: "{{原文事实 2}}", src: "{{来源标题}}" },
+        ],
+        referenceTitles: ["{{参考标题 1}}", "{{参考标题 2}}"],
+        language: lang,
+      }),
+  },
+  {
     fn: "buildChineseHumanizerPrompt",
     title: "中文口语化改写",
     model: "DeepSeek Pro",
-    source: "../packages/prompts/src/poet.ts#L327",
-    flow: "Poet 3.3 · 短/长稿口语化步骤",
-    purpose: "把 AI 初稿改写成真人开口说话的口语（仅中文稿运行）。",
+    source: "../packages/prompts/src/poet.ts#L475",
+    flow: "Poet 3.3 · 口语化步骤",
+    purpose: "把 AI 初稿改写成真人开口说话的口语。仅中文短稿运行；长稿与英文稿跳过。",
     render: () => buildChineseHumanizerPrompt(P.scriptText),
+  },
+  {
+    fn: "buildScriptCompressPrompt",
+    title: "长度门 · 超长压缩",
+    model: "DeepSeek Pro（空输出回退 Flash）",
+    source: "../packages/prompts/src/poet.ts#L512",
+    flow: "Poet 3.3 · 长度门（最后一步）",
+    purpose:
+      "稿件超过目标 1.2× 时压缩进 0.85–1.2× 窗口：删冗余与复读、必要时整段删信息密度最低的中段；段落标记与数字逐字保留。",
+    render: () =>
+      buildScriptCompressPrompt({
+        scriptText: P.scriptText,
+        language: lang,
+        targetWordCount: 1000,
+      }),
+  },
+  {
+    fn: "buildScriptExpandPrompt",
+    title: "长度门 · 不足扩写",
+    model: "DeepSeek Pro（空输出回退 Flash）",
+    source: "../packages/prompts/src/poet.ts#L538",
+    flow: "Poet 3.3 · 长度门（最后一步）",
+    purpose:
+      "稿件低于目标下限时扩写到 0.9–1.15×：只深化既有段落（细节 / 例子须来自参考资料），不加新段落、不复读、不编造。",
+    render: () =>
+      buildScriptExpandPrompt({
+        scriptText: P.scriptText,
+        language: lang,
+        targetWordCount: 1000,
+        referencesContext: P.references,
+      }),
   },
 ];
 
@@ -346,6 +452,8 @@ const sections: Array<{ name: string; fns: string[] }> = [
     name: "1. Clerk · 频道分析",
     fns: [
       "buildVideoAnalysisPrompt",
+      "buildVideoMapSummaryPrompt",
+      "buildSopPartialReducePrompt",
       "buildHumanSopPrompt",
       "buildAiSopReferencePrompt",
       "buildHottestSopPrompt",
@@ -361,11 +469,15 @@ const sections: Array<{ name: string; fns: string[] }> = [
     name: "3. Poet · 写稿",
     fns: [
       "buildChannelBiblePrompt",
+      "buildBibleFromDocumentPrompt",
       "buildTopicAnalysisPrompt",
+      "buildFactCheckPrompt",
       "buildScriptWritingPrompt",
       "buildLongFormOutlinePrompt",
       "buildSectionExpandPrompt",
       "buildChineseHumanizerPrompt",
+      "buildScriptCompressPrompt",
+      "buildScriptExpandPrompt",
     ],
   },
 ];
