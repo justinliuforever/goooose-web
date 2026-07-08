@@ -52,7 +52,7 @@ export function AuthChipMenu({ label, onSignOut }: Props) {
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href="/" />}>返回工作台</DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/" />}>返回首页</DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => startTransition(() => onSignOut())}
           disabled={isPending}
