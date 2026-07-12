@@ -602,6 +602,7 @@ export const monitorCompetitors = task({
               numIdeas: numIdeasPerVideo,
               language,
               biblePositioning,
+              transcript: row.transcript,
             });
 
             if (ideasResult.ideas.length === 0) {

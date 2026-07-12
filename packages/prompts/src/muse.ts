@@ -102,12 +102,19 @@ type IdeaGenerationArgs = {
   numIdeas: number;
   language?: "en" | "zh";
   biblePositioning?: string;
+  transcript?: string | null;
 };
+
+const IDEA_TRANSCRIPT_CHARS = 6000;
 
 export function buildIdeaGenerationPrompt(args: IdeaGenerationArgs): string {
   const biblePositioning = args.biblePositioning?.trim();
   const bibleBlock = biblePositioning
     ? `\n## Channel Positioning (Bible)\n${biblePositioning}\n\nEvery generated topic must fit this positioning — its target audience, voice/tone, and content direction. Drop any idea that contradicts it.\n`
+    : "";
+  const transcript = args.transcript?.trim();
+  const transcriptBlock = transcript
+    ? `\n## Source Video Transcript (grounding for facts you cite)\n${transcript.slice(0, IDEA_TRANSCRIPT_CHARS)}\n`
     : "";
   const inner = `You are a creative content strategist specializing in "Script Bending" — taking proven viral concepts and adapting them to a different niche.
 
@@ -121,6 +128,7 @@ ${bibleBlock}
 
 ## Viral Trigger Analysis
 ${args.viralTrigger}
+${transcriptBlock}
 
 ## Instructions
 
@@ -134,8 +142,8 @@ Rules:
 5. Feel native to the target channel.
 6. Vary the ANGLE TYPE across the batch — e.g. engineering deep-dive, myth-busting / expectation check, hands-on experiment, side-by-side comparison, data-driven story, prediction. At most 2 ideas may share an angle type, and story_angle phrasing must not repeat one sentence pattern across ideas.
 7. Stay inside the target channel's niche — drop an idea rather than drift into adjacent lifestyle / marketing / general-interest territory.
-8. Do NOT fabricate. Do not claim first-person experience, experiments, tests, or case-counts the channel hasn't actually done; do not invent statistics, sample sizes, prices, dates, or names. If a useful fact isn't grounded in the source, mark it "(needs verification)" or omit it. This applies to every field — story_angle, why_similar, viral_trigger included, not just facts_and_data.
-9. Facts come from the SOURCE VIDEO, not from the channel bible or general knowledge. Every named person, brand, date, price, quote, or event you cite must be supported by the source transcript/analysis above — do NOT import an entity or backstory the source never mentions.
+8. Do NOT fabricate. Do not claim first-person experience, experiments, tests, or case-counts the channel hasn't actually done; do not invent statistics, sample sizes, prices, or dates. Prefer facts grounded in the source transcript above; you MAY add well-established public knowledge about the target niche (a product's launch year, a classic model's specs, a company's founder) when you are confident of it. Mark anything you are unsure of "(needs verification)" rather than omitting all specifics — an idea with no concrete facts is useless.
+9. Quotes and events attributed to the SOURCE VIDEO must actually appear in its transcript/analysis above — do NOT put words in the source's mouth or invent a backstory it never mentions. (General niche knowledge under rule 8 is fine; fake source quotes are not.)
 10. NEVER state that a named real person has died, is ill, committed wrongdoing, or said a specific quote unless the source explicitly says so — not even with "(needs verification)". A false death / scandal / quote about a real person or brand is a critical, potentially defamatory failure. If the source doesn't support it, omit the claim and keep the angle general (name no one).
 
 Return JSON:
