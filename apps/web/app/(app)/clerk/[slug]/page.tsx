@@ -24,6 +24,7 @@ import {
 import { getActiveAgentRun } from "@/lib/agent-run";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
+import { cleanProfileName } from "@/lib/display-name";
 import { ensureCurrentUser } from "@/lib/users";
 
 
@@ -88,6 +89,11 @@ export default async function ClerkChannelPage({ params }: Props) {
   );
   const singleVideoSops = sortedSops.filter((s) => s.sopType === "single_video");
   const aiReferenceSops = sortedSops.filter((s) => s.sopType === "ai_reference");
+  // hottest / single_video SOPs carry a videoId — surface the source post's title
+  // on the card so multiple breakdowns are tellable apart.
+  const videoTitleById = new Map(videos.map((v) => [v.id, v.title]));
+  const sourceTitleOf = (sop: (typeof sops)[number]) =>
+    sop.videoId ? videoTitleById.get(sop.videoId) : undefined;
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-6 p-6 sm:p-8">
@@ -96,7 +102,9 @@ export default async function ClerkChannelPage({ params }: Props) {
       <header className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="size-2 shrink-0 rounded-full bg-clerk" />
-          <h1 className="truncate text-2xl font-semibold tracking-tight">{channel.name}</h1>
+          <h1 className="truncate text-2xl font-semibold tracking-tight">
+            {cleanProfileName(channel.name)} 的账号画像
+          </h1>
           <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
             {videos.length} {isXhs ? "篇笔记" : "个视频"}
           </Badge>
@@ -111,7 +119,7 @@ export default async function ClerkChannelPage({ params }: Props) {
       {videos.length > 0 ? (
         <div className="flex flex-wrap items-center gap-1">
           <Button variant="ghost" size="sm" render={<a href="#videos" />}>
-            已分析视频 {videos.length}
+            已分析{isXhs ? "笔记" : "视频"} {videos.length}
           </Button>
           {channel.platform === "youtube" ? (
             <Button variant="ghost" size="sm" render={<a href="#series" />}>
@@ -212,12 +220,12 @@ export default async function ClerkChannelPage({ params }: Props) {
           <div className="flex flex-col gap-1">
             <h2 className="text-sm font-medium text-muted-foreground">脚本撰写 SOP</h2>
             <p className="text-xs text-muted-foreground">
-              SOP 是这个账号全部拆解的实时汇总（基于 {videos.length} 条视频），每次分析后自动刷新到最新。
+              SOP 是这个账号全部拆解的实时汇总（基于 {videos.length} 条{isXhs ? "笔记" : "视频"}），每次分析后自动刷新到最新。
             </p>
           </div>
           <div className="flex flex-col gap-4">
             {primarySops.map((sop) => (
-              <SopCard key={sop.id} sop={sop} showDelete />
+              <SopCard key={sop.id} sop={sop} showDelete sourceVideoTitle={sourceTitleOf(sop)} />
             ))}
           </div>
         </section>
@@ -226,11 +234,11 @@ export default async function ClerkChannelPage({ params }: Props) {
       {singleVideoSops.length > 0 ? (
         <details className="flex flex-col gap-3 rounded-lg border bg-card/50 p-4 text-sm" open>
           <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-            单条拆解 SOP（{singleVideoSops.length}）· 针对单条视频的深度拆解
+            单条拆解 SOP（{singleVideoSops.length}）· 针对单条{isXhs ? "笔记" : "视频"}的深度拆解
           </summary>
           <div className="mt-3 flex flex-col gap-4">
             {singleVideoSops.map((sop) => (
-              <SopCard key={sop.id} sop={sop} showDelete />
+              <SopCard key={sop.id} sop={sop} showDelete sourceVideoTitle={sourceTitleOf(sop)} />
             ))}
           </div>
         </details>

@@ -24,6 +24,7 @@ import { followerNoun, formatDuration, formatFollowerCount, formatViews } from "
 import { getActiveAgentRun } from "@/lib/agent-run";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
+import { cleanProfileName } from "@/lib/display-name";
 import { ensureCurrentUser } from "@/lib/users";
 
 import { ClerkRunButton } from "../../[slug]/_components/clerk-run-button";
@@ -73,7 +74,11 @@ export default async function ClerkCompetitorPage({ params }: Props) {
   );
   const singleVideoSops = sortedSops.filter((s) => s.sopType === "single_video");
   const aiReferenceSops = sortedSops.filter((s) => s.sopType === "ai_reference");
-  const name = competitor.name ?? competitor.url;
+  const name = cleanProfileName(competitor.name ?? competitor.url);
+  // hottest / single_video SOPs carry a videoId — surface the source post's title.
+  const videoTitleById = new Map(videos.map((v) => [v.id, v.title]));
+  const sourceTitleOf = (sop: (typeof sops)[number]) =>
+    sop.videoId ? videoTitleById.get(sop.videoId) : undefined;
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-6 p-6 sm:p-8">
@@ -84,7 +89,7 @@ export default async function ClerkCompetitorPage({ params }: Props) {
           <CompetitorAvatar name={competitor.name} avatarUrl={competitor.avatarUrl} className="size-9" />
           <div className="flex min-w-0 flex-col">
             <div className="flex min-w-0 items-center gap-2">
-              <h1 className="truncate text-2xl font-semibold tracking-tight">{name}</h1>
+              <h1 className="truncate text-2xl font-semibold tracking-tight">{name} 的账号画像</h1>
               <Badge variant="outline" className="shrink-0 text-[10px]">
                 🎯 对标账号
               </Badge>
@@ -197,12 +202,12 @@ export default async function ClerkCompetitorPage({ params }: Props) {
           <div className="flex flex-col gap-1">
             <h2 className="text-sm font-medium text-muted-foreground">脚本撰写 SOP</h2>
             <p className="text-xs text-muted-foreground">
-              SOP 是这个账号全部拆解的实时汇总（基于 {videos.length} 条视频），每次分析后自动刷新到最新。
+              SOP 是这个账号全部拆解的实时汇总（基于 {videos.length} 条{isXhs ? "笔记" : "视频"}），每次分析后自动刷新到最新。
             </p>
           </div>
           <div className="flex flex-col gap-4">
             {primarySops.map((sop) => (
-              <SopCard key={sop.id} sop={sop} sourceName={name} showDelete />
+              <SopCard key={sop.id} sop={sop} sourceName={name} showDelete sourceVideoTitle={sourceTitleOf(sop)} />
             ))}
           </div>
           <div className="rounded-lg border-2 border-dashed border-poet/40 bg-poet/5 p-4 text-sm">
@@ -217,11 +222,11 @@ export default async function ClerkCompetitorPage({ params }: Props) {
       {singleVideoSops.length > 0 ? (
         <details className="flex flex-col gap-3 rounded-lg border bg-card/50 p-4 text-sm" open>
           <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-            单条拆解 SOP（{singleVideoSops.length}）· 针对单条视频的深度拆解
+            单条拆解 SOP（{singleVideoSops.length}）· 针对单条{isXhs ? "笔记" : "视频"}的深度拆解
           </summary>
           <div className="mt-3 flex flex-col gap-4">
             {singleVideoSops.map((sop) => (
-              <SopCard key={sop.id} sop={sop} sourceName={name} showDelete />
+              <SopCard key={sop.id} sop={sop} sourceName={name} showDelete sourceVideoTitle={sourceTitleOf(sop)} />
             ))}
           </div>
         </details>

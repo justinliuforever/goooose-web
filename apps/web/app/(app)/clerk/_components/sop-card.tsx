@@ -21,6 +21,7 @@ export function SopCard({
   sop,
   defaultOpen = false,
   sourceName,
+  sourceVideoTitle,
   usedBy = 0,
   showDelete = false,
 }: {
@@ -28,6 +29,9 @@ export function SopCard({
   defaultOpen?: boolean;
   // Competitor surfaces show provenance on the card itself.
   sourceName?: string;
+  // hottest / single_video SOPs: title of the post this SOP dissects, so multiple
+  // per-video breakdowns are tellable apart without expanding them.
+  sourceVideoTitle?: string;
   usedBy?: number;
   showDelete?: boolean;
 }) {
@@ -35,10 +39,15 @@ export function SopCard({
   return (
     <details open={defaultOpen} className="flex flex-col gap-3 rounded-lg border bg-card p-5">
       <summary className="flex cursor-pointer items-center justify-between gap-3 list-none [&::-webkit-details-marker]:hidden">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <Badge variant="secondary" className="font-mono text-[10px] uppercase">
             {label}
           </Badge>
+          {sourceVideoTitle ? (
+            <Badge variant="outline" className="max-w-56 text-[10px]" title={sourceVideoTitle}>
+              <span className="truncate">📄 {sourceVideoTitle}</span>
+            </Badge>
+          ) : null}
           {sourceName ? (
             <Badge variant="outline" className="text-[10px]">
               🎯 来自对标 · {sourceName.slice(0, 16)}

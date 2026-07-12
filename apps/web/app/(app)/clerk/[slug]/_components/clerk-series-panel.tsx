@@ -1,6 +1,7 @@
 "use client";
 
 import { ExternalLink, Layers, Loader2, Play, RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -48,6 +49,7 @@ function formatDate(iso: string | null): string {
 }
 
 export function ClerkSeriesPanel({ channelId, initialSeries }: Props) {
+  const router = useRouter();
   const [videoCount, setVideoCount] = useState<(typeof VIDEO_COUNT_OPTIONS)[number]>(100);
   const [openSeries, setOpenSeries] = useState<ChannelSeries | null>(null);
 
@@ -70,6 +72,10 @@ export function ClerkSeriesPanel({ channelId, initialSeries }: Props) {
     onSuccess: () => {
       toast.success("已针对该系列触发 Clerk 分析");
       setOpenSeries(null);
+      // Re-render the page so getActiveAgentRun picks up this run and ClerkRunButton
+      // takes over progress tracking + completion refresh — otherwise the run is
+      // untracked and results only appear after a manual reload.
+      router.refresh();
     },
     onError: (err) => toast.error(err.message),
   });

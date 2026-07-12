@@ -157,6 +157,13 @@ function ClerkRunProgress({
     }
   }, [phase]);
 
+  // Per-video rows land continuously within one phase; refresh every 5s so the
+  // table grows live (same pattern as Muse's progress panel).
+  useEffect(() => {
+    const id = setInterval(() => tickRef.current(lastPhaseRef.current), 5_000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     if (error) {
       onSettled(false, `错误：${error.message}`);
@@ -169,7 +176,7 @@ function ClerkRunProgress({
         | undefined;
       onSettled(
         true,
-        `已分析 ${out?.analyzed ?? 0}/${out?.total ?? 0} 个视频${
+        `已分析 ${out?.analyzed ?? 0}/${out?.total ?? 0} 条内容${
           out?.failed ? `（${out.failed} 个失败）` : ""
         }${out?.sopsGenerated ? ` · 生成 ${out.sopsGenerated} 个 SOP` : ""}`,
       );
