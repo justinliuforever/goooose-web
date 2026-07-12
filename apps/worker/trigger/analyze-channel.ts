@@ -203,7 +203,7 @@ function renderVideoAnalysisFields(v: typeof clerkVideos.$inferSelect): string {
 }
 
 const VIDEOS_SUMMARY_NOTE =
-  `GROUNDING — write the SOP only from the per-video pattern summaries below. Each summary already distills one video's grounded techniques; never quote lines, cite [m:ss], invent a beat-by-beat structure, or assert per-video frequency counts beyond what the summaries state. Put a phrase in quotation marks with a [Video N] citation ONLY if it appears verbatim in a summary; paraphrase or inference takes no quotes and no citation. If a video has no pattern summary, infer only from its title and label it inference. If most videos lack spoken detail, say so plainly and keep the SOP at the title/cover-pattern level instead of fabricating depth.\n\n`;
+  `GROUNDING — write the SOP only from the per-video pattern summaries below. Each summary already distills one video's grounded techniques; never quote lines, cite [m:ss], invent a beat-by-beat structure, or assert per-video frequency counts beyond what the summaries state. Put a phrase in quotation marks with a [Video N] / [Post N] citation (match the block's own label) ONLY if it appears verbatim in a summary; paraphrase or inference takes no quotes and no citation. When writing in Chinese, refer to blocks labeled "Post N (image note)" as 帖子N（图文） and "Post N (video note)" as 帖子N（视频）, never as 视频N. If a video has no pattern summary, infer only from its title and label it inference. If most videos lack spoken detail, say so plainly and keep the SOP at the title/cover-pattern level instead of fabricating depth.\n\n`;
 
 // Extracted so the budget packer can size each block; `index` is the 1-based label shown to the LLM.
 function renderVideoSummaryBlock(
@@ -212,7 +212,15 @@ function renderVideoSummaryBlock(
   index: number,
 ): string {
   const lines: string[] = [];
-  lines.push(`### Video ${index}: "${v.title || "(untitled)"}"`);
+  // XHS notes are labeled by kind so the SOP says 帖子N（图文/视频） instead of calling
+  // an image post "Video N".
+  const label =
+    v.contentType === "xhs_image"
+      ? `Post ${index} (image note)`
+      : v.contentType === "xhs_video"
+        ? `Post ${index} (video note)`
+        : `Video ${index}`;
+  lines.push(`### ${label}: "${v.title || "(untitled)"}"`);
   lines.push(`- Views: ${v.views?.toLocaleString("en-US") ?? "unknown"}`);
   lines.push(`- Duration: ${v.durationSec ?? "unknown"}s`);
   lines.push(`- Transcript source: ${v.transcriptSource ?? "none"}`);
@@ -1229,7 +1237,9 @@ export const analyzeChannel = task({
             .values(upsert)
             .onConflictDoUpdate({
               ...videoConflict,
-              set: upsert,
+              // Re-analysis invalidates the cached SOP map summary — without this the
+              // reduce step keeps feeding SOPs from the OLD analysis after a full re-run.
+              set: { ...upsert, sopMapSummary: null },
             });
 
           analyzed++;
@@ -1558,6 +1568,9 @@ export const analyzeChannel = task({
                   language,
                   contentMd: grounded,
                   runId: payload.runId,
+                  // Attribute the hottest deep-dive to its source video so the UI can
+                  // label which post it dissects (channel-level SOPs keep NULL).
+                  videoId: step.type === "hottest" ? (channelVideos[0]?.id ?? null) : null,
                 })
                 .returning({ id: clerkSops.id });
               // Atomic swap: drop every prior SOP of this type for this owner — old runs AND
