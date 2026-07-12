@@ -411,9 +411,10 @@ export async function writeScript(
     result = { ...result, scriptText: grounded, wordCount: countWords(grounded, args.language) };
   }
 
-  // Humanize trims ~30%, so length enforcement must be the single LAST step.
+  // De-AI every zh script — long-form (10min+) needs it most. enforceBudget still runs
+  // AFTER this, so the length window is restored even when humanize inflates the text.
   let humanized = false;
-  if (args.language === "zh" && result.path === "short") {
+  if (args.language === "zh") {
     await hooks.onHumanizeStart?.();
     const rewritten = (
       await humanizeChinese(result.scriptText, Math.round(args.targetWordCount * OVERSHOOT_LIMIT))
@@ -505,6 +506,7 @@ export async function writeScriptShort(args: WriteScriptArgs): Promise<ScriptRes
   const result = await generateText({
     model: llm("pro"),
     prompt,
+    temperature: 0.5, // Match long-form + archive; the writer stage needs expressive range.
     // Reasoning tokens draw from this budget too.
     maxOutputTokens: 16384,
     maxRetries: 2,
