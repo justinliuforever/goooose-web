@@ -264,8 +264,8 @@ export const generateScript = task({
         },
         {
           onOutlineDone: async (outline) => {
-            // 1 load + 1 outline + N sections + 1 save (long-form never humanizes).
-            total = 2 + outline.sections.length + 1;
+            // 1 load + 1 outline + N sections + (zh: 1 humanize) + 1 save.
+            total = 2 + outline.sections.length + (language === "zh" ? 1 : 0) + 1;
             step = 2;
             await setProgress(
               `expanding section 1/${outline.sections.length}`,
