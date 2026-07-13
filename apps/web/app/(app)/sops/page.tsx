@@ -1,7 +1,7 @@
 import { and, count, desc, eq, or } from "drizzle-orm";
 import Link from "next/link";
 
-import { channels, clerkSops, competitorAccounts, projects, projectSops } from "@goooose/db";
+import { channels, clerkSops, clerkVideos, competitorAccounts, projects, projectSops } from "@goooose/db";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ type SopRow = {
   sourceKind: "own" | "competitor";
   sourceName: string;
   sourceHref: string;
+  sourceVideoTitle: string | null;
   owner: { channelId: string } | { competitorAccountId: string };
 };
 
@@ -47,10 +48,12 @@ export default async function SopsLibraryPage() {
       competitorId: competitorAccounts.id,
       competitorName: competitorAccounts.name,
       competitorUrl: competitorAccounts.url,
+      sourceVideoTitle: clerkVideos.title,
     })
     .from(clerkSops)
     .leftJoin(channels, eq(clerkSops.channelId, channels.id))
     .leftJoin(competitorAccounts, eq(clerkSops.competitorAccountId, competitorAccounts.id))
+    .leftJoin(clerkVideos, eq(clerkSops.videoId, clerkVideos.id))
     .where(or(eq(channels.userId, user.id), eq(competitorAccounts.userId, user.id)))
     .orderBy(desc(clerkSops.generatedAt));
 
@@ -75,6 +78,7 @@ export default async function SopsLibraryPage() {
     sourceHref: r.channelSlug
       ? `/clerk/${encodeURIComponent(r.channelSlug)}`
       : `/clerk/competitor/${r.competitorId}`,
+    sourceVideoTitle: r.sourceVideoTitle,
     owner: r.channelSlug
       ? { channelId: r.channelId! }
       : { competitorAccountId: r.competitorId! },
@@ -184,6 +188,7 @@ function SourceSection({
                   sop={sop}
                   usedBy={usedByMap.get(sop.id) ?? 0}
                   showDelete={sop.sopType === "single_video"}
+                  sourceVideoTitle={sop.sourceVideoTitle ?? undefined}
                 />
               ))}
 

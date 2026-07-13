@@ -76,9 +76,11 @@ export default async function ClerkCompetitorPage({ params }: Props) {
   const aiReferenceSops = sortedSops.filter((s) => s.sopType === "ai_reference");
   const name = cleanProfileName(competitor.name ?? competitor.url);
   // hottest / single_video SOPs carry a videoId — surface the source post's title.
+  // Legacy hottest rows (no videoId) dissected the top-viewed video = videos[0].
   const videoTitleById = new Map(videos.map((v) => [v.id, v.title]));
   const sourceTitleOf = (sop: (typeof sops)[number]) =>
-    sop.videoId ? videoTitleById.get(sop.videoId) : undefined;
+    (sop.videoId ? videoTitleById.get(sop.videoId) : undefined) ??
+    (sop.sopType === "hottest" ? videos[0]?.title : undefined);
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-6 p-6 sm:p-8">

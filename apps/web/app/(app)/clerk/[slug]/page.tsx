@@ -90,10 +90,13 @@ export default async function ClerkChannelPage({ params }: Props) {
   const singleVideoSops = sortedSops.filter((s) => s.sopType === "single_video");
   const aiReferenceSops = sortedSops.filter((s) => s.sopType === "ai_reference");
   // hottest / single_video SOPs carry a videoId — surface the source post's title
-  // on the card so multiple breakdowns are tellable apart.
+  // on the card so multiple breakdowns are tellable apart. Legacy hottest rows
+  // (generated before videoId was stamped) dissected the top-viewed video, which
+  // is videos[0] here (views DESC — same pick the worker made).
   const videoTitleById = new Map(videos.map((v) => [v.id, v.title]));
   const sourceTitleOf = (sop: (typeof sops)[number]) =>
-    sop.videoId ? videoTitleById.get(sop.videoId) : undefined;
+    (sop.videoId ? videoTitleById.get(sop.videoId) : undefined) ??
+    (sop.sopType === "hottest" ? videos[0]?.title : undefined);
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-6 p-6 sm:p-8">
