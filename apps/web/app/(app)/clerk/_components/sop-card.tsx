@@ -1,10 +1,10 @@
 import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/copy-button";
-import { Markdown } from "@/components/markdown";
 import { formatDateTime } from "@/lib/datetime";
 import { sopTypeLabel } from "@/lib/sop-labels";
 
 import { DeleteSopButton } from "../[slug]/_components/delete-sop-button";
+import { SopReader } from "./sop-reader";
 import { UseSopInProjectButton } from "./use-sop-in-project-button";
 
 // Single SOP card for all three surfaces (own channel / competitor / library) —
@@ -78,5 +78,5 @@ export function SopCard({
 }
 
 export function SopContent({ text }: { text: string }) {
-  return <Markdown text={text} className="max-w-3xl border-t pt-4" />;
+  return <SopReader text={text} className="border-t pt-5" />;
 }

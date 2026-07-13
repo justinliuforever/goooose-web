@@ -252,3 +252,77 @@
 .prose-clerk blockquote {
   @apply my-3 border-l-2 border-muted-foreground/50 pl-4 italic text-muted-foreground;
 }
+
+/* SOP document reader (SopReader). Manual-grade reading: CJK-comfortable measure,
+   ## sections as anchored chapters with a clerk-accent tick, playbook tables as
+   scrollable striped cards, verbatim quotes as flat (non-italic — italics render
+   poorly in CJK) callouts. */
+.prose-sop {
+  @apply max-w-[46rem] text-[15px] leading-7 text-foreground/90;
+}
+.prose-sop > :first-child {
+  @apply mt-0;
+}
+.prose-sop h1 {
+  @apply mt-2 mb-4 text-xl font-semibold leading-snug tracking-tight text-foreground;
+}
+.prose-sop h2 {
+  @apply relative mt-10 mb-4 border-t pt-6 pl-3.5 text-lg font-semibold leading-snug tracking-tight text-foreground;
+  scroll-margin-top: 5rem;
+}
+.prose-sop h2::before {
+  content: "";
+  @apply absolute left-0 top-[calc(1.5rem+0.3em)] h-[1.1em] w-1 rounded-full bg-clerk;
+}
+.prose-sop h3 {
+  @apply mt-7 mb-2.5 text-base font-semibold leading-snug text-foreground;
+  scroll-margin-top: 5rem;
+}
+.prose-sop h4 {
+  @apply mt-5 mb-2 text-sm font-medium tracking-wide text-muted-foreground;
+}
+.prose-sop p {
+  @apply my-3.5;
+}
+.prose-sop ul {
+  @apply my-3.5 ml-5 list-disc space-y-1.5 marker:text-clerk/60;
+}
+.prose-sop ol {
+  @apply my-3.5 ml-5 list-decimal space-y-1.5 marker:font-mono marker:text-xs marker:text-muted-foreground;
+}
+.prose-sop li {
+  @apply leading-7;
+}
+.prose-sop strong {
+  @apply font-semibold text-foreground;
+}
+.prose-sop code {
+  @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[12px] text-foreground;
+}
+.prose-sop hr {
+  @apply my-8 border-border;
+}
+.prose-sop .sop-table-wrap {
+  @apply my-4 overflow-x-auto rounded-lg border;
+}
+.prose-sop table {
+  @apply w-full border-collapse text-[13px] leading-6;
+}
+.prose-sop thead th {
+  @apply border-b bg-muted/50 px-3 py-2 text-left text-xs font-medium text-muted-foreground;
+}
+.prose-sop td {
+  @apply border-b border-border/60 px-3 py-2 align-top;
+}
+.prose-sop tbody tr:last-child td {
+  @apply border-b-0;
+}
+.prose-sop tbody tr:nth-child(even) {
+  @apply bg-muted/30;
+}
+.prose-sop blockquote {
+  @apply my-4 rounded-md border-l-2 border-clerk/60 bg-muted/40 px-4 py-2.5 not-italic text-foreground/80;
+}
+.prose-sop blockquote p {
+  @apply my-1;
+}
