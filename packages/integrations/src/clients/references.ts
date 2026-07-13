@@ -5,7 +5,7 @@ import {
   transcribeYoutubeVideo,
 } from "./asr";
 import { getVideoMetadataYtdlp } from "./ytdlp";
-import { extractXhsNoteId, getXhsNoteDetail } from "./xhs";
+import { expandXhsShortLink, extractXhsNoteId, extractXsecToken, getXhsNoteDetail } from "./xhs";
 
 export { extractXhsNoteId };
 
@@ -134,7 +134,7 @@ async function fetchYoutubeReference(
 }
 
 async function fetchXhsReference(ref: ReferenceInput): Promise<FetchedReference> {
-  const url = ref.url ?? "";
+  const url = await expandXhsShortLink(ref.url ?? "");
   const noteId = extractXhsNoteId(url);
   const fetchedAt = new Date().toISOString();
   if (!noteId) {
@@ -148,7 +148,7 @@ async function fetchXhsReference(ref: ReferenceInput): Promise<FetchedReference>
     };
   }
   try {
-    const note = await getXhsNoteDetail(noteId);
+    const note = await getXhsNoteDetail(noteId, extractXsecToken(url));
     if (!note) {
       return {
         type: "xhs",

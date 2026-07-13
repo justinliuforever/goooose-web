@@ -76,7 +76,13 @@ const MODE_OPTIONS: Array<{ value: Mode; label: string; hint: string }> = [
 // where the URL is wrapped in title/emoji.
 function lineResolvesToId(line: string, platform: "youtube" | "xhs"): boolean {
   if (platform === "xhs") {
-    return /^[a-f0-9]{16,32}$/i.test(line) || /(?:explore|discovery\/item)\/[a-f0-9]{16,32}/i.test(line);
+    return (
+      /^[a-f0-9]{16,32}$/i.test(line) ||
+      /(?:explore|discovery\/item)\/[a-f0-9]{16,32}/i.test(line) ||
+      // Mobile share short links can't be resolved in the browser; the worker
+      // expands the redirect server-side.
+      /https?:\/\/(?:[\w-]+\.)?xhslink\.com\//i.test(line)
+    );
   }
   return (
     /^[A-Za-z0-9_-]{11}$/.test(line) ||

@@ -89,7 +89,26 @@ export function extractXhsNoteId(input: string): string | null {
   return null;
 }
 
-export { isValidXhsProfileUrl } from "../validators";
+export { findXhsShortLink, isValidXhsProfileUrl } from "../validators";
+
+import { findXhsShortLink } from "../validators";
+
+// Mobile share links (xhslink.com/m/xxx) 302 to the full tokenized xiaohongshu.com URL.
+// Follow the redirect server-side and hand back the final URL; non-short-link input (and
+// any network failure) passes through unchanged so callers keep their normal error paths.
+export async function expandXhsShortLink(input: string): Promise<string> {
+  const short = findXhsShortLink(input);
+  if (!short) return input;
+  try {
+    const res = await fetch(short, {
+      redirect: "follow",
+      headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" },
+    });
+    return res.url || input;
+  } catch {
+    return input;
+  }
+}
 
 export function isValidXhsNoteUrl(input: string): boolean {
   return extractXhsNoteId(input) !== null;
@@ -204,6 +223,8 @@ collected_count?: number;
     media?: { stream?: { h264?: RawStream[]; h265?: RawStream[] } };
   };
   images_list?: RawImage[];
+  // Detail endpoints only; carries the tokenized share URL (list notes omit it).
+  share_info?: { link?: string };
 };
 
 type RawNoteListResp = { data?: { data?: { notes?: RawNote[] } } };
@@ -226,7 +247,8 @@ function cleanNickname(raw: string | undefined): string {
   return raw
     .replace(/^@/, "")
     .replace(/的个人主页$/, "")
-    .replace(/['’]s profile$/i, "")
+    // XHS emits U+2018 LEFT single quote (’s profile came back as ‘s profile in live data).
+    .replace(/['’‘]s profile$/i, "")
     .trim();
 }
 
@@ -261,7 +283,19 @@ export function normalizeXhsImageUrl(url: string): string {
     .replace(/\bformat\/heif\b/gi, "format/jpg");
 }
 
-function normalizeNote(raw: RawNote, parentUser?: { nickname?: string; userid?: string }): XhsNote {
+// Web XHS locks note pages behind xsec_token — a bare explore/<id> URL shows
+// "Page Isn't Available". Keep the token in the stored URL whenever we have one.
+export function buildXhsNoteUrl(noteId: string, xsecToken?: string | null): string {
+  if (!xsecToken) return `https://www.xiaohongshu.com/explore/${noteId}`;
+  const qs = new URLSearchParams({ xsec_token: xsecToken, xsec_source: "app_share" });
+  return `https://www.xiaohongshu.com/explore/${noteId}?${qs}`;
+}
+
+function normalizeNote(
+  raw: RawNote,
+  parentUser?: { nickname?: string; userid?: string },
+  xsecTokenHint?: string | null,
+): XhsNote {
   const noteId = raw.cursor ?? raw.id ?? "";
   const type: XhsNote["type"] = raw.type === "video" ? "video" : "image";
   const title = effectiveTitle(raw.title ?? "", raw.display_title ?? "", raw.desc ?? "");
@@ -309,6 +343,8 @@ function normalizeNote(raw: RawNote, parentUser?: { nickname?: string; userid?: 
     }));
 
   const user = raw.user ?? parentUser ?? {};
+  const xsecToken =
+    (raw.share_info?.link ? extractXsecToken(raw.share_info.link) : null) ?? xsecTokenHint ?? null;
 
   return {
     noteId,
@@ -328,14 +364,15 @@ function normalizeNote(raw: RawNote, parentUser?: { nickname?: string; userid?: 
     images,
     channelName: user.nickname ?? "",
     channelId: user.userid ?? "",
-    noteUrl: `https://www.xiaohongshu.com/explore/${noteId}`,
+    noteUrl: buildXhsNoteUrl(noteId, xsecToken),
   };
 }
 
 export async function resolveXhsUser(profileUrlOrId: string): Promise<XhsUser> {
-  const userId = extractXhsUserId(profileUrlOrId);
+  const expanded = await expandXhsShortLink(profileUrlOrId);
+  const userId = extractXhsUserId(expanded);
   if (!userId) {
-    throw new Error(`Could not extract XHS user_id from: ${profileUrlOrId}`);
+    throw new Error(`Could not extract XHS user_id from: ${expanded}`);
   }
   // app_v2 replaces deprecated `web/get_user_info`. Response shape backward-compatible.
   const j = await get<RawUserInfo>("/api/v1/xiaohongshu/app_v2/get_user_info", { user_id: userId });
@@ -363,8 +400,9 @@ export async function getXhsUserNotes(
   profileUrlOrId: string,
   limit = 5,
 ): Promise<XhsNote[]> {
-  const userId = extractXhsUserId(profileUrlOrId);
-  if (!userId) throw new Error(`Could not extract user_id from: ${profileUrlOrId}`);
+  const expanded = await expandXhsShortLink(profileUrlOrId);
+  const userId = extractXhsUserId(expanded);
+  if (!userId) throw new Error(`Could not extract user_id from: ${expanded}`);
   // app_v2 replaces deprecated `web/get_user_notes_v2`. Response keeps `data.data.notes`.
   const j = await get<RawNoteListResp>("/api/v1/xiaohongshu/app_v2/get_user_posted_notes", {
     user_id: userId,
@@ -380,7 +418,10 @@ export async function getXhsUserNotes(
 // source; but it omits video streams. For video notes we supplement from
 // get_video_note_detail, whose data.data[0] is the note with video_info_v2 — reliable only
 // for video ids (it returns recommended notes for non-video ids), so we guard on id match.
-export async function getXhsNoteDetail(noteId: string): Promise<XhsNote | null> {
+export async function getXhsNoteDetail(
+  noteId: string,
+  xsecTokenHint?: string | null,
+): Promise<XhsNote | null> {
   const j = await get<RawNoteDetailResp>("/api/v1/xiaohongshu/app_v2/get_image_note_detail", {
     note_id: noteId,
   });
@@ -404,5 +445,15 @@ export async function getXhsNoteDetail(noteId: string): Promise<XhsNote | null> 
     }
   }
 
-  return normalizeNote(noteRaw, first.user);
+  return normalizeNote(noteRaw, first.user, xsecTokenHint);
+}
+
+// Token-only fetch for list-sourced notes (list responses carry no share_info):
+// one image-detail call regardless of note type — enough to read share_info.link.
+export async function getXhsNoteXsecToken(noteId: string): Promise<string | null> {
+  const j = await get<RawNoteDetailResp>("/api/v1/xiaohongshu/app_v2/get_image_note_detail", {
+    note_id: noteId,
+  });
+  const link = j.data?.data?.[0]?.note_list?.[0]?.share_info?.link;
+  return link ? extractXsecToken(link) : null;
 }

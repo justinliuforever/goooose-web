@@ -4,7 +4,8 @@
 export function cleanProfileName(name: string): string {
   return name
     .replace(/^@/, "")
-    .replace(/['’]s profile$/i, "")
+    // XHS emits U+2018 LEFT single quote in some locales — cover all three quote forms.
+    .replace(/['’‘]s profile$/i, "")
     .replace(/的个人主页$/, "")
     .trim();
 }

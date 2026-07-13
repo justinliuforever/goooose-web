@@ -37,6 +37,7 @@ import {
   resolveChannelId,
 } from "@goooose/integrations/clients/tikhub";
 import {
+  expandXhsShortLink,
   isValidXhsProfileUrl,
   resolveXhsUser,
 } from "@goooose/integrations/clients/xhs";
@@ -298,6 +299,9 @@ async function upsertCompetitor(
   platform: "youtube" | "xhs",
   url: string,
 ): Promise<{ status: CompetitorImportStatus; id: string | null }> {
+  // Mobile share pastes are xhslink.com short links — expand so the dedup key
+  // resolves and the stored url is the full tokenized profile URL.
+  if (platform === "xhs") url = await expandXhsShortLink(url);
   const pk = provisionalCompetitorKey(platform, url);
   if (!pk) return { status: "invalid", id: null };
   let key = pk.key;
@@ -557,7 +561,8 @@ export const appRouter = router({
       .input(
         z.object({
           platform: z.enum(["youtube", "xhs"]),
-          url: z.string().url(),
+          // Not z.string().url(): mobile share pastes embed the link in card text.
+          url: z.string().min(1),
         }),
       )
       .mutation(async ({ input }) => {
@@ -565,7 +570,8 @@ export const appRouter = router({
           if (!isValidXhsProfileUrl(input.url)) {
             throw new TRPCError({
               code: "BAD_REQUEST",
-              message: "URL 不是小红书主页格式（应为 /user/profile/{24位hex}）",
+              message:
+                "URL 不是小红书主页格式（电脑端 /user/profile/{24位hex}，或手机端 xhslink.com 分享链接）",
             });
           }
           try {

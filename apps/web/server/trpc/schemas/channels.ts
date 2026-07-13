@@ -14,7 +14,7 @@ function validateChannelUrl(platform: "youtube" | "xhs", url: string): boolean {
 const PLATFORM_URL_HINT: Record<"youtube" | "xhs", string> = {
   youtube:
     "YouTube 频道 URL 必须是 /@handle、/channel/UCxxx、/c/name 或 /user/name 形式",
-  xhs: "小红书主页 URL 必须是 https://www.xiaohongshu.com/user/profile/{24位hex}",
+  xhs: "小红书主页 URL：电脑端 xiaohongshu.com/user/profile/... 或手机端分享的 xhslink.com 链接均可",
 };
 
 export const createChannelInput = z
