@@ -4,6 +4,7 @@ import { MotionConfig } from "framer-motion";
 import type { Metadata } from "next";
 import { Caveat, Inter, JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
+import { ThemeProvider } from "next-themes";
 
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -47,15 +48,23 @@ export default function RootLayout({
   return (
     <html
       lang="zh-CN"
+      suppressHydrationWarning
       className={`${inter.variable} ${caveat.variable} ${jetbrainsMono.variable} ${kuaile.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <TRPCProvider>
-          <MotionConfig reducedMotion="user">
-            <TooltipProvider>{children}</TooltipProvider>
-            <Toaster />
-          </MotionConfig>
-        </TRPCProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <TRPCProvider>
+            <MotionConfig reducedMotion="user">
+              <TooltipProvider>{children}</TooltipProvider>
+              <Toaster />
+            </MotionConfig>
+          </TRPCProvider>
+        </ThemeProvider>
         <Analytics />
         <SpeedInsights />
       </body>

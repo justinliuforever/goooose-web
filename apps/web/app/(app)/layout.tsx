@@ -9,6 +9,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { getSidebarAccounts } from "@/lib/sidebar-data";
 import { ensureCurrentUser } from "@/lib/users";
 import { APP_VERSION_LABEL } from "@/lib/version";
@@ -39,6 +40,7 @@ export default async function AppLayout({
             <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
               {APP_VERSION_LABEL}
             </span>
+            <ThemeToggle />
             <AuthChip />
           </div>
         </header>
