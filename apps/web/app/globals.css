@@ -260,20 +260,14 @@
 .sop-reader {
   @apply flex flex-col gap-5;
 }
+/* Two columns only when the rail actually renders (SopToc needs >=3 sections);
+   otherwise the lone doc would land in the 190px rail track. */
 @media (min-width: 1024px) {
-  .sop-reader {
+  .sop-reader--with-rail {
     display: grid;
     grid-template-columns: 190px minmax(0, 1fr);
     gap: 2.5rem;
     align-items: start; /* let the rail be shorter than the doc so sticky engages */
-  }
-}
-html {
-  scroll-behavior: smooth;
-}
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
   }
 }
 /* Section rail */

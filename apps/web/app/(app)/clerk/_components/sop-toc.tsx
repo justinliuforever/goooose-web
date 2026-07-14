@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 export type TocItem = { id: string; title: string };
 
@@ -9,8 +9,6 @@ export type TocItem = { id: string; title: string };
 // horizontal scroller pinned above it.
 export function SopToc({ items }: { items: TocItem[] }) {
   const [active, setActive] = useState(items[0]?.id ?? "");
-  const activeRef = useRef(active);
-  activeRef.current = active;
 
   useEffect(() => {
     const headings = items
@@ -37,7 +35,12 @@ export function SopToc({ items }: { items: TocItem[] }) {
     const el = document.getElementById(id);
     if (!el) return;
     setActive(id);
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    history.replaceState(null, "", `#${id}`);
+    // Move focus to the section so keyboard/SR users land there, not on the rail link.
+    el.setAttribute("tabindex", "-1");
+    el.focus({ preventScroll: true });
   };
 
   if (items.length < 3) return null;

@@ -2,25 +2,23 @@
 
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
+// Both icons render; the `.dark` class on <html> (set by next-themes before paint)
+// swaps them via CSS, so there's no mount-gate state and no hydration flash.
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  // Theme is unknown on the server; render a stable icon until mounted to avoid a mismatch.
-  useEffect(() => setMounted(true), []);
-  const isDark = mounted && resolvedTheme === "dark";
 
   return (
     <Button
       variant="ghost"
       size="sm"
-      aria-label={isDark ? "切换到浅色" : "切换到深色"}
-      onClick={() => setTheme(isDark ? "light" : "dark")}
+      aria-label="切换深浅色"
+      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
     >
-      {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      <Sun className="hidden size-4 dark:block" />
+      <Moon className="size-4 dark:hidden" />
     </Button>
   );
 }

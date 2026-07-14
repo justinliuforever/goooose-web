@@ -67,8 +67,12 @@ export async function SopReader({
     ),
   };
 
+  // The rail (and the 2-col grid) only appear when SopToc renders — see its items>=3
+  // guard. Without this the lone doc column would land in the 190px rail track.
+  const railClass = items.length >= 3 ? " sop-reader--with-rail" : "";
+
   return (
-    <div className={`sop-reader${className ? ` ${className}` : ""}`}>
+    <div className={`sop-reader${railClass}${className ? ` ${className}` : ""}`}>
       <SopToc items={items} />
       <div className="prose-sop min-w-0">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
