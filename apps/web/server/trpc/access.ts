@@ -9,6 +9,7 @@ import { z } from "zod";
 import {
   accessRequests,
   allowedEmails,
+  betaApplications,
   checkMinutes,
   codeRedemptions,
   currentPeriod,
@@ -108,6 +109,64 @@ export const accessRouter = router({
       minutes: { used: minutes.used, base: minutes.base, bonus: minutes.bonus },
     };
   }),
+
+  // Public beta survey (/apply). Upsert by email: one row per person, resubmits
+  // overwrite answers and bump submitCount but never reset an ops status.
+  submitBetaApplication: publicProcedure
+    .input(
+      z.object({
+        email: z.string().trim().toLowerCase().email().max(200),
+        wechat: z.string().trim().max(100).optional(),
+        social: z.string().trim().max(200).optional(),
+        answers: z
+          .record(
+            z.string().max(64),
+            z.union([z.string().max(2000), z.array(z.string().max(200)).max(20)]),
+          )
+          .refine((o) => Object.keys(o).length <= 30, "答案过多"),
+        surveyVersion: z.number().int().min(1).max(100),
+        // Honeypot — visually hidden field; bots fill it, humans never see it.
+        website: z.string().max(200).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.website) return { ok: true };
+      if (ctx.ip && !rateLimitOk(`beta-apply:${ctx.ip}`, 5)) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "提交过于频繁，请稍后再试" });
+      }
+      try {
+        await db
+          .insert(betaApplications)
+          .values({
+            email: input.email,
+            wechat: input.wechat || null,
+            social: input.social || null,
+            answers: input.answers,
+            surveyVersion: input.surveyVersion,
+            ip: ctx.ip,
+          })
+          .onConflictDoUpdate({
+            target: betaApplications.email,
+            set: {
+              wechat: input.wechat || null,
+              social: input.social || null,
+              answers: input.answers,
+              surveyVersion: input.surveyVersion,
+              ip: ctx.ip,
+              submitCount: sql`${betaApplications.submitCount} + 1`,
+              updatedAt: new Date(),
+            },
+          });
+      } catch (err) {
+        // Public endpoint — never leak SQL details to visitors.
+        console.error("beta application insert failed", err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "提交失败，请稍后再试",
+        });
+      }
+      return { ok: true };
+    }),
 
   // Public: the landing-page invite entry checks a code before pushing the visitor
   // through Logto. Read-only — never consumes a use.
@@ -231,6 +290,37 @@ export const adminRouter = router({
 
       if (input.decision !== "approve") return { emailSent: false };
       return emailIfApproved(beforeUser?.status !== "approved", request.userId);
+    }),
+
+  listBetaApplications: adminProcedure.query(async () => {
+    return db
+      .select()
+      .from(betaApplications)
+      .orderBy(
+        sql`case when ${betaApplications.status} = 'new' then 0 else 1 end`,
+        desc(betaApplications.updatedAt),
+      )
+      .limit(200);
+  }),
+
+  updateBetaApplication: adminProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        status: z.enum(["new", "contacted", "invited"]),
+        note: z.string().trim().max(200).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await db
+        .update(betaApplications)
+        .set({
+          status: input.status,
+          ...(input.note !== undefined ? { note: input.note || null } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(betaApplications.id, input.id));
+      return { ok: true };
     }),
 
   listAllowedEmails: adminProcedure.query(async () => {
