@@ -23,7 +23,8 @@ export const usageCounters = pgTable(
   }),
 );
 
-export type CodeGrant = { minutes?: number };
+// access: beta invite — redeeming flips users.accessStatus to approved (may combine with minutes).
+export type CodeGrant = { minutes?: number; access?: boolean };
 
 export const redemptionCodes = pgTable("redemption_codes", {
   id: uuid("id").primaryKey().defaultRandom(),

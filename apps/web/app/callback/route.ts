@@ -1,4 +1,5 @@
 import { handleSignIn } from "@logto/next/server-actions";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
 
@@ -8,14 +9,16 @@ import { loginEvents, users } from "@goooose/db";
 
 import { db } from "@/lib/db";
 import { logtoConfig } from "@/lib/logto";
+import { BETA_CODE_COOKIE, redeemAccessCode } from "@/server/access-code";
 import { ensureCurrentUser } from "@/lib/users";
 
 export async function GET(request: NextRequest) {
   await handleSignIn(logtoConfig, request.nextUrl.searchParams);
   // One row per completed sign-in — feeds the admin user-detail view. Never
   // block the login redirect on bookkeeping.
+  let user = null;
   try {
-    const user = await ensureCurrentUser();
+    user = await ensureCurrentUser();
     if (user) {
       const ip =
         request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
@@ -29,6 +32,20 @@ export async function GET(request: NextRequest) {
     }
   } catch (err) {
     console.error("login event bookkeeping failed", err);
+  }
+  // Landing stashed a validated invite code before pushing through Logto; redeem
+  // now and always drop the cookie so a bad code can't loop. Failures fall through
+  // to the /request-access code box.
+  const betaCode = request.cookies.get(BETA_CODE_COOKIE)?.value;
+  if (betaCode) {
+    if (user) {
+      try {
+        await redeemAccessCode(user, betaCode);
+      } catch (err) {
+        console.error("beta code auto-redeem failed", err);
+      }
+    }
+    (await cookies()).delete(BETA_CODE_COOKIE);
   }
   redirect("/welcome");
 }

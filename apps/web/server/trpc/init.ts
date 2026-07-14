@@ -1,6 +1,7 @@
 import "server-only";
 
 import { initTRPC, TRPCError } from "@trpc/server";
+import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import superjson from "superjson";
 
 import { createUsageSink, type User } from "@goooose/db";
@@ -11,11 +12,13 @@ import { ensureCurrentUser } from "@/lib/users";
 
 export type Context = {
   user: User | null;
+  ip: string | null;
 };
 
-export async function createContext(): Promise<Context> {
+export async function createContext(opts?: FetchCreateContextFnOptions): Promise<Context> {
   const user = await ensureCurrentUser();
-  return { user };
+  const ip = opts?.req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  return { user, ip };
 }
 
 const t = initTRPC.context<Context>().create({

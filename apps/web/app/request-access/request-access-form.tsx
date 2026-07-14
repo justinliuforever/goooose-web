@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -18,13 +19,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 
 export function RequestAccessForm({ email, blocked }: { email: string; blocked: boolean }) {
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [contact, setContact] = useState("");
+  const [betaCode, setBetaCode] = useState("");
   const status = trpc.access.status.useQuery(undefined, { enabled: !blocked });
   const submit = trpc.access.submit.useMutation({
     onSuccess: () => {
       toast.success("申请已提交，审核通过后即可使用");
       void status.refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const redeemCode = trpc.access.redeemBetaCode.useMutation({
+    onSuccess: (r) => {
+      toast.success(
+        r.minutesGranted > 0 ? `内测码已激活，附赠 ${r.minutesGranted} 分钟` : "内测码已激活",
+      );
+      router.push("/");
+      router.refresh();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -46,7 +59,8 @@ export function RequestAccessForm({ email, blocked }: { email: string; blocked: 
   const rejected = status.data?.latestRequest?.status === "rejected";
 
   return (
-    <Card className="w-full max-w-md">
+    <div className="flex w-full max-w-md flex-col gap-4">
+    <Card className="w-full">
       <CardHeader>
         <CardTitle>申请内测资格</CardTitle>
         <CardDescription>
@@ -107,5 +121,30 @@ export function RequestAccessForm({ email, blocked }: { email: string; blocked: 
         </>
       )}
     </Card>
+
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="text-base">已有内测码？</CardTitle>
+        <CardDescription>输入内测码即刻开通，无需等待审核。</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex gap-2">
+          <Input
+            value={betaCode}
+            onChange={(e) => setBetaCode(e.target.value.toUpperCase())}
+            placeholder="SING-XXXX-XXXX"
+            className="font-mono"
+            maxLength={32}
+          />
+          <Button
+            onClick={() => redeemCode.mutate({ code: betaCode })}
+            disabled={redeemCode.isPending || betaCode.trim().length < 4}
+          >
+            {redeemCode.isPending ? "激活中…" : "激活"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+    </div>
   );
 }
