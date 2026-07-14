@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { users } from "./users";
 
@@ -25,5 +25,29 @@ export const accessRequests = pgTable("access_requests", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Public beta survey (/apply): no login, so no users FK — email is the natural key.
+// answers holds {questionId: answer}; question set lives in the web app and is
+// versioned via surveyVersion, so editing questions never touches this table.
+export type BetaAnswers = Record<string, string | string[]>;
+
+export const betaApplications = pgTable("beta_applications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  wechat: text("wechat"),
+  social: text("social"),
+  answers: jsonb("answers").$type<BetaAnswers>().notNull(),
+  surveyVersion: integer("survey_version").notNull().default(1),
+  // Ops funnel only — real access state lives on users.accessStatus.
+  status: text("status", { enum: ["new", "contacted", "invited"] })
+    .notNull()
+    .default("new"),
+  note: text("note"),
+  ip: text("ip"),
+  submitCount: integer("submit_count").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type AllowedEmail = typeof allowedEmails.$inferSelect;
 export type AccessRequest = typeof accessRequests.$inferSelect;
+export type BetaApplication = typeof betaApplications.$inferSelect;
