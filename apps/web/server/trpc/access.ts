@@ -24,7 +24,8 @@ import {
 
 import { db } from "@/lib/db";
 import { sendApprovalEmail } from "@/lib/email";
-import { adminProcedure, authedProcedure, protectedProcedure, router } from "./init";
+import { rateLimitOk, redeemAccessCode, validateAccessCode } from "@/server/access-code";
+import { adminProcedure, authedProcedure, protectedProcedure, publicProcedure, router } from "./init";
 
 // No 0/O/1/I — codes get read over WeChat voice messages.
 const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
@@ -107,6 +108,24 @@ export const accessRouter = router({
       minutes: { used: minutes.used, base: minutes.base, bonus: minutes.bonus },
     };
   }),
+
+  // Public: the landing-page invite entry checks a code before pushing the visitor
+  // through Logto. Read-only — never consumes a use.
+  validateBetaCode: publicProcedure
+    .input(z.object({ code: z.string().trim().toUpperCase().min(4).max(32) }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.ip && !rateLimitOk(`beta-validate:${ctx.ip}`)) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "尝试过于频繁，请稍后再试" });
+      }
+      return validateAccessCode(input.code);
+    }),
+
+  // Authed (NOT protected): pending users are exactly who redeems an invite code.
+  redeemBetaCode: authedProcedure
+    .input(z.object({ code: z.string().trim().toUpperCase().min(4).max(32) }))
+    .mutation(async ({ ctx, input }) => {
+      return redeemAccessCode(ctx.user, input.code);
+    }),
 
   redeem: protectedProcedure
     .input(z.object({ code: z.string().trim().toUpperCase().min(6).max(32) }))
@@ -279,19 +298,28 @@ export const adminRouter = router({
 
   createCode: adminProcedure
     .input(
-      z.object({
-        minutes: z.number().int().min(1).max(100000),
-        maxUses: z.number().int().min(1).max(1000).default(1),
-        expiresInDays: z.number().int().min(1).max(365).optional(),
-        note: z.string().trim().max(200).optional(),
-      }),
+      z
+        .object({
+          minutes: z.number().int().min(1).max(100000).optional(),
+          access: z.boolean().default(false),
+          maxUses: z.number().int().min(1).max(1000).default(1),
+          expiresInDays: z.number().int().min(1).max(365).optional(),
+          note: z.string().trim().max(200).optional(),
+        })
+        .refine((v) => v.access || (v.minutes ?? 0) > 0, {
+          message: "码至少要含准入或时长",
+          path: ["minutes"],
+        }),
     )
     .mutation(async ({ ctx, input }) => {
       const [created] = await db
         .insert(redemptionCodes)
         .values({
           code: generateCode(),
-          grant: { minutes: input.minutes },
+          grant: {
+            ...(input.minutes ? { minutes: input.minutes } : {}),
+            ...(input.access ? { access: true } : {}),
+          },
           maxUses: input.maxUses,
           expiresAt: input.expiresInDays
             ? new Date(Date.now() + input.expiresInDays * 86400_000)
