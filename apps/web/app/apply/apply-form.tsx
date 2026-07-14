@@ -35,8 +35,15 @@ export function ApplyForm() {
     setAnswers((a) => ({ ...a, [id]: value }));
 
   const canProceed = (q: SurveyQuestion): boolean => {
-    if (!q.required) return true;
     const v = answers[q.id];
+    // Picking "其他" commits you to specifying it — enforced regardless of
+    // whether the question itself is required (e.g. Q4 is optional overall).
+    const otherSelected = q.allowOther && (q.type === "multi" ? Array.isArray(v) && v.includes(OTHER) : v === OTHER);
+    if (otherSelected) {
+      const otherText = answers[`${q.id}_other`];
+      if (typeof otherText !== "string" || otherText.trim().length === 0) return false;
+    }
+    if (!q.required) return true;
     if (q.type === "multi") return Array.isArray(v) && v.length > 0;
     return typeof v === "string" && v.length > 0;
   };
@@ -217,7 +224,9 @@ function QuestionStep({
 
   const toggle = (opt: string) => {
     if (q.type !== "multi") {
-      setAnswer(q.id, value === opt ? "" : opt);
+      const nextVal = value === opt ? "" : opt;
+      setAnswer(q.id, nextVal);
+      if (nextVal !== OTHER) setAnswer(`${q.id}_other`, "");
       return;
     }
     let nextVal: string[];
