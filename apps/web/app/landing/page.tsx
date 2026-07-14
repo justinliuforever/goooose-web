@@ -1,7 +1,10 @@
 import Link from "next/link";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { APP_VERSION_LABEL } from "@/lib/version";
+
+import { BetaCta } from "./beta-cta";
 
 const MODULES = [
   {
@@ -66,6 +69,10 @@ export default function LandingPage() {
 
       <main className="relative flex flex-1 flex-col items-center justify-center gap-12 px-6 py-16 text-center">
         <div className="flex flex-col items-center gap-5">
+          <Badge variant="outline" className="gap-1.5 rounded-full px-3 py-1 text-xs">
+            <span className="size-1.5 animate-pulse rounded-full bg-poet" />
+            内测招募中
+          </Badge>
           <h1 className="font-brand text-5xl leading-tight sm:text-7xl">
             搬砖小鹅 <span className="font-display italic">Goooose</span>
           </h1>
@@ -107,14 +114,7 @@ export default function LandingPage() {
           ))}
         </div>
 
-        <div className="flex flex-col items-center gap-3">
-          <Button render={<Link href="/api/auth/sign-in" prefetch={false} />} size="lg">
-            登录使用
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            正在封闭内测，未获资格的邮箱登录后可提交内测申请
-          </p>
-        </div>
+        <BetaCta />
       </main>
 
       <footer className="flex items-center justify-center gap-3 px-6 pb-8 text-xs text-muted-foreground">
