@@ -41,7 +41,11 @@ export function BetaCta() {
   return (
     <div className="flex w-full max-w-md flex-col items-center gap-3">
       <div className="flex flex-wrap items-center justify-center gap-3">
-        <Button render={<a href={BETA_SURVEY_URL} target="_blank" rel="noopener noreferrer" />} size="lg">
+        <Button
+          render={<a href={BETA_SURVEY_URL} target="_blank" rel="noopener noreferrer" />}
+          nativeButton={false}
+          size="lg"
+        >
           申请内测
           <ArrowRight data-icon="inline-end" />
         </Button>
