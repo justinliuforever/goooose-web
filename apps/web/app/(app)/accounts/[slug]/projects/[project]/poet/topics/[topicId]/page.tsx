@@ -12,6 +12,7 @@ import { Markdown } from "@/components/markdown";
 import { PoetFactList } from "@/components/poet-fact-list";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
+import { xhsGoHref } from "@/lib/xhs-go";
 import { sopTypeLabel } from "@/lib/sop-labels";
 import { ensureCurrentUser } from "@/lib/users";
 
@@ -37,7 +38,7 @@ function ReferenceChip({ reference }: { reference: CustomTopicReference }) {
   if (reference.url) {
     return (
       <a
-        href={reference.url}
+        href={xhsGoHref(reference.url)}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1 rounded-md border bg-muted/50 px-2 py-1 text-xs hover:bg-muted"

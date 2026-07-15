@@ -499,6 +499,9 @@ export const appRouter = router({
           });
         }
         const slug = await uniqueSlug(ctx.user.id, slugify(input.name));
+        // Expand xhslink short-link pastes so the stored URL is the real profile URL.
+        const platformUrl =
+          input.platform === "xhs" ? await expandXhsShortLink(input.platformUrl) : input.platformUrl;
         const [created] = await db
           .insert(channels)
           .values({
@@ -506,7 +509,7 @@ export const appRouter = router({
             name: input.name,
             slug,
             platform: input.platform,
-            platformUrl: input.platformUrl,
+            platformUrl,
             description: input.description ?? null,
           })
           .returning();
@@ -519,12 +522,14 @@ export const appRouter = router({
       .input(updateChannelInput)
       .mutation(async ({ ctx, input }) => {
         const { id, ...patch } = input;
+        const platformUrl =
+          patch.platform === "xhs" ? await expandXhsShortLink(patch.platformUrl) : patch.platformUrl;
         const [updated] = await db
           .update(channels)
           .set({
             name: patch.name,
             platform: patch.platform,
-            platformUrl: patch.platformUrl,
+            platformUrl,
             description: patch.description ?? null,
             updatedAt: new Date(),
           })

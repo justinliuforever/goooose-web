@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatDateTime } from "@/lib/datetime";
+import { xhsGoHref } from "@/lib/xhs-go";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
@@ -197,7 +198,7 @@ export default async function ClerkVideoDetailPage({ params }: Props) {
               {video.title}
             </h1>
             <a
-              href={video.url}
+              href={xhsGoHref(video.url)}
               target="_blank"
               rel="noopener noreferrer"
               className="flex w-full min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"

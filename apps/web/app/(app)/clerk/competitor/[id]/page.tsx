@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/table";
 import { followerNoun, formatDuration, formatFollowerCount, formatViews } from "@/lib/format-count";
 import { getActiveAgentRun } from "@/lib/agent-run";
+import { xhsGoHref } from "@/lib/xhs-go";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { cleanProfileName } from "@/lib/display-name";
@@ -163,7 +164,7 @@ export default async function ClerkCompetitorPage({ params }: Props) {
                 <TableRow key={v.id}>
                   <TableCell className="max-w-md truncate font-medium">
                     <a
-                      href={v.url}
+                      href={xhsGoHref(v.url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="hover:text-foreground hover:underline"

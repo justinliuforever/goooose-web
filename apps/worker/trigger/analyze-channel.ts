@@ -54,12 +54,10 @@ import {
 } from "@goooose/integrations/clients/ytdlp";
 import { analyzeImageStack, analyzeThumbnail } from "@goooose/integrations/clients/vision";
 import {
-  buildXhsNoteUrl,
   expandXhsShortLink,
   extractXhsNoteId,
   extractXsecToken,
   getXhsNoteDetail,
-  getXhsNoteXsecToken,
   getXhsUserNotes,
   type XhsNote,
 } from "@goooose/integrations/clients/xhs";
@@ -634,27 +632,6 @@ export const analyzeChannel = task({
           logger.info(
             `XHS incremental: skipped ${before - xhsNotes.length}/${before} already-analyzed`,
           );
-        }
-
-        // List-sourced notes carry no xsec_token, and a tokenless explore/<id> URL
-        // shows "Page Isn't Available" on web XHS. One extra detail call per selected
-        // note upgrades the stored URL so title click-through works. Failures keep the
-        // tokenless URL (analysis itself is unaffected).
-        const needToken = xhsNotes.filter((n) => !n.noteUrl.includes("xsec_token"));
-        if (needToken.length > 0) {
-          appendLog(`补齐 ${needToken.length} 篇笔记的可访问链接`);
-          for (let n = 0; n < needToken.length; n++) {
-            const note = needToken[n]!;
-            try {
-              const token = await getXhsNoteXsecToken(note.noteId);
-              if (token) note.noteUrl = buildXhsNoteUrl(note.noteId, token);
-            } catch (err) {
-              logger.warn(
-                `xsec_token fetch failed for ${note.noteId}: ${(err as Error).message?.slice(0, 120)}`,
-              );
-            }
-            if (n < needToken.length - 1) await sleep(1100);
-          }
         }
 
         selectedCount = xhsNotes.length;

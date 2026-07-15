@@ -93,17 +93,18 @@ export { findXhsShortLink, isValidXhsProfileUrl } from "../validators";
 
 import { findXhsShortLink } from "../validators";
 
-// Mobile share links (xhslink.com/m/xxx) 302 to the full tokenized xiaohongshu.com URL.
-// Follow the redirect server-side and hand back the final URL; non-short-link input (and
-// any network failure) passes through unchanged so callers keep their normal error paths.
+// Follow the xhslink.com short-link redirect server-side. The timeout stops a stalled
+// xhslink from hanging the run; any failure passes the input through unchanged.
 export async function expandXhsShortLink(input: string): Promise<string> {
   const short = findXhsShortLink(input);
   if (!short) return input;
   try {
     const res = await fetch(short, {
       redirect: "follow",
+      signal: AbortSignal.timeout(10_000),
       headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" },
     });
+    void res.body?.cancel(); // only res.url is needed — release the socket
     return res.url || input;
   } catch {
     return input;
@@ -114,12 +115,15 @@ export function isValidXhsNoteUrl(input: string): boolean {
   return extractXhsNoteId(input) !== null;
 }
 
+// Regex-scan, not new URL(): share cards wrap the URL in text, so parsing the whole
+// string throws and drops the token.
 export function extractXsecToken(input: string): string | null {
+  const m = input.match(/[?&]xsec_token=([^&\s"'<>#]+)/);
+  if (!m) return null;
   try {
-    const parsed = new URL(input);
-    return parsed.searchParams.get("xsec_token");
+    return decodeURIComponent(m[1]!);
   } catch {
-    return null;
+    return m[1]!;
   }
 }
 

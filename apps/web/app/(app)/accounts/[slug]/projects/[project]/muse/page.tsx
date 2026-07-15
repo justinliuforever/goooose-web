@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getActiveAgentRun } from "@/lib/agent-run";
+import { xhsGoHref } from "@/lib/xhs-go";
 import { db } from "@/lib/db";
 import { ensureCurrentUser } from "@/lib/users";
 
@@ -305,7 +306,7 @@ export default async function MuseChannelPage({ params }: Props) {
                 <TableRow key={v.id}>
                   <TableCell className="max-w-md truncate">
                     <a
-                      href={v.url}
+                      href={xhsGoHref(v.url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 hover:text-foreground"

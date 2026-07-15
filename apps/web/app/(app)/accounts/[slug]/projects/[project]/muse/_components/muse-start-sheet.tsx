@@ -17,6 +17,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { cleanProfileName } from "@/lib/display-name";
 import { followerNoun, formatFollowerCount } from "@/lib/format-count";
 import { trpc } from "@/lib/trpc";
 
@@ -177,7 +178,9 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
                     >
                       <CompetitorAvatar name={c.name} avatarUrl={c.avatarUrl} className="size-7" />
                       <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate font-medium">{c.name ?? c.url}</span>
+                        <span className="truncate font-medium">
+                          {c.name ? cleanProfileName(c.name) : c.url}
+                        </span>
                         <span className="text-[10px] text-muted-foreground">
                           {c.platform === "xhs" ? "小红书" : "YouTube"}
                           {c.subscriberCount != null
@@ -218,7 +221,9 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
                       >
                         <CompetitorAvatar name={c.name} avatarUrl={c.avatarUrl} className="size-7" />
                         <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate font-medium">{c.name ?? c.url}</span>
+                          <span className="truncate font-medium">
+                          {c.name ? cleanProfileName(c.name) : c.url}
+                        </span>
                           <span className="text-[10px] text-muted-foreground">
                             {c.platform === "xhs" ? "小红书" : "YouTube"}
                             {c.subscriberCount != null
