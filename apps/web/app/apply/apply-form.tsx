@@ -91,7 +91,7 @@ export function ApplyForm() {
           </li>
           <li className="flex gap-2.5">
             <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-            通过筛选后，内测码会发到你的邮箱（或微信），用它即可直接进入产品。
+            通过筛选后，我们会通过邮箱或微信与你联系，为你开通内测。
           </li>
           <li className="flex gap-2.5">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -124,8 +124,8 @@ export function ApplyForm() {
         <div className="flex flex-col gap-2">
           <h1 className="font-brand text-3xl">收到，申请已提交</h1>
           <p className="leading-relaxed text-muted-foreground">
-            我们会分批审核并发放内测码，请留意 {email} 的收件箱
-            {wechat ? "和微信好友申请" : ""}。拿到码后回到首页，点「我有内测码」即可开通。
+            我们会分批审核，通过后与你联系为你开通内测。请留意 {email} 的收件箱
+            {wechat ? "和微信好友申请" : ""}。
           </p>
         </div>
         <Button variant="outline" render={<Link href="/" />} nativeButton={false}>

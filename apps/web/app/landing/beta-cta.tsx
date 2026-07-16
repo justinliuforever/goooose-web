@@ -87,7 +87,7 @@ export function BetaCta() {
       ) : null}
 
       <p className="text-xs text-muted-foreground">
-        填写申请问卷，通过后内测码会发到你的邮箱 · 已获准入的邮箱可直接登录
+        填写申请问卷，通过后我们会与你联系 · 已获准入的邮箱可直接登录
       </p>
     </div>
   );

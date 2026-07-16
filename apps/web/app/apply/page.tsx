@@ -7,7 +7,7 @@ import { ApplyForm } from "./apply-form";
 
 export const metadata: Metadata = {
   title: "申请内测 · 搬砖小鹅 Goooose",
-  description: "填写内测申请问卷，通过后内测码会发到你的邮箱。",
+  description: "填写内测申请问卷，通过后我们会与你联系。",
 };
 
 export default function ApplyPage() {
