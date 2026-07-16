@@ -23,6 +23,7 @@ import {
   users,
 } from "@goooose/db";
 
+import { EMAIL_RE } from "@/lib/beta-survey";
 import { db } from "@/lib/db";
 import { sendApprovalEmail } from "@/lib/email";
 import { rateLimitOk, redeemAccessCode, validateAccessCode } from "@/server/access-code";
@@ -115,7 +116,10 @@ export const accessRouter = router({
   submitBetaApplication: publicProcedure
     .input(
       z.object({
-        email: z.string().trim().toLowerCase().email().max(200),
+        // Same regex the /apply gate uses (zod's own email pattern), so the two can't
+        // disagree; .regex over .email only to replace zod's English blob — tRPC puts
+        // the raw issue JSON in error.message and this form renders it inline.
+        email: z.string().trim().toLowerCase().regex(EMAIL_RE, "请填写正确的邮箱地址").max(200),
         wechat: z.string().trim().max(100).optional(),
         social: z.string().trim().max(200).optional(),
         answers: z

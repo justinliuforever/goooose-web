@@ -7,14 +7,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SURVEY_QUESTIONS, SURVEY_VERSION, type SurveyQuestion } from "@/lib/beta-survey";
+import { EMAIL_RE, SURVEY_QUESTIONS, SURVEY_VERSION, type SurveyQuestion } from "@/lib/beta-survey";
 import { trpc } from "@/lib/trpc";
 
 type Answers = Record<string, string | string[]>;
 type Phase = "intro" | number | "contact" | "success";
 
 const OTHER = "其他（请注明）";
-const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
 export function ApplyForm() {
   const [phase, setPhase] = useState<Phase>("intro");

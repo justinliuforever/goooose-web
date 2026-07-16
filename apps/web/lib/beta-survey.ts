@@ -5,6 +5,13 @@
 
 export const SURVEY_VERSION = 2;
 
+// Zod 4's own email pattern, shared verbatim by the /apply gate and the server schema
+// so the two cannot drift. A looser client gate is worse than none: it waves through
+// what the server rejects (张三@qq.com from a stray IME, a trailing dot, a 1-char TLD),
+// and the applicant's reward for finishing all six steps is a raw zod blob.
+export const EMAIL_RE =
+  /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/;
+
 export type SurveyQuestion = {
   id: string;
   type: "single" | "multi";
