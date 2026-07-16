@@ -248,6 +248,7 @@ Write compact markdown bullets (no headers above ###) covering, where the source
 - **Retention & re-hooks**: open loops, rehook phrases, specificity spikes, pattern breaks, and pacing.
 - **CTA**: where and how the call-to-action appears.
 - **Signature moves**: any distinctive recurring devices, catchphrases, or structural tics.
+- **Cover**: name the transferable cover move this piece uses — the concrete device (composition / colour / overlay text / subject / prop) and why it earns the click, plus its weakest point. Base this ONLY on the \`cover_diagnosis\` line in the structured analysis above; if there is none, omit this bullet entirely rather than guessing from the title. Keep it to 1-2 sentences: the SOP receives the full cover read separately, so do not restate it here.
 
 Constraints:
 - ${tcRule}
@@ -284,6 +285,7 @@ Write compact markdown bullets (no headers above ###) synthesizing ACROSS the vi
 - **Retention & re-hooks**: recurring open loops, rehook phrases, specificity spikes, pattern breaks, pacing.
 - **CTA**: how and where calls-to-action recur.
 - **Signature moves**: distinctive recurring devices, catchphrases, or structural tics across this batch.
+- **Covers**: recurring cover/thumbnail patterns and recurring weaknesses, carried through from the per-video cover notes. Keep each tied to its video so the SOP can build a per-video diagnostic; omit if the summaries carry no cover notes.
 
 Constraints:
 - Ground EVERY claim in the summaries above — never invent specifics (prices, names, stats, quotes, timecodes) not present. Carry through only the verbatim quotes and [m:ss] timecodes that already appear in the summaries; if a summary has no timecodes, locate moments approximately (opening / early / mid / late), never fabricate.
@@ -349,9 +351,15 @@ ${args.videosData}
 2B. **Brand Voice** sub-section: 4-6 voice traits (e.g. "Conversational", "Self-deprecating", "Authority-flexing") — each with a one-line definition and a verbatim quoted phrase from the analyzed transcripts as proof.
 
 **Section 3: Cover / Thumbnail Playbook**
-- Visual pattern checklist (composition, color, faces, text overlays, props)
-- Diagnostic table: For each analyzed video, one line: \`<the video's actual title> — Cover element X works because Y\`. Start each line with that video's real title copied from the data above — never the literal word "Title" or a generic label.
-- Title-line patterns that pair with the visual style
+- Open with one line stating the evidence base: which posts carry a "Cover (vision)" read and which do not.
+- Visual pattern TABLE (composition, color, faces, text overlays, props) — built ONLY from the "Cover (vision)" lines. One row per element, three columns, every cell filled:
+  \`元素 | 出现于 | 例外与差异\`
+  · 元素: one element only — never two bundled to make a pattern look stronger.
+  · 出现于: every post whose read carries it, each written in full 帖子N（视频）/帖子N（图文） form. Copy the element exactly as that read words it.
+  · 例外与差异: every post with a cover read whose read does NOT carry this element, or carries a different version of it, plus what the difference is. Write 无 only if you checked all of them and there is genuinely no exception. A read that says yellow TEXT is an exception to a yellow BLOCK row — it belongs in this cell, not in 出现于. A hedged element (看不清/疑似) is not established: leave it out of 出现于.
+  Never state a fraction anywhere in this table.
+- Diagnostic table: one row per post THAT HAS a "Cover (vision)" read: \`<the post's actual title> — Cover element X works because Y\`, where X and Y both come from that post's own read. Start each row with that post's real title copied from the data above — never the literal word "Title" or a generic label — and label the row with its 帖子N（视频）/帖子N（图文）. Then name the posts with no cover read and say their covers were not analysed. Never write a "works because" row for a post with no read.
+- Title-line patterns that pair with the visual style. Cover copy quoted here comes from a "Cover (vision)" line character-for-character, never from a post title.
 
 **Section 4: Hook Playbook**
 For each of the 3-5 distinct hook formulas used by the channel, write a Hook Card:
@@ -380,10 +388,10 @@ Break this into FOUR explicit sub-sections:
 - **7.4 Pattern Breaks**: tone shifts, B-roll cuts, recap interludes, with timestamps
 
 **Appendix A: Pre-Writing Checklist**
-Translate the SOP into a 10-15-bullet actionable checklist a writer can tick before publishing (hook chosen, opening loop set, 2-3 rehooks placed, signature move included, specificity spike per minute, CTA tone, etc.).
+Translate the SOP into a 10-15-bullet actionable checklist a writer can tick before publishing (hook chosen, opening loop set, 2-3 rehooks placed, signature move included, specificity spike per minute, CTA tone, etc.). Any bullet mentioning the cover must name the posts it is drawn from in full 帖子N（视频）/帖子N（图文） form, and must not state a cover element more strongly than Section 3 does.
 
 **Appendix B: Optimal Video Spec**
-2-column table (Element / Target) covering: ideal duration, hook duration, sponsor placement, sections count, visual-reveal cadence, anecdote count, CTA style — calibrated to the channel's top performers.
+2-column table (Element / Target) covering: ideal duration, hook duration, sponsor placement, sections count, visual-reveal cadence, anecdote count, CTA style — calibrated to the channel's top performers. Every Target must trace to the data above; write 数据不足 for any row the data cannot support rather than inventing a figure. Put no cover claims in this table — covers are Section 3's.
 
 Format as clean markdown. Cite \`[m:ss]\` timestamps from the analyzed transcripts wherever quoting a line — do NOT invent timestamps.
 ${QUOTE_GROUNDING_EN}
@@ -426,7 +434,7 @@ A one-line equation, e.g. \`Hook → Setup → Payload(3-5) → Reframe → CTA\
 List 3-6 themes; per theme one line: \`THEME_NAME | hit_ratio | one-sentence definition\`.
 
 ## THUMBNAIL_ESSENTIALS
-Bulleted list of visual + text-overlay patterns. Then a one-line per-video diagnostic.
+Open with which posts carry a "Cover (vision)" read and which do not. Then a bulleted list of visual + text-overlay patterns, built only from those reads and obeying the COVER RULES in the data above — one element per bullet, each naming its posts. Then a one-line diagnostic per post THAT HAS a read; name the rest as not analysed.
 
 ## HOOK_TEMPLATES
 For each hook type used by the channel:

@@ -205,7 +205,18 @@ function renderVideoAnalysisFields(v: typeof clerkVideos.$inferSelect): string {
 }
 
 const VIDEOS_SUMMARY_NOTE =
-  `GROUNDING — write the SOP only from the per-video pattern summaries below. Each summary already distills one video's grounded techniques; never quote lines, cite [m:ss], invent a beat-by-beat structure, or assert per-video frequency counts beyond what the summaries state. Put a phrase in quotation marks with a [Video N] / [Post N] citation (match the block's own label) ONLY if it appears verbatim in a summary; paraphrase or inference takes no quotes and no citation. When writing in Chinese, refer to blocks labeled "Post N (image note)" as 帖子N（图文） and "Post N (video note)" as 帖子N（视频）, never as 视频N. If a video has no pattern summary, infer only from its title and label it inference. If most videos lack spoken detail, say so plainly and keep the SOP at the title/cover-pattern level instead of fabricating depth.\n\n`;
+  `GROUNDING — write the SOP only from the per-video pattern summaries below. Each summary already distills one video's grounded techniques; never quote lines, cite [m:ss], invent a beat-by-beat structure, or assert per-video frequency counts beyond what the summaries state. Put a phrase in quotation marks with a [Video N] / [Post N] citation (match the block's own label) ONLY if it appears verbatim in a summary; paraphrase or inference takes no quotes and no citation. When writing in Chinese, refer to blocks labeled "Post N (image note)" as 帖子N（图文） and "Post N (video note)" as 帖子N（视频）, never as 视频N. If a video has no pattern summary, infer only from its title and label it inference. If most videos lack spoken detail, say so plainly and keep the SOP at the title/cover-pattern level instead of fabricating depth.
+
+COVER RULES — a block's "Cover (vision)" lines are a first-hand read of that post's actual cover image. These rules apply in EVERY section and appendix, and override anything that conflicts with them:
+1. A post whose block carries no "Cover (vision)" line had no cover analysis. Say so plainly. Never state what its cover shows, and never fill the gap from its title, its transcript, or another post's cover. The "infer from the title" allowance above covers the pattern summary ONLY — a missing pattern summary does not turn a present Cover line into an inference.
+2. Cover text may be quoted only from a "Cover (vision)" line, copied character-for-character. A post's title is NOT its cover text; they are different strings and often unrelated. Never present a title as cover copy.
+3. Invent no figures — no colour codes, no percentage of frame, no line-count caps, no cadences — unless that exact figure appears in a Cover line. If reads disagree on a figure, say it varies; never average them into a range.
+4. Open the cover section by stating the evidence base: which posts have a cover read and which do not, before any channel-wide rule.
+5. Never state a cover pattern as a fraction or with 所有/全部/多数/一律/必须. Name the posts you observed it in, and in the same breath name any post whose read lacks it or differs, and how. One element per claim — never bundle two elements to make a pattern look stronger.
+6. Every cover claim, anywhere in the SOP, must name its posts in full 帖子N（视频）/帖子N（图文） form — including inside lists and tables. Before naming a post, confirm the element is in that post's own read, worded as that read words it: if the read says yellow TEXT, do not write yellow BACKGROUND. Drop posts that do not check out; drop the claim if none survives.
+7. If a Cover line hedges an element (看不清 / 疑似 / 无法确认), it is not established. Never assert it as a pattern, prop, or rule.
+8. Do not attach a descriptor to posts whose reads lack it. If one read says 圆框 and another 细框, the shared claim is 眼镜 — describe the common denominator or split the claim per post.
+9. Cover facts describe the cover only. Never carry them into the video body, and never present cover copy as a spoken line, a script opening, or an in-video beat.\n\n`;
 
 // Extracted so the budget packer can size each block; `index` is the 1-based label shown to the LLM.
 function renderVideoSummaryBlock(
@@ -216,16 +227,28 @@ function renderVideoSummaryBlock(
   const lines: string[] = [];
   // XHS notes are labeled by kind so the SOP says 帖子N（图文/视频） instead of calling
   // an image post "Video N".
+  // The Chinese citation form is carried in the label itself: a prose rule telling the model to
+  // map "Post N (video note)" → 帖子N（视频） was ignored in 7 of 8 measured runs, so give it the
+  // exact string to copy instead.
   const label =
     v.contentType === "xhs_image"
-      ? `Post ${index} (image note)`
+      ? `Post ${index} (image note) [cite in Chinese as 帖子${index}（图文）]`
       : v.contentType === "xhs_video"
-        ? `Post ${index} (video note)`
+        ? `Post ${index} (video note) [cite in Chinese as 帖子${index}（视频）]`
         : `Video ${index}`;
   lines.push(`### ${label}: "${v.title || "(untitled)"}"`);
   lines.push(`- Views: ${v.views?.toLocaleString("en-US") ?? "unknown"}`);
   lines.push(`- Duration: ${v.durationSec ?? "unknown"}s`);
   lines.push(`- Transcript source: ${v.transcriptSource ?? "none"}`);
+  // cover_diagnosis / cover_title_suggestions are vision-only columns (DeepSeek writes neither),
+  // so either being set proves vision succeeded and thus that thumbnail_description /
+  // thumbnail_why_it_works hold a real read rather than the text model's earlier guess. Injected
+  // verbatim because the MAP step only paraphrases, and the cover playbook needs the real read.
+  if (v.coverDiagnosis || v.coverTitleSuggestions?.length) {
+    if (v.thumbnailDescription) lines.push(`- Cover (vision) — what this post's own cover image shows: ${v.thumbnailDescription}`);
+    if (v.thumbnailWhyItWorks) lines.push(`- Cover (vision) — why it works: ${v.thumbnailWhyItWorks}`);
+    if (v.coverDiagnosis) lines.push(`- Cover (vision) — weakest point: ${v.coverDiagnosis}`);
+  }
   const summary = summaries.get(v.id);
   lines.push(summary ? `\n${summary}` : "- (no pattern summary available for this video)");
   return lines.join("\n");
@@ -825,6 +848,12 @@ export const analyzeChannel = task({
                 logger.info(
                   `Vision-based ${visionUrls.length > 1 ? `stack(${visionUrls.length})` : "thumbnail"} analysis applied for ${note.noteId}`,
                 );
+              } else {
+                // Without this the cover silently falls back to the text model's guess and never
+                // reaches the SOP — invisible on the platform the cover complaint came from.
+                logger.warn(
+                  `Vision returned no read for ${note.noteId} (${visionUrls.length} img) — cover excluded from SOP`,
+                );
               }
             }
 
@@ -859,7 +888,8 @@ export const analyzeChannel = task({
               .values(upsert)
               .onConflictDoUpdate({
                 ...videoConflict,
-                set: upsert,
+                // Re-analysis invalidates the cached SOP map summary, same as the YouTube path.
+                set: { ...upsert, sopMapSummary: null },
               });
 
             analyzed++;

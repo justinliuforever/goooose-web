@@ -29,6 +29,9 @@ const LLM_PRICES: Record<string, { input: number; output: number; cachedInput: n
   "deepseek-v4-pro": { input: 0.435, output: 0.87, cachedInput: 0.0087 },
   "deepseek-v4-flash": { input: 0.14, output: 0.28, cachedInput: 0.0028 },
   "claude-sonnet-4-6": { input: 3, output: 15, cachedInput: 0.3 },
+  // Sonnet 5 is on promo ($2/$10/$0.20) through 2026-08-31; priced here at its 2026-09-01
+  // steady state so cost baselines do not jump the day the promo ends.
+  "claude-sonnet-5": { input: 3, output: 15, cachedInput: 0.3 },
 };
 
 // USD per minute of audio; youtube_auto captions are free.

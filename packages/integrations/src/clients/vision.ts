@@ -22,27 +22,29 @@ export type ThumbnailAnalysis = {
   titleSuggestions: string[];
 };
 
-const ZH_INSTRUCTION = `你是 YouTube 封面（缩略图）视觉分析师。请观察这张封面，输出严格的 JSON：
+// The SOP's cover playbook is built from `description` + `why_it_works`, so they must carry
+// the concrete material (verbatim overlay text, composition, props) rather than a gist.
+const ZH_INSTRUCTION = `你是封面（首图/缩略图）视觉分析师。你没有被告知这条内容的标题，也不要试图推测标题——只描述画面。输出严格的 JSON：
 
 {
-  "description": "用 2-3 句中文描述封面实际看到的内容（颜色、元素布局、文字、人物表情、视觉钩子）",
-  "why_it_works": "用 2-3 句中文说明这张封面为什么有效（点击诱因、情绪触发、对比手法）",
-  "diagnosis": "用 1-2 句中文诊断这张封面的薄弱处或可改进点（例如：文字过多、对比度低、主体不清、信息密度问题等）。如果封面已经非常优秀无明显问题，写 null",
+  "description": "用 5-7 句中文拆解画面：(1) 构图——主体是什么、在画面什么位置、景别与留白；(2) 配色——主色与对比色、明暗关系，说清楚是「色块底衬」还是「文字本身有颜色」；(3) 画面里的文字——逐字照抄原文并标明层级（主标题/副标题/角标），无文字写「无文字」；(4) 人物——几个人、表情、动作、穿着，无人物写「无人物」；(5) 道具与场景——具体物件名称，无道具写「无道具」。只写你真实看到的：看不清就写「看不清」，绝不猜测、绝不补全画面里没有的元素。不要给出画面里不存在的数值（不要估算色值或面积占比，除非画面上直接写着）。",
+  "why_it_works": "用 2-3 句中文说明最有效的视觉动作是什么、为什么能让人点进来。必须指名画面里的具体元素（哪块文字、哪个颜色、哪个表情、哪件道具）。",
+  "diagnosis": "用 1-2 句中文诊断这张封面最薄弱处或最该改的一点（例如：文字过多、对比度低、主体不清、信息密度问题等）。如果封面已经非常优秀无明显问题，写 null",
   "title_suggestions": ["3 个备选中文标题，每个不超过 25 字，与封面视觉强匹配，并包含具体数字/对比/反差/情绪点之一"]
 }
 
-只返回 JSON，不要 markdown 代码块。所有描述基于你真实看到的画面，不要根据标题猜测。`;
+只返回 JSON，不要 markdown 代码块。`;
 
-const EN_INSTRUCTION = `You are a YouTube cover (thumbnail) visual analyst. Observe this cover and output strict JSON:
+const EN_INSTRUCTION = `You are a cover (thumbnail / first image) visual analyst. You have not been told this post's title — do not guess it; describe only the image. Output strict JSON:
 
 {
-  "description": "2-3 sentences describing what's actually visible (colors, layout, text, expressions, visual hooks)",
-  "why_it_works": "2-3 sentences explaining why this cover works (click triggers, emotional cues, contrast)",
+  "description": "5-7 sentences breaking the image down: (1) composition — the subject, where it sits, shot size, negative space; (2) palette — dominant and contrast colours, light/dark relationship, and whether colour is a BLOCK behind the text or the text itself; (3) on-image text — copied character-for-character with its level (main title / subtitle / corner tag), or 'no text'; (4) people — how many, expression, action, clothing, or 'no people'; (5) props and setting — name the objects, or 'no props'. Write only what you actually see: if something is illegible, say so. Never guess, never complete elements that are not there. Do not state figures the image does not show (no colour codes, no % of frame) unless printed on the image.",
+  "why_it_works": "2-3 sentences on the single most effective visual move and why it earns the click. Name the specific element (which text, which colour, which expression, which prop).",
   "diagnosis": "1-2 sentences diagnosing the weakest aspect of this cover or what could be improved (e.g. too much text, low contrast, unclear subject, info density). If the cover is already excellent with no clear issue, write null.",
   "title_suggestions": ["3 alternative title candidates, each ≤ 70 chars, tightly matching the visual, each leveraging concrete numbers / contrast / surprise / emotion"]
 }
 
-Return JSON only, no markdown fences. All descriptions must be based on what you actually see, not inferred from the title.`;
+Return JSON only, no markdown fences.`;
 
 // AI SDK's URL-mode fetcher honors robots.txt; some CDNs (XHS rednotecdn) block
 // it. Downloading the bytes locally and passing Uint8Array bypasses that
@@ -78,23 +80,25 @@ export async function analyzeThumbnail(
   return analyzeImageStack([thumbnailUrl], language, logger);
 }
 
-const ZH_STACK_INSTRUCTION = `你是小红书图文笔记视觉分析师。下面是该笔记的多张图片（按顺序），请综合所有图片，输出严格的 JSON：
+const ZH_STACK_INSTRUCTION = `你是小红书图文笔记视觉分析师。下面是该笔记的多张图片（按顺序）。你没有被告知这条笔记的标题，也不要试图推测标题——只描述画面。输出严格的 JSON：
 
 {
-  "description": "用 3-4 句中文综合描述全部图片：第 1 张作为封面起到什么钩子作用、整组图片的视觉风格（排版/配色/字体/拼贴方式）、画面里的核心元素和文字",
-  "why_it_works": "用 3-4 句中文说明为什么这组图片有效：封面如何抓住用户、整套图片如何带动用户滑下去看完、有哪些情绪/认知触发"
+  "description": "用 5-7 句中文：先按 (1) 构图 (2) 配色（说清是「色块底衬」还是「文字本身有颜色」）(3) 画面里的文字（逐字照抄并标层级）(4) 人物（表情/动作/穿着）(5) 道具与场景，拆解第 1 张封面；再用 1-2 句概括整组图片的视觉风格（排版/配色/字体/拼贴方式）。只写你真实看到的：看不清就写「看不清」，绝不猜测、绝不补全画面里没有的元素。不要估算色值或面积占比。",
+  "why_it_works": "用 2-3 句中文说明封面最有效的视觉动作是什么、为什么能让人点进来（必须指名具体元素），以及整套图片如何带动用户滑下去看完",
+  "diagnosis": "用 1-2 句中文诊断封面（第 1 张）的薄弱处或可改进点（例如：文字过多、对比度低、主体不清、信息密度问题等）。如果封面已经非常优秀无明显问题，写 null"
 }
 
-只返回 JSON，不要 markdown 代码块。所有描述基于你真实看到的画面。`;
+只返回 JSON，不要 markdown 代码块。`;
 
-const EN_STACK_INSTRUCTION = `You are a Xiaohongshu image-post visual analyst. Below are the post's images in order. Synthesize across all of them and output strict JSON:
+const EN_STACK_INSTRUCTION = `You are a Xiaohongshu image-post visual analyst. Below are the post's images in order. You have not been told this post's title — do not guess it; describe only the images. Output strict JSON:
 
 {
-  "description": "3-4 sentences synthesizing all images: how the first image hooks as a cover, the visual style of the whole set (layout/palette/typography/collage), and the core visible elements and text",
-  "why_it_works": "3-4 sentences explaining why this image set works: how the cover grabs the user, how the sequence keeps them swiping, and the emotional/cognitive triggers"
+  "description": "5-7 sentences: first break down image 1 (the cover) by (1) composition (2) palette — say whether colour is a BLOCK behind the text or the text itself (3) on-image text, copied character-for-character with its level (4) people — expression, action, clothing (5) props and setting. Then 1-2 sentences on the whole set's visual style (layout/palette/typography/collage). Write only what you actually see; if something is illegible, say so. Never guess, never complete elements that are not there. Do not estimate colour codes or % of frame.",
+  "why_it_works": "2-3 sentences on the cover's single most effective visual move and why it earns the click (name the specific element), plus how the sequence keeps the reader swiping",
+  "diagnosis": "1-2 sentences diagnosing the cover (first image)'s weak spots or improvements (e.g. too much text, low contrast, unclear subject, density issues). Write null if the cover is already excellent with no clear issue"
 }
 
-Return JSON only, no markdown fences. All descriptions must be based on what you actually see.`;
+Return JSON only, no markdown fences.`;
 
 // XHS image-posts: up to 9 images per call so Claude synthesizes the whole gallery, not just the cover.
 export async function analyzeImageStack(
@@ -126,13 +130,13 @@ export async function analyzeImageStack(
         : EN_STACK_INSTRUCTION;
     const result = await generateText({
       model: wrapLanguageModel({
-        model: getAnthropic()("claude-sonnet-4-6"),
-        middleware: usageMiddleware("vision", "anthropic", "claude-sonnet-4-6"),
+        model: getAnthropic()("claude-sonnet-5"),
+        middleware: usageMiddleware("vision", "anthropic", "claude-sonnet-5"),
       }),
-      // Chinese 1 char ≈ 1.5-2 tokens; 2 fields × 4 sentences × ~80 chars
-      // each easily hits 1000-2000 tokens per field. 2.5× headroom prevents
-      // mid-JSON truncation that defeats parseLenient.
-      maxOutputTokens: single ? 4000 : 8000,
+      // Chinese 1 char ≈ 1.5-2 tokens. Truncation drops the trailing fields while the
+      // description/whyItWorks guard below still passes, so the row silently loses its
+      // diagnosis — which is what gates the cover read into the SOP. Keep the headroom wide.
+      maxOutputTokens: 8000,
       maxRetries: 2,
       messages: [
         {
