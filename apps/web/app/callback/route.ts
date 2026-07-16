@@ -37,15 +37,22 @@ export async function GET(request: NextRequest) {
   // now and always drop the cookie so a bad code can't loop. Failures fall through
   // to the /request-access code box.
   const betaCode = request.cookies.get(BETA_CODE_COOKIE)?.value;
+  let codeFailed = false;
   if (betaCode) {
     if (user) {
       try {
-        await redeemAccessCode(user, betaCode);
+        const result = await redeemAccessCode(user, betaCode);
+        codeFailed = !result.approved;
       } catch (err) {
         console.error("beta code auto-redeem failed", err);
+        codeFailed = true;
       }
     }
     (await cookies()).delete(BETA_CODE_COOKIE);
   }
+  // redirect() throws, so it must stay outside every try above. A code that raced
+  // out or expired between the landing check and here would otherwise drop the user
+  // on a different page with no idea what became of the code they just entered.
+  if (codeFailed) redirect("/request-access?code=failed");
   redirect("/welcome");
 }

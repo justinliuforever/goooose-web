@@ -8,10 +8,17 @@ import { APP_VERSION_LABEL } from "@/lib/version";
 
 import { RequestAccessForm } from "./request-access-form";
 
-export default async function RequestAccessPage() {
+export default async function RequestAccessPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string }>;
+}) {
   const user = await ensureCurrentUser();
   if (!user) redirect("/api/auth/sign-in");
   if (user.accessStatus === "approved") redirect("/");
+  // Compared against a literal, never rendered — the value is in the URL and a
+  // reflected message would be a free phishing surface on a page about access.
+  const codeFailed = (await searchParams).code === "failed";
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-8 p-8">
@@ -26,6 +33,7 @@ export default async function RequestAccessPage() {
       <RequestAccessForm
         email={user.email}
         blocked={user.accessStatus === "blocked"}
+        codeFailed={codeFailed}
       />
       <form
         action={async () => {

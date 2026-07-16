@@ -34,19 +34,31 @@ export function ApplyForm() {
   const setAnswer = (id: string, value: string | string[]) =>
     setAnswers((a) => ({ ...a, [id]: value }));
 
-  const canProceed = (q: SurveyQuestion): boolean => {
+  // Picking "其他" commits you to specifying it — enforced regardless of whether the
+  // question itself is required (e.g. Q4 is optional overall).
+  const otherNeedsText = (q: SurveyQuestion): boolean => {
     const v = answers[q.id];
-    // Picking "其他" commits you to specifying it — enforced regardless of
-    // whether the question itself is required (e.g. Q4 is optional overall).
-    const otherSelected = q.allowOther && (q.type === "multi" ? Array.isArray(v) && v.includes(OTHER) : v === OTHER);
-    if (otherSelected) {
-      const otherText = answers[`${q.id}_other`];
-      if (typeof otherText !== "string" || otherText.trim().length === 0) return false;
-    }
+    const selected =
+      q.allowOther && (q.type === "multi" ? Array.isArray(v) && v.includes(OTHER) : v === OTHER);
+    if (!selected) return false;
+    const text = answers[`${q.id}_other`];
+    return typeof text !== "string" || text.trim().length === 0;
+  };
+
+  const canProceed = (q: SurveyQuestion): boolean => {
+    if (otherNeedsText(q)) return false;
+    const v = answers[q.id];
     if (!q.required) return true;
     if (q.type === "multi") return Array.isArray(v) && v.length > 0;
     return typeof v === "string" && v.length > 0;
   };
+
+  // An unanswered question already reads as unanswered, but a typo'd email and a
+  // blank 其他 both look finished — without a reason the dead button is unexplainable.
+  const emailError =
+    email.trim().length > 0 && !EMAIL_RE.test(email.trim())
+      ? "请填写完整的邮箱地址，例如 you@example.com"
+      : null;
 
   const next = () => {
     if (phase === "intro") setPhase(0);
@@ -149,6 +161,7 @@ export function ApplyForm() {
           email={email}
           wechat={wechat}
           social={social}
+          emailError={emailError}
           setEmail={setEmail}
           setWechat={setWechat}
           setSocial={setSocial}
@@ -158,6 +171,7 @@ export function ApplyForm() {
           question={SURVEY_QUESTIONS[phase]!}
           value={answers[SURVEY_QUESTIONS[phase]!.id]}
           otherText={answers[`${SURVEY_QUESTIONS[phase]!.id}_other`]}
+          otherError={otherNeedsText(SURVEY_QUESTIONS[phase]!) ? "选了「其他」，请补充说明后继续" : null}
           setAnswer={setAnswer}
         />
       )}
@@ -211,11 +225,13 @@ function QuestionStep({
   question: q,
   value,
   otherText,
+  otherError,
   setAnswer,
 }: {
   question: SurveyQuestion;
   value: string | string[] | undefined;
   otherText: string | string[] | undefined;
+  otherError: string | null;
   setAnswer: (id: string, value: string | string[]) => void;
 }) {
   const cur = q.type === "multi" ? (Array.isArray(value) ? value : []) : [];
@@ -281,13 +297,16 @@ function QuestionStep({
       </div>
 
       {showOther ? (
-        <Input
-          value={typeof otherText === "string" ? otherText : ""}
-          onChange={(e) => setAnswer(`${q.id}_other`, e.target.value)}
-          placeholder="说说你的情况"
-          maxLength={200}
-          autoFocus
-        />
+        <div className="flex flex-col gap-1.5">
+          <Input
+            value={typeof otherText === "string" ? otherText : ""}
+            onChange={(e) => setAnswer(`${q.id}_other`, e.target.value)}
+            placeholder="说说你的情况"
+            maxLength={200}
+            autoFocus
+          />
+          {otherError ? <p className="text-xs text-destructive">{otherError}</p> : null}
+        </div>
       ) : null}
     </div>
   );
@@ -297,6 +316,7 @@ function ContactStep({
   email,
   wechat,
   social,
+  emailError,
   setEmail,
   setWechat,
   setSocial,
@@ -304,6 +324,7 @@ function ContactStep({
   email: string;
   wechat: string;
   social: string;
+  emailError: string | null;
   setEmail: (v: string) => void;
   setWechat: (v: string) => void;
   setSocial: (v: string) => void;
@@ -323,9 +344,14 @@ function ContactStep({
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
           maxLength={200}
+          aria-invalid={emailError ? true : undefined}
+          aria-describedby="apply-email-hint"
         />
-        <p className="text-xs text-muted-foreground">
-          内测邀请、产品更新都会从这里发。我们不会做营销群发，也不会卖给第三方。
+        <p
+          id="apply-email-hint"
+          className={emailError ? "text-xs text-destructive" : "text-xs text-muted-foreground"}
+        >
+          {emailError ?? "内测邀请、产品更新都会从这里发。我们不会做营销群发，也不会卖给第三方。"}
         </p>
       </div>
       <div className="flex flex-col gap-2">

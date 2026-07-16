@@ -18,7 +18,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 
-export function RequestAccessForm({ email, blocked }: { email: string; blocked: boolean }) {
+export function RequestAccessForm({
+  email,
+  blocked,
+  codeFailed,
+}: {
+  email: string;
+  blocked: boolean;
+  codeFailed?: boolean;
+}) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [contact, setContact] = useState("");
@@ -131,7 +139,11 @@ export function RequestAccessForm({ email, blocked }: { email: string; blocked: 
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="text-base">已有内测码？</CardTitle>
-        <CardDescription>输入内测码即刻开通，无需等待审核。</CardDescription>
+        <CardDescription>
+          {codeFailed
+            ? "刚才那个内测码没能自动激活，请在下方重新输入，我们会告诉你具体原因。"
+            : "输入内测码即刻开通，无需等待审核。"}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex gap-2">
