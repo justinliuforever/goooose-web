@@ -1,6 +1,7 @@
-// Beta survey question set (题目设计方案 v2) — shared by the /apply stepper, the
-// server-side zod check, and the admin summary. Editing questions: bump
-// SURVEY_VERSION, never the DB.
+// Beta survey question set (题目设计方案 v2) — shared by the /apply stepper and the
+// admin queue. The server stores answers as opaque jsonb and does NOT validate them
+// against this set, so anything read back out must tolerate unknown keys.
+// Editing questions: bump SURVEY_VERSION, never the DB.
 
 export const SURVEY_VERSION = 2;
 
@@ -97,9 +98,36 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
 // Admin list shows these inline; the rest appear in the expanded view.
 export const SUMMARY_QUESTION_IDS = ["role", "ai_hours", "commitment"];
 
-export function questionTitle(id: string): string {
-  const base = id.endsWith("_other") ? id.slice(0, -"_other".length) : id;
-  const q = SURVEY_QUESTIONS.find((x) => x.id === base);
-  if (!q) return id;
-  return id.endsWith("_other") ? `${q.title}（其他）` : q.title;
+export const OTHER_OPTION = "其他（请注明）";
+
+type Answers = Record<string, string | string[]>;
+
+// Resolves what the applicant actually meant: picking 其他 stores the literal option
+// text, so the real answer lives in the sibling `${id}_other` key.
+export function answerText(answers: Answers, id: string): string {
+  const raw = answers[id];
+  const other = answers[`${id}_other`];
+  const otherText = typeof other === "string" ? other.trim() : "";
+  const render = (s: string) => (s === OTHER_OPTION ? (otherText ? `其他：${otherText}` : "") : s);
+  if (Array.isArray(raw)) return raw.map(render).filter(Boolean).join("、");
+  if (typeof raw === "string") return render(raw);
+  return "";
+}
+
+// Drives the admin detail view. Iterates the question set, never the stored object:
+// jsonb orders keys by length then bytewise, so Object.entries would render the
+// survey out of order and strand each `_other` far from its question.
+export function surveyRows(answers: Answers): Array<{ id: string; title: string; value: string }> {
+  const rows = SURVEY_QUESTIONS.map((q) => ({
+    id: q.id,
+    title: q.title,
+    value: answerText(answers, q.id),
+  })).filter((r) => r.value.length > 0);
+  const known = new Set(SURVEY_QUESTIONS.flatMap((q) => [q.id, `${q.id}_other`]));
+  for (const [key, value] of Object.entries(answers)) {
+    if (known.has(key)) continue;
+    const text = Array.isArray(value) ? value.join("、") : String(value);
+    if (text.trim().length > 0) rows.push({ id: key, title: key, value: text });
+  }
+  return rows;
 }

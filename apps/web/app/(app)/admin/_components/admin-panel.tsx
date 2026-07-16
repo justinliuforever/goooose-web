@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -45,7 +45,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { questionTitle, SUMMARY_QUESTION_IDS } from "@/lib/beta-survey";
+import { answerText, SUMMARY_QUESTION_IDS, surveyRows } from "@/lib/beta-survey";
 import { trpc } from "@/lib/trpc";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -759,26 +759,37 @@ function BetaApplicationsCard() {
     onSuccess: () => void utils.admin.listBetaApplications.invalidate(),
     onError: (err) => toast.error(err.message),
   });
-  const inviteCode = trpc.admin.createCode.useMutation({
+  const inviteCode = trpc.admin.inviteBetaApplicationByCode.useMutation({
     onError: (err) => toast.error(err.message),
   });
   const allowEmail = trpc.admin.addAllowedEmail.useMutation({
     onError: (err) => toast.error(err.message),
   });
 
-  const sendCode = async (id: string, email: string) => {
-    const created = await inviteCode.mutateAsync({ access: true, note: `问卷邀请 ${email}` });
-    await navigator.clipboard.writeText(created.code).catch(() => {});
-    toast.success(`准入码已生成并复制：${created.code}`);
-    updateApp.mutate({ id, status: "invited" });
-    void utils.admin.listCodes.invalidate();
+  const sendCode = async (id: string) => {
+    try {
+      const created = await inviteCode.mutateAsync({ id });
+      const copied = await navigator.clipboard
+        .writeText(created.code)
+        .then(() => true)
+        .catch(() => false);
+      toast.success(copied ? `准入码已生成并复制：${created.code}` : `准入码：${created.code}（复制失败，请手动记下）`);
+      void utils.admin.listBetaApplications.invalidate();
+      void utils.admin.listCodes.invalidate();
+    } catch {
+      // mutateAsync rejects after its own onError toast; swallow so it isn't unhandled.
+    }
   };
 
   const allowlist = async (id: string, email: string) => {
-    const res = await allowEmail.mutateAsync({ email, note: "问卷邀请" });
-    toast.success(res.approved > 0 ? "已加入白名单并放行该用户" : "已加入白名单，登录即放行");
-    updateApp.mutate({ id, status: "invited" });
-    void utils.admin.listAllowedEmails.invalidate();
+    try {
+      const res = await allowEmail.mutateAsync({ email, note: "问卷邀请" });
+      toast.success(res.approved > 0 ? "已加入白名单并放行该用户" : "已加入白名单，登录即放行");
+      await updateApp.mutateAsync({ id, status: "invited" });
+      void utils.admin.listAllowedEmails.invalidate();
+    } catch {
+      // addAllowedEmail is idempotent, so a retry after a half-failure is safe.
+    }
   };
 
   return (
@@ -794,7 +805,7 @@ function BetaApplicationsCard() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>时间</TableHead>
+                <TableHead>申请时间</TableHead>
                 <TableHead>邮箱</TableHead>
                 <TableHead>微信</TableHead>
                 <TableHead>摘要</TableHead>
@@ -804,18 +815,18 @@ function BetaApplicationsCard() {
             </TableHeader>
             <TableBody>
               {apps.data.map((a) => {
-                const summary = SUMMARY_QUESTION_IDS.map((qid) => a.answers[qid])
-                  .filter((v): v is string => typeof v === "string" && v.length > 0)
+                const summary = SUMMARY_QUESTION_IDS.map((qid) => answerText(a.answers, qid))
+                  .filter((v) => v.length > 0)
                   .join(" · ");
                 const expanded = expandedId === a.id;
                 return (
-                  <>
-                    <TableRow key={a.id}>
+                  <Fragment key={a.id}>
+                    <TableRow>
                       <TableCell
                         className="font-mono text-xs text-muted-foreground"
-                        title={new Date(a.updatedAt).toLocaleString("zh-CN")}
+                        title={`提交于 ${new Date(a.createdAt).toLocaleString("zh-CN")}${a.submitCount > 1 ? `，最后更新 ${new Date(a.updatedAt).toLocaleString("zh-CN")}` : ""}`}
                       >
-                        {new Date(a.updatedAt).toLocaleDateString("zh-CN")}
+                        {new Date(a.createdAt).toLocaleDateString("zh-CN")}
                       </TableCell>
                       <TableCell className="text-xs">{a.email}</TableCell>
                       <TableCell className="text-xs">{a.wechat ?? "—"}</TableCell>
@@ -862,7 +873,7 @@ function BetaApplicationsCard() {
                                 size="sm"
                                 variant="outline"
                                 disabled={inviteCode.isPending}
-                                onClick={() => void sendCode(a.id, a.email)}
+                                onClick={() => void sendCode(a.id)}
                               >
                                 发码
                               </Button>
@@ -880,35 +891,37 @@ function BetaApplicationsCard() {
                       </TableCell>
                     </TableRow>
                     {expanded ? (
-                      <TableRow key={`${a.id}-detail`}>
+                      <TableRow>
                         <TableCell colSpan={6} className="bg-muted/30">
                           <div className="flex flex-col gap-1.5 py-1 text-xs">
-                            {Object.entries(a.answers).map(([qid, v]) => (
-                              <div key={qid} className="flex gap-2">
-                                <span className="shrink-0 text-muted-foreground">
-                                  {questionTitle(qid)}
-                                </span>
-                                <span>{Array.isArray(v) ? v.join("、") : v}</span>
+                            {surveyRows(a.answers).map((row) => (
+                              <div key={row.id} className="flex gap-2">
+                                <span className="shrink-0 text-muted-foreground">{row.title}</span>
+                                <span>{row.value}</span>
                               </div>
                             ))}
                             {a.social ? (
                               <div className="flex gap-2">
                                 <span className="shrink-0 text-muted-foreground">主账号</span>
-                                <a
-                                  href={a.social}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline"
-                                >
-                                  {a.social}
-                                </a>
+                                {/^https?:\/\//i.test(a.social) ? (
+                                  <a
+                                    href={a.social}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="underline"
+                                  >
+                                    {a.social}
+                                  </a>
+                                ) : (
+                                  <span>{a.social}</span>
+                                )}
                               </div>
                             ) : null}
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : null}
-                  </>
+                  </Fragment>
                 );
               })}
             </TableBody>

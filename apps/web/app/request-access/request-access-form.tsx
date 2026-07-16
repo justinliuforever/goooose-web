@@ -33,6 +33,12 @@ export function RequestAccessForm({ email, blocked }: { email: string; blocked: 
   });
   const redeemCode = trpc.access.redeemBetaCode.useMutation({
     onSuccess: (r) => {
+      // A code already redeemed by this account comes back approved:false if an admin
+      // has since revoked access — claiming success would bounce them right back here.
+      if (!r.approved) {
+        toast.error("这个内测码你已经用过了，但账号仍未开通 — 请联系我们");
+        return;
+      }
       toast.success(
         r.minutesGranted > 0 ? `内测码已激活，附赠 ${r.minutesGranted} 分钟` : "内测码已激活",
       );

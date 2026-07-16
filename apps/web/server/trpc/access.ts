@@ -148,8 +148,11 @@ export const accessRouter = router({
           .onConflictDoUpdate({
             target: betaApplications.email,
             set: {
-              wechat: input.wechat || null,
-              social: input.social || null,
+              // Coalesce, don't overwrite: the stepper never prefills, so a resubmit
+              // that leaves the optional contact fields blank would otherwise wipe the
+              // only non-email way to reach this applicant.
+              wechat: sql`coalesce(${input.wechat || null}, ${betaApplications.wechat})`,
+              social: sql`coalesce(${input.social || null}, ${betaApplications.social})`,
               answers: input.answers,
               surveyVersion: input.surveyVersion,
               ip: ctx.ip,
@@ -312,15 +315,49 @@ export const adminRouter = router({
       }),
     )
     .mutation(async ({ input }) => {
-      await db
+      const updated = await db
         .update(betaApplications)
         .set({
           status: input.status,
           ...(input.note !== undefined ? { note: input.note || null } : {}),
           updatedAt: new Date(),
         })
-        .where(eq(betaApplications.id, input.id));
+        .where(eq(betaApplications.id, input.id))
+        .returning({ id: betaApplications.id });
+      if (updated.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "申请不存在" });
       return { ok: true };
+    }),
+
+  // Mint the invite code and mark the row in one transaction. Split across two
+  // mutations, a failed status write left a live access code with nothing pointing
+  // at it, and the retry minted a second one.
+  inviteBetaApplicationByCode: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      return db.transaction(async (tx) => {
+        const [app] = await tx
+          .select()
+          .from(betaApplications)
+          .where(eq(betaApplications.id, input.id))
+          .limit(1);
+        if (!app) throw new TRPCError({ code: "NOT_FOUND", message: "申请不存在" });
+        const [created] = await tx
+          .insert(redemptionCodes)
+          .values({
+            code: generateCode(),
+            grant: { access: true },
+            maxUses: 1,
+            // Emails may run to 200 chars, which alone overflows the note column's cap.
+            note: `问卷邀请 ${app.email}`.slice(0, 200),
+            createdBy: ctx.user.id,
+          })
+          .returning();
+        await tx
+          .update(betaApplications)
+          .set({ status: "invited", updatedAt: new Date() })
+          .where(eq(betaApplications.id, input.id));
+        return { code: created!.code, email: app.email };
+      });
     }),
 
   listAllowedEmails: adminProcedure.query(async () => {
