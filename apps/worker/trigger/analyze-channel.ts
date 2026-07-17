@@ -1733,7 +1733,9 @@ export const analyzeChannel = task({
         const totalViews = summedViews > 0 ? summedViews : null;
         const date = new Date().toISOString().split("T")[0]!;
         const transcriptCount = channelVideos.filter(
-          (v) => !!v.transcript && ["xhs_asr", "caption", "asr"].includes(v.transcriptSource ?? ""),
+          (v) =>
+            !!v.transcript &&
+            ["xhs_asr", "douyin_asr", "caption", "asr"].includes(v.transcriptSource ?? ""),
         ).length;
 
         // MAP step: distill each video into a compact reusable-pattern summary so the SOP
