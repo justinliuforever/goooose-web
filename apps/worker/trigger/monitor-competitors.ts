@@ -30,6 +30,13 @@ import {
   listChannelVideos,
 } from "@goooose/integrations/clients/ytdlp";
 import {
+  extractDouyinSecUserId,
+  getDouyinUserVideos,
+  getDouyinVideoDetail,
+  resolveDouyinUser,
+  type DouyinVideo,
+} from "@goooose/integrations/clients/douyin";
+import {
   getXhsUserNotes,
   type XhsNote,
 } from "@goooose/integrations/clients/xhs";
@@ -56,7 +63,9 @@ type Payload = {
   competitorAccountIds?: string[];
   // Unbound competitor_accounts to include just for this run (not permanent 巡视对象).
   extraCompetitorAccountIds?: string[];
-  // XHS-only content filter; YouTube competitors are unaffected.
+  // Video/image filter for XHS + Douyin competitors; YouTube is unaffected.
+  contentFilter?: "all" | "video" | "image";
+  // Legacy name for contentFilter — read as fallback for in-flight payloads.
   xhsContentType?: "all" | "video" | "image";
 };
 
@@ -104,12 +113,12 @@ export const monitorCompetitors = task({
       const idFilter = payload.competitorAccountIds ? new Set(payload.competitorAccountIds) : null;
       const competitors: Array<{
         competitorAccountId: string | null;
-        platform: "youtube" | "xhs";
+        platform: "youtube" | "xhs" | "douyin";
         url: string;
       }> = bound
         .map((b) => ({
           competitorAccountId: b.competitorAccountId,
-          platform: b.platform as "youtube" | "xhs",
+          platform: b.platform as "youtube" | "xhs" | "douyin",
           url: b.url,
         }))
         .filter((c) => !idFilter || (c.competitorAccountId && idFilter.has(c.competitorAccountId)));
@@ -139,7 +148,7 @@ export const monitorCompetitors = task({
           known.add(e.competitorAccountId);
           competitors.push({
             competitorAccountId: e.competitorAccountId,
-            platform: e.platform as "youtube" | "xhs",
+            platform: e.platform as "youtube" | "xhs" | "douyin",
             url: e.url,
           });
         }
@@ -190,14 +199,16 @@ export const monitorCompetitors = task({
         competitorIndex: number;
         competitorUrl: string;
         competitorAccountId: string | null;
-        platform: "youtube" | "xhs";
+        platform: "youtube" | "xhs" | "douyin";
         videoId: string;
         title: string;
         viewCount?: number;
         duration?: string;
         xhsNote?: XhsNote;
+        douyinVideo?: DouyinVideo;
       };
       const candidates: Candidate[] = [];
+      const contentFilter = payload.contentFilter ?? payload.xhsContentType ?? "all";
 
       for (let ci = 0; ci < competitors.length; ci++) {
         const comp = competitors[ci]!;
@@ -209,11 +220,10 @@ export const monitorCompetitors = task({
         });
         try {
           if (comp.platform === "xhs") {
-            const xhsContentType = payload.xhsContentType ?? "all";
             let notes = await getXhsUserNotes(comp.url, maxVideosPerCompetitor);
-            if (xhsContentType !== "all") {
+            if (contentFilter !== "all") {
               notes = notes.filter((n) =>
-                xhsContentType === "video" ? n.type === "video" : n.type !== "video",
+                contentFilter === "video" ? n.type === "video" : n.type !== "video",
               );
             }
             for (const n of notes) {
@@ -225,6 +235,28 @@ export const monitorCompetitors = task({
                 videoId: n.noteId,
                 title: n.title,
                 xhsNote: n,
+              });
+            }
+          } else if (comp.platform === "douyin") {
+            const secUid =
+              extractDouyinSecUserId(comp.url) ?? (await resolveDouyinUser(comp.url)).secUserId;
+            let videos = await getDouyinUserVideos(secUid, maxVideosPerCompetitor);
+            if (contentFilter !== "all") {
+              videos = videos.filter((v) =>
+                contentFilter === "video"
+                  ? v.contentType === "douyin_video"
+                  : v.contentType === "douyin_image",
+              );
+            }
+            for (const v of videos) {
+              candidates.push({
+                competitorIndex: ci,
+                competitorUrl: comp.url,
+                competitorAccountId: comp.competitorAccountId,
+                platform: "douyin",
+                videoId: v.awemeId,
+                title: v.title,
+                douyinVideo: v,
               });
             }
           } else {
@@ -318,9 +350,65 @@ export const monitorCompetitors = task({
           let url: string;
           let sourceChannelName: string | null;
           let finalTranscript: string | null = null;
-          let contentType: "video" | "xhs_video" | "xhs_image" = "video";
+          let contentType: "video" | "xhs_video" | "xhs_image" | "douyin_video" | "douyin_image" =
+            "video";
 
-          if (ref.platform === "xhs") {
+          if (ref.platform === "douyin") {
+            const listItem = ref.douyinVideo!;
+            contentType = listItem.contentType;
+            title = listItem.title || ref.title || "(untitled)";
+            views = listItem.engagementScore;
+            durationSec = listItem.durationSec ?? 0;
+            url = listItem.videoUrl;
+            sourceChannelName = listItem.authorNickname || null;
+            const textBase = listItem.desc.trim() || title;
+
+            if (
+              contentType === "douyin_video" &&
+              durationSec > 0 &&
+              durationSec <= ASR_MAX_DURATION_SEC
+            ) {
+              await metadata.set("progress", {
+                ...stepBase,
+                phase: "transcribing audio",
+                detail: `[${i + 1}/${fresh.length}] ${title} · 抖音音频转写中`,
+              });
+              // List items carry no play URLs (they expire in 60-90 min anyway) —
+              // fetch the detail for fresh ones right before ASR.
+              const detail = await getDouyinVideoDetail(listItem.awemeId).catch((err: Error) => {
+                logger.warn(
+                  `Douyin detail failed for ${listItem.awemeId}: ${err.message?.slice(0, 120)}`,
+                );
+                return null;
+              });
+              if (detail) {
+                const streams = [
+                  ...(detail.play.originalSoundUrl
+                    ? [{ url: detail.play.originalSoundUrl, mimeType: "audio/mpeg", label: "original-sound" }]
+                    : []),
+                  ...detail.play.lowestBitratePlayUrls
+                    .slice(0, 2)
+                    .map((u) => ({ url: u, mimeType: "video/mp4", label: "lowest-bitrate" })),
+                ];
+                const asr =
+                  streams.length > 0
+                    ? await transcribeFromStreams(streams, {
+                        logger,
+                        durationSec,
+                        tag: `Douyin ${listItem.awemeId}`,
+                        preserveOrder: true,
+                      })
+                    : null;
+                finalTranscript = asr
+                  ? `${textBase}\n\n[Audio Transcript]\n${asr.text}`.trim()
+                  : textBase || null;
+              } else {
+                finalTranscript = textBase || null;
+              }
+            } else {
+              finalTranscript = textBase || null;
+            }
+          } else if (ref.platform === "xhs") {
             const note = ref.xhsNote!;
             contentType = note.type === "video" ? "xhs_video" : "xhs_image";
             title = note.title || ref.title || "(untitled)";

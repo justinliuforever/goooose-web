@@ -66,9 +66,9 @@ export const analyzeSingleVideo = task({
         .where(eq(clerkVideos.id, payload.videoId))
         .limit(1);
       if (!video) throw new Error(`video ${payload.videoId} not found`);
-      // XHS image posts store the caption as "transcript" — not speech with timing, so a
-      // [m:ss] beat-by-beat deep-dive would be fabricated. Single-video SOP is video-only.
-      if (video.contentType === "xhs_image") {
+      // Image posts (XHS/Douyin) store the caption as "transcript" — not speech with timing,
+      // so a [m:ss] beat-by-beat deep-dive would be fabricated. Single-video SOP is video-only.
+      if (video.contentType === "xhs_image" || video.contentType === "douyin_image") {
         throw new Error("图文帖没有语音内容，不支持单条拆解 SOP");
       }
       if (!video.transcript || !video.transcript.trim()) {

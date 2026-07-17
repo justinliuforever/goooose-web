@@ -123,9 +123,16 @@ export const generateScript = task({
           sourceChannel: ideaRow.sourceChannelName ?? "",
         };
         if (ideaRow.sourceTranscript) {
+          // Label by actual source platform (was hardcoded "youtube", mislabeling XHS/Douyin).
+          const srcUrl = ideaRow.sourceUrl ?? "";
+          const srcType = /xiaohongshu|xhslink/.test(srcUrl)
+            ? "xhs"
+            : /douyin/.test(srcUrl)
+              ? "douyin"
+              : "youtube";
           references = [
             {
-              type: "youtube",
+              type: srcType,
               title: ideaRow.sourceTitle ?? "Source video",
               url: ideaRow.sourceUrl ?? undefined,
               content: ideaRow.sourceTranscript,

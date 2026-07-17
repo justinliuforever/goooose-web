@@ -54,6 +54,17 @@ import {
 } from "@goooose/integrations/clients/ytdlp";
 import { analyzeImageStack, analyzeThumbnail } from "@goooose/integrations/clients/vision";
 import {
+  expandDouyinShortLink,
+  extractDouyinAwemeId,
+  extractDouyinSecUserId,
+  getDouyinTopComments,
+  getDouyinUserVideos,
+  getDouyinVideoDetail,
+  resolveDouyinUser,
+  type DouyinPlaySource,
+  type DouyinVideo,
+} from "@goooose/integrations/clients/douyin";
+import {
   expandXhsShortLink,
   extractXhsNoteId,
   extractXsecToken,
@@ -235,7 +246,11 @@ function renderVideoSummaryBlock(
       ? `Post ${index} (image note) [cite in Chinese as 帖子${index}（图文）]`
       : v.contentType === "xhs_video"
         ? `Post ${index} (video note) [cite in Chinese as 帖子${index}（视频）]`
-        : `Video ${index}`;
+        : v.contentType === "douyin_image"
+          ? `Post ${index} (Douyin image carousel) [cite in Chinese as 帖子${index}（图文）]`
+          : v.contentType === "douyin_video"
+            ? `Video ${index} (Douyin) [cite in Chinese as 视频${index}]`
+            : `Video ${index}`;
   lines.push(`### ${label}: "${v.title || "(untitled)"}"`);
   lines.push(`- Views: ${v.views?.toLocaleString("en-US") ?? "unknown"}`);
   lines.push(`- Duration: ${v.durationSec ?? "unknown"}s`);
@@ -515,7 +530,7 @@ export const analyzeChannel = task({
       }
       // Both targets expose the same shape the pipeline consumes (id/name/platform/url);
       // `owner` decides which ownership columns get stamped and which dedup twin applies.
-      let channel: { id: string; name: string; platform: "youtube" | "xhs"; platformUrl: string };
+      let channel: { id: string; name: string; platform: "youtube" | "xhs" | "douyin"; platformUrl: string };
       let owner: RunOwner;
       if (payload.competitorAccountId) {
         const [comp] = await db
@@ -527,7 +542,7 @@ export const analyzeChannel = task({
         channel = {
           id: comp.id,
           name: comp.name ?? comp.url,
-          platform: comp.platform as "youtube" | "xhs",
+          platform: comp.platform as "youtube" | "xhs" | "douyin",
           platformUrl: comp.url,
         };
         owner = { channelId: null, ownAccountId: null, competitorAccountId: comp.id };
@@ -943,6 +958,358 @@ export const analyzeChannel = task({
 
         const concurrency = pLimit(VIDEO_CONCURRENCY);
         await Promise.all(xhsNotes.map((note, i) => concurrency(() => processOneNote(note, i))));
+      } else if (channel.platform === "douyin") {
+        const dySource = payload.source ?? "newest";
+        let dyVideos: DouyinVideo[] = [];
+
+        if (dySource === "urls") {
+          await metadata.set("progress", {
+            current: 0,
+            total: 0,
+            phase: "resolving videos",
+            detail: `解析 ${payload.videoIds?.length ?? 0} 个抖音链接`,
+          });
+          const ids: string[] = [];
+          for (const line of payload.videoIds ?? []) {
+            const expanded = await expandDouyinShortLink(line);
+            const awemeId = extractDouyinAwemeId(expanded);
+            if (awemeId) ids.push(awemeId);
+          }
+          if (ids.length === 0) {
+            throw new Error("没有可用的抖音链接 — 请确认 URL 格式正确");
+          }
+          for (let n = 0; n < ids.length; n++) {
+            try {
+              const detail = await getDouyinVideoDetail(ids[n]!);
+              if (detail) dyVideos.push(detail);
+              else logger.warn(`Douyin video ${ids[n]} not found`);
+            } catch (err) {
+              logger.warn(
+                `Douyin video ${ids[n]} fetch failed: ${(err as Error).message?.slice(0, 120)}`,
+              );
+            }
+            if (n < ids.length - 1) await sleep(150);
+          }
+        } else {
+          await metadata.set("progress", {
+            current: 0,
+            total: 0,
+            phase: "fetching videos",
+            detail:
+              dySource === "popular" ? "抓取账号作品后按互动分排序" : "抓取账号最新作品列表",
+          });
+          const secUid =
+            extractDouyinSecUserId(channel.platformUrl) ??
+            (await resolveDouyinUser(channel.platformUrl)).secUserId;
+          const fetchLimit = dySource === "popular" ? Math.min(60, limit * 4) : limit;
+          let all = await getDouyinUserVideos(secUid, fetchLimit);
+          if (payload.recencyMonths) {
+            const cutoff = Date.now() / 1000 - payload.recencyMonths * 30 * 86400;
+            all = all.filter((v) => v.isTop || v.createTime >= cutoff);
+          }
+          if (dySource === "popular") {
+            all.sort((a, b) => b.engagementScore - a.engagementScore);
+          }
+          dyVideos = all.slice(0, limit);
+          logger.info(
+            `Douyin sourced ${dyVideos.length} videos via "${dySource}" (available=${all.length})`,
+          );
+          appendLog(`抓取到 ${all.length} 条作品，按「${dySource}」选取 ${dyVideos.length} 条`);
+        }
+
+        if (payload.mode === "incremental") {
+          const existingRows = await db
+            .select({ platformVideoId: clerkVideos.platformVideoId })
+            .from(clerkVideos)
+            .where(ownerVideoCond);
+          const existingIds = new Set(existingRows.map((r) => r.platformVideoId));
+          const before = dyVideos.length;
+          dyVideos = dyVideos.filter((v) => !existingIds.has(v.awemeId));
+          logger.info(
+            `Douyin incremental: skipped ${before - dyVideos.length}/${before} already-analyzed`,
+          );
+        }
+
+        selectedCount = dyVideos.length;
+        logger.info(
+          `Selected ${dyVideos.length} Douyin videos (limit=${limit}, source=${dySource}, mode=${payload.mode ?? "overwrite"})`,
+        );
+
+        if (dyVideos.length === 0 && payload.mode !== "incremental") {
+          throw new Error("没有抖音作品可分析");
+        }
+
+        await db
+          .update(pipelineRuns)
+          .set({ total: dyVideos.length, progress: 0 })
+          .where(eq(pipelineRuns.id, payload.runId));
+
+        const itemDurOf = (v: DouyinVideo) =>
+          v.contentType === "douyin_video" && (v.durationSec ?? 0) > 0
+            ? Math.max(v.durationSec ?? 0, 30)
+            : 45;
+        const totalItemDur = dyVideos.reduce((s, v) => s + itemDurOf(v), 0);
+        let doneItemDur = 0;
+        const dyLoopStart = Date.now();
+
+        let completedItems = 0;
+        const processOneDouyin = async (item: DouyinVideo, i: number) => {
+          const stepBase = { current: completedItems, total: dyVideos.length };
+          updateTrack(item.awemeId, {
+            title: item.title,
+            phase: item.contentType === "douyin_video" ? "transcribing" : "AI 分析",
+            startedAt: Date.now(),
+          });
+          await metadata.set("progress", {
+            ...stepBase,
+            phase: "fetching video",
+            detail: `[${i + 1}/${dyVideos.length}] ${item.title}`,
+          });
+
+          try {
+            // Play URLs expire in 60-90 min — re-fetch per item so long runs never feed
+            // the ASR a dead link; also refreshes the signed cover/image URLs.
+            let detail: (DouyinVideo & { play: DouyinPlaySource }) | null = null;
+            try {
+              detail = await getDouyinVideoDetail(item.awemeId);
+            } catch (err) {
+              logger.warn(
+                `Douyin detail refresh failed for ${item.awemeId}: ${(err as Error).message?.slice(0, 120)}`,
+              );
+            }
+            const video = detail ?? item;
+            const textBase = video.desc.trim() || video.title;
+
+            let transcript: string | null = null;
+            let transcriptSource: string;
+            const contentType = video.contentType;
+
+            if (contentType === "douyin_video" && detail) {
+              const play = detail.play;
+              const streams = [
+                ...(play.originalSoundUrl
+                  ? [{ url: play.originalSoundUrl, mimeType: "audio/mpeg", label: "original-sound" }]
+                  : []),
+                ...play.lowestBitratePlayUrls
+                  .slice(0, 2)
+                  .map((url) => ({ url, mimeType: "video/mp4", label: "lowest-bitrate" })),
+                ...play.playUrls.slice(0, 1).map((url) => ({ url, mimeType: "video/mp4", label: "play-addr" })),
+              ];
+              if (streams.length === 0) {
+                transcript = textBase || null;
+                transcriptSource = "douyin_text";
+                logger.warn(`Douyin video ${video.awemeId}: no streams, text-only`);
+              } else {
+                await metadata.set("progress", {
+                  ...stepBase,
+                  phase: "transcribing audio",
+                  detail: `[${i + 1}/${dyVideos.length}] ${video.title} · 音频转写中`,
+                });
+                const asr = await transcribeFromStreams(streams, {
+                  logger,
+                  durationSec: video.durationSec ?? undefined,
+                  tag: `Douyin ${video.awemeId}`,
+                  preserveOrder: true,
+                  onPhase: (phase, ph) => {
+                    const detailMap: Record<typeof phase, string> = {
+                      selecting: "选择音视频流",
+                      downloading: "下载媒体中",
+                      transcribing: ph?.bytes
+                        ? `音频转写中（${(ph.bytes / 1024 / 1024).toFixed(1)} MB）`
+                        : "音频转写中",
+                    };
+                    void metadata.set("progress", {
+                      ...stepBase,
+                      phase: "transcribing audio",
+                      detail: `[${i + 1}/${dyVideos.length}] ${video.title} · ${detailMap[phase]}`,
+                    });
+                  },
+                });
+                if (asr) {
+                  transcript = (textBase + "\n\n[Audio Transcript]\n" + asr.text).trim();
+                  transcriptSource = "douyin_asr";
+                } else {
+                  transcript = textBase || null;
+                  transcriptSource = "douyin_text";
+                  logger.warn(
+                    `Douyin video ${video.awemeId}: ASR returned null, falling back to text`,
+                  );
+                }
+              }
+            } else {
+              transcript = textBase || null;
+              transcriptSource = "douyin_text";
+            }
+
+            if (transcriptSource === "douyin_asr") appendLog(`音频转写完成：${video.title.slice(0, 50)}`);
+            else appendLog(`文本提取：${video.title.slice(0, 50)}`);
+            updateTrack(item.awemeId, { phase: "AI 分析" });
+            await metadata.set("progress", {
+              ...stepBase,
+              phase: transcript ? "running analyzer" : "running analyzer (no text)",
+              detail: transcript
+                ? `[${i + 1}/${dyVideos.length}] ${video.title} · AI 分析中`
+                : `[${i + 1}/${dyVideos.length}] ${video.title} · 仅基于标题分析`,
+            });
+
+            const prompt = buildVideoAnalysisPrompt({
+              title: video.title,
+              views: video.engagementScore,
+              durationSec: video.durationSec,
+              thumbnailUrl: video.coverUrl,
+              transcript,
+              contentType,
+              language,
+            });
+
+            let dbAnalysisRaw: Awaited<ReturnType<typeof parseAnalysis>> = null;
+            let lastHead = "";
+            for (let attempt = 0; attempt < 2 && !dbAnalysisRaw; attempt++) {
+              const result = await generateText({
+                model: llm("flash"),
+                prompt,
+                maxOutputTokens: 16384,
+                temperature: 0.3,
+                maxRetries: 2,
+              });
+              dbAnalysisRaw = await parseAnalysis(result.text);
+              if (dbAnalysisRaw) {
+                const nonEmpty = Object.values(dbAnalysisRaw).filter(
+                  (v) => typeof v === "string" && v.trim().length > 0,
+                ).length;
+                if (nonEmpty < 3) {
+                  logger.warn(
+                    `Douyin ${video.awemeId}: analysis parsed but near-empty (${nonEmpty} fields), retrying`,
+                  );
+                  dbAnalysisRaw = null;
+                }
+              }
+              if (!dbAnalysisRaw) {
+                lastHead = result.text.slice(0, 200);
+                logger.warn(`Douyin ${video.awemeId}: analysis parse failed (attempt ${attempt + 1})`);
+              }
+            }
+            if (!dbAnalysisRaw) {
+              throw new Error(`Could not parse analysis JSON. Raw response head: ${lastHead}`);
+            }
+            const dbAnalysis = dbAnalysisRaw;
+            let dyCoverDiagnosis: string | null = null;
+            let dyCoverTitleSuggestions: string[] | null = null;
+
+            const visionUrls =
+              contentType === "douyin_image" && video.images.length > 0
+                ? video.images.slice(0, 9).map((img) => img.url)
+                : video.coverUrl
+                  ? [video.coverUrl]
+                  : [];
+            if (visionUrls.length > 0) {
+              await metadata.set("progress", {
+                ...stepBase,
+                phase: "analyzing thumbnail",
+                detail:
+                  visionUrls.length > 1
+                    ? `[${i + 1}/${dyVideos.length}] ${video.title} · 视觉识别 ${visionUrls.length} 张图`
+                    : `[${i + 1}/${dyVideos.length}] ${video.title} · 视觉识别封面图`,
+              });
+              const visual =
+                visionUrls.length > 1
+                  ? await analyzeImageStack(visionUrls, language, logger)
+                  : await analyzeThumbnail(visionUrls[0]!, language, logger);
+              if (visual) {
+                if (visual.description) dbAnalysis.thumbnailDescription = visual.description;
+                if (visual.whyItWorks) dbAnalysis.thumbnailWhyItWorks = visual.whyItWorks;
+                dyCoverDiagnosis = visual.diagnosis;
+                dyCoverTitleSuggestions =
+                  visual.titleSuggestions.length > 0 ? visual.titleSuggestions : null;
+                logger.info(
+                  `Vision-based ${visionUrls.length > 1 ? `stack(${visionUrls.length})` : "thumbnail"} analysis applied for ${video.awemeId}`,
+                );
+              } else {
+                logger.warn(
+                  `Vision returned no read for ${video.awemeId} (${visionUrls.length} img) — cover excluded from SOP`,
+                );
+              }
+            }
+
+            const upsert = {
+              ...owner,
+              platformVideoId: video.awemeId,
+              title: video.title,
+              url: video.videoUrl,
+              views: video.engagementScore,
+              durationSec: video.durationSec,
+              thumbnailUrl: video.coverUrl,
+              sourceChannelName: video.authorNickname ?? channel.name,
+              sourceChannelId: video.authorSecUserId,
+              transcript: safeText(transcript),
+              transcriptSource,
+              contentType,
+              coverDiagnosis: dyCoverDiagnosis,
+              coverTitleSuggestions: dyCoverTitleSuggestions,
+              ...dbAnalysis,
+              analyzedAt: new Date(),
+              runId: payload.runId,
+            };
+
+            await metadata.set("progress", {
+              ...stepBase,
+              phase: "writing analysis",
+              detail: `[${i + 1}/${dyVideos.length}] 写入数据库`,
+            });
+
+            await db
+              .insert(clerkVideos)
+              .values(upsert)
+              .onConflictDoUpdate({
+                ...videoConflict,
+                set: { ...upsert, sopMapSummary: null },
+              });
+
+            analyzed++;
+            updateTrack(item.awemeId, { phase: "done" });
+            appendLog(`✓ ${video.title.slice(0, 50)}`);
+            await db
+              .update(pipelineRuns)
+              .set({ progress: analyzed })
+              .where(eq(pipelineRuns.id, payload.runId));
+          } catch (err) {
+            failed++;
+            const msg = (err as Error).message ?? String(err);
+            const stack = (err as Error).stack?.split("\n").slice(0, 5).join("\n") ?? "";
+            console.error(`[analyze-channel] Failed Douyin video ${item.awemeId} (${item.title}):`, msg);
+            console.error(stack);
+            logger.error(`Failed Douyin video ${item.awemeId}`, {
+              title: item.title,
+              message: msg.slice(0, 500),
+              stack,
+            });
+            updateTrack(item.awemeId, { phase: "failed" });
+            appendLog(`✗ ${item.title.slice(0, 50)} — ${msg.slice(0, 60)}`);
+          } finally {
+            completedItems++;
+            doneItemDur += itemDurOf(item);
+            const fracDone =
+              totalItemDur > 0 ? doneItemDur / totalItemDur : completedItems / dyVideos.length;
+            const elapsedSec = (Date.now() - dyLoopStart) / 1000;
+            await metadata.set("progress", {
+              current: completedItems,
+              total: dyVideos.length,
+              phase: "processing videos",
+              detail: `已完成 ${completedItems}/${dyVideos.length}`,
+              fracDone: Math.round(fracDone * 1000) / 1000,
+              ...((completedItems >= VIDEO_CONCURRENCY || fracDone >= 0.25) &&
+              completedItems < dyVideos.length &&
+              fracDone > 0.05
+                ? {
+                    estSecondsRemaining: Math.max(0, Math.round(elapsedSec / fracDone - elapsedSec)),
+                  }
+                : {}),
+            });
+          }
+        };
+
+        const concurrency = pLimit(VIDEO_CONCURRENCY);
+        await Promise.all(dyVideos.map((v, i) => concurrency(() => processOneDouyin(v, i))));
       } else {
         const source = payload.source ?? "newest";
         let selected: SelectedVideoRef[] = [];
@@ -1373,8 +1740,11 @@ export const analyzeChannel = task({
         // reduce works over summaries, not full transcripts (bounded context at any scale).
         // Cached on the row; only videos missing a summary are (re)computed.
         const mapContentType = (v: typeof clerkVideos.$inferSelect) =>
-          v.contentType === "xhs_video" || v.contentType === "xhs_image"
-            ? (v.contentType as "xhs_video" | "xhs_image")
+          v.contentType === "xhs_video" ||
+          v.contentType === "xhs_image" ||
+          v.contentType === "douyin_video" ||
+          v.contentType === "douyin_image"
+            ? (v.contentType as "xhs_video" | "xhs_image" | "douyin_video" | "douyin_image")
             : ("video" as const);
         const summaries = new Map<string, string>();
         let mapComputed = 0;
@@ -1439,11 +1809,21 @@ export const analyzeChannel = task({
         // Failures are non-blocking — SOP still runs without comments.
         let hottestCommentsSummary: string | null = null;
         const topVid = channelVideos[0];
-        if (channel.platform === "youtube" && proxyPool && topVid?.platformVideoId) {
+        const canFetchComments =
+          (channel.platform === "youtube" && proxyPool !== null) || channel.platform === "douyin";
+        if (canFetchComments && topVid?.platformVideoId) {
           try {
-            const session = proxyPool.checkout();
-            const comments = await getTopCommentsYtdlp(topVid.platformVideoId, session.url, 100);
-            proxyPool.reportOk(session, 30_000);
+            let comments: Array<{ text: string; likes: number }>;
+            if (channel.platform === "douyin") {
+              comments = (await getDouyinTopComments(topVid.platformVideoId, 100)).map((c) => ({
+                text: c.text,
+                likes: c.diggCount,
+              }));
+            } else {
+              const session = proxyPool!.checkout();
+              comments = await getTopCommentsYtdlp(topVid.platformVideoId, session.url, 100);
+              proxyPool!.reportOk(session, 30_000);
+            }
             if (comments.length >= 5) {
               const summaryPrompt = buildCommentsSummaryPrompt({
                 videoTitle: topVid.title,
