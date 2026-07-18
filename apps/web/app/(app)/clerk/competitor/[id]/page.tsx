@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { followerNoun, formatDuration, formatFollowerCount, formatViews } from "@/lib/format-count";
-import { PLATFORM_LABEL } from "@/lib/platform";
+import { PLATFORM_CONTENT_UNIT, PLATFORM_LABEL, PLATFORM_METRIC_LABEL } from "@/lib/platform";
 import { getActiveAgentRun } from "@/lib/agent-run";
 import { xhsGoHref } from "@/lib/xhs-go";
 import { formatDateTime } from "@/lib/datetime";
@@ -53,9 +53,9 @@ export default async function ClerkCompetitorPage({ params }: Props) {
   if (!competitor) notFound();
 
   const isXhs = competitor.platform === "xhs";
-  const itemUnit =
-    competitor.platform === "douyin" ? "条作品" : isXhs ? "篇笔记" : "个视频";
-  const itemNoun = competitor.platform === "douyin" ? "作品" : isXhs ? "笔记" : "视频";
+  const unit = PLATFORM_CONTENT_UNIT[competitor.platform];
+  const itemUnit = `${unit.measure}${unit.noun}`;
+  const itemNoun = unit.noun;
   const [videos, sops, activeRun] = await Promise.all([
     db
       .select()
@@ -157,7 +157,7 @@ export default async function ClerkCompetitorPage({ params }: Props) {
                 <TableHead className="w-20">类型</TableHead>
                 <TableHead className="w-24">{isXhs ? "文本来源" : "字幕来源"}</TableHead>
                 <TableHead className="hidden w-28 md:table-cell">开场钩子</TableHead>
-                <TableHead className="w-20">{isXhs ? "互动分" : "播放量"}</TableHead>
+                <TableHead className="w-20">{PLATFORM_METRIC_LABEL[competitor.platform]}</TableHead>
                 <TableHead className="w-20">时长</TableHead>
                 <TableHead className="hidden w-28 md:table-cell">分析时间</TableHead>
                 <TableHead className="w-28 text-right">单条拆解</TableHead>

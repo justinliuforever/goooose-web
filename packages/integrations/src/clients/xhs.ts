@@ -91,23 +91,11 @@ export function extractXhsNoteId(input: string): string | null {
 
 export { findXhsShortLink, isValidXhsProfileUrl } from "../validators";
 
+import { expandShortLink } from "../utils";
 import { findXhsShortLink } from "../validators";
 
-// Follow the xhslink.com short-link redirect. Timeout so a stalled xhslink can't hang the run.
 export async function expandXhsShortLink(input: string): Promise<string> {
-  const short = findXhsShortLink(input);
-  if (!short) return input;
-  try {
-    const res = await fetch(short, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(10_000),
-      headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" },
-    });
-    void res.body?.cancel(); // only res.url is needed — release the socket
-    return res.url || input;
-  } catch {
-    return input;
-  }
+  return expandShortLink(input, findXhsShortLink(input));
 }
 
 export function isValidXhsNoteUrl(input: string): boolean {

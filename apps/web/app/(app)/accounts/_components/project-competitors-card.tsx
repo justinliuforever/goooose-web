@@ -9,7 +9,7 @@ import { CompetitorAvatar } from "@/components/competitor-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { followerNoun, formatFollowerCount } from "@/lib/format-count";
-import { PLATFORM_LABEL } from "@/lib/platform";
+import { inferPlatform, isValidPlatformUrl, PLATFORM_LABEL } from "@/lib/platform";
 import { Field, FieldLabel } from "@/components/ui/field";
 import {
   Sheet,
@@ -22,22 +22,6 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import {
-  isValidDouyinProfileUrl,
-  isValidXhsProfileUrl,
-  isValidYoutubeChannelUrl,
-} from "@/server/trpc/schemas/channels";
-
-function inferPlatform(url: string): "youtube" | "xhs" | "douyin" {
-  if (/douyin\.com|iesdouyin\.com/.test(url)) return "douyin";
-  if (/xiaohongshu|xhslink/.test(url)) return "xhs";
-  return "youtube";
-}
-function isValidFormat(platform: "youtube" | "xhs" | "douyin", url: string): boolean {
-  if (platform === "xhs") return isValidXhsProfileUrl(url);
-  if (platform === "douyin") return isValidDouyinProfileUrl(url);
-  return isValidYoutubeChannelUrl(url);
-}
 
 // project.id == channel.id during the expand phase, so the channel page passes channel.id.
 export function ProjectCompetitorsCard({
@@ -104,7 +88,7 @@ export function ProjectCompetitorsCard({
         .filter((s) => s.length > 0)
         .map((url) => {
           const platform = inferPlatform(url);
-          return { url, platform, ok: isValidFormat(platform, url) };
+          return { url, platform, ok: isValidPlatformUrl(platform, url) };
         }),
     [text],
   );

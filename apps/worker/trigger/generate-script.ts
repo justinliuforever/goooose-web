@@ -152,7 +152,8 @@ export const generateScript = task({
           references = topVideos
             .filter((v) => v.transcript && v.transcript.length > 0)
             .map((v) => ({
-              type: "youtube",
+              // Style-reference videos come from the user's own channel — label by its platform.
+              type: channel.platform,
               title: v.title,
               url: v.url,
               content: v.transcript!,

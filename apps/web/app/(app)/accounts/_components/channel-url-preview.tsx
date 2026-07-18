@@ -30,9 +30,9 @@ type Preview =
       avatarUrl: string | null;
       subscriberCount: number | null;
       awemeCount: number | null;
-      uniqueId: string;
-      ipLocation: string;
-      signature: string;
+      uniqueId: string | null;
+      ipLocation: string | null;
+      signature: string | null;
     }
   | {
       platform: "youtube";

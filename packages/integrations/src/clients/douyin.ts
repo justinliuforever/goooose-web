@@ -3,13 +3,13 @@
 // accounts by ~6 days). Comments use the web route.
 
 import { recordUsage } from "../metering";
-import { findDouyinShortLink, isValidDouyinProfileUrl } from "../validators";
+import { expandShortLink } from "../utils";
+import { DOUYIN_SEC_UID_RE, findDouyinShortLink, isValidDouyinProfileUrl } from "../validators";
 
 export { findDouyinShortLink, isValidDouyinProfileUrl };
 
 const BASE = "https://api.tikhub.io";
 
-const DOUYIN_SEC_UID_RE = /^MS4wLjABAAAA[A-Za-z0-9_-]{43,64}$/;
 const DOUYIN_SEC_UID_SCAN_RE = /MS4wLjABAAAA[A-Za-z0-9_-]{43,64}/;
 const DOUYIN_AWEME_ID_RE = /^\d{15,21}$/;
 const DOUYIN_AWEME_URL_RE = /\/video\/(\d{15,21})/;
@@ -44,13 +44,16 @@ type RawEnvelope = {
 // code, and a clean business error under data.status_code (deterministic — no retry).
 // Degenerate-but-successful shapes (user:{}, comments:null, aweme_detail missing) are
 // left for callers to map to null/empty — not raised here.
-function assertOk(json: RawEnvelope, endpoint: string): void {
+function assertEnvelopeOk(json: RawEnvelope, endpoint: string): void {
   if (typeof json.error === "string" && json.code === undefined) {
     throw new Error(`TikHub ${endpoint}: ${json.error.slice(0, 160)}`);
   }
   if (typeof json.code === "number" && json.code !== 200 && json.code !== 0) {
     throw new Error(`TikHub ${endpoint} code ${json.code}`);
   }
+}
+
+function assertBusinessOk(json: RawEnvelope, endpoint: string): void {
   const data = json.data;
   if (data && typeof data === "object" && !Array.isArray(data)) {
     const d = data as { status_code?: number; status_msg?: string };
@@ -92,8 +95,10 @@ async function get<T>(endpoint: string, params: Record<string, string>, attempts
         throw new TikHubError(`TikHub ${endpoint} HTTP ${res.status}: ${body.slice(0, 200)}`, false);
       }
       const json = (await res.json()) as RawEnvelope;
-      assertOk(json, endpoint);
+      assertEnvelopeOk(json, endpoint);
+      // Business errors (status_code!=0) are still billed by TikHub — meter before throwing.
       recordUsage({ resourceType: "scrape", provider: "tikhub", model: endpoint, apiCalls: 1 });
+      assertBusinessOk(json, endpoint);
       return json as T;
     } catch (err) {
       if (err instanceof TikHubError && !err.retryable) throw err;
@@ -152,6 +157,23 @@ export type DouyinPlaySource = {
   cdnUrlExpiresAt: number | null;
 };
 
+// Canonical ASR candidate order: original-sound MP3 (cheapest, pure audio when the
+// guard passed), then low-bitrate video, then main play_addr as last resort. Shared by
+// both worker pipelines so the tier list can't drift between them again.
+export function buildDouyinAsrStreams(
+  play: DouyinPlaySource,
+): Array<{ url: string; mimeType: string; label: string }> {
+  return [
+    ...(play.originalSoundUrl
+      ? [{ url: play.originalSoundUrl, mimeType: "audio/mpeg", label: "original-sound" }]
+      : []),
+    ...play.lowestBitratePlayUrls
+      .slice(0, 2)
+      .map((url) => ({ url, mimeType: "video/mp4", label: "lowest-bitrate" })),
+    ...play.playUrls.slice(0, 1).map((url) => ({ url, mimeType: "video/mp4", label: "play-addr" })),
+  ];
+}
+
 export function computeDouyinEngagement(s: DouyinVideoStats): number {
   return s.diggCount + s.collectCount * 2 + s.commentCount * 3 + s.shareCount * 5;
 }
@@ -174,21 +196,8 @@ export function extractDouyinAwemeId(input: string): string | null {
   return s.match(DOUYIN_AWEME_URL_RE)?.[1] ?? null;
 }
 
-// Follow the v.douyin.com short-link redirect. Timeout so a stalled hop can't hang the run.
 export async function expandDouyinShortLink(input: string): Promise<string> {
-  const short = findDouyinShortLink(input);
-  if (!short) return input;
-  try {
-    const res = await fetch(short, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(10_000),
-      headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" },
-    });
-    void res.body?.cancel(); // only res.url is needed — release the socket
-    return res.url || input;
-  } catch {
-    return input;
-  }
+  return expandShortLink(input, findDouyinShortLink(input));
 }
 
 type RawUrlContainer = { url_list?: unknown };
@@ -216,6 +225,7 @@ type RawAweme = {
   create_time?: number;
   is_top?: number;
   media_type?: number;
+  aweme_type?: number;
   duration?: number;
   video?: RawVideo;
   images?: RawImageItem[];
@@ -254,8 +264,10 @@ function pickJpegUrl(c: RawUrlContainer | undefined): string | null {
 
 function normalizeVideo(raw: RawAweme): DouyinVideo {
   const awemeId = String(raw.aweme_id ?? "");
-  // media_type is the reliable discriminator (2 = image post, aweme_type 68); video otherwise.
-  const contentType = raw.media_type === 2 ? "douyin_image" : "douyin_video";
+  // media_type is the reliable discriminator (2 = image post); aweme_type 68 backstops
+  // items where media_type is absent so an image post can't slip through as video.
+  const contentType =
+    raw.media_type === 2 || raw.aweme_type === 68 ? "douyin_image" : "douyin_video";
   const desc = String(raw.desc ?? "");
   const durationMs = Number(raw.video?.duration ?? raw.duration ?? 0);
   const durationSec =

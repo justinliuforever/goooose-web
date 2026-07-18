@@ -14,6 +14,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
+import { PLATFORM_LABEL } from "@/lib/platform";
 import { trpc } from "@/lib/trpc";
 import {
   createChannelInput,
@@ -96,12 +97,12 @@ export function CreateChannelForm() {
           <FieldLabel htmlFor="platform">平台</FieldLabel>
           <Select value={platform} onValueChange={(v) => setPlatform(v as "youtube" | "xhs" | "douyin")}>
             <SelectTrigger id="platform">
-              {platform === "youtube" ? "YouTube" : platform === "douyin" ? "抖音" : "XHS (小红书)"}
+              {PLATFORM_LABEL[platform]}
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
                 <SelectItem value="youtube">YouTube</SelectItem>
-                <SelectItem value="xhs">XHS (小红书)</SelectItem>
+                <SelectItem value="xhs">小红书</SelectItem>
                 <SelectItem value="douyin">抖音</SelectItem>
               </SelectGroup>
             </SelectContent>

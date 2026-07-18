@@ -11,7 +11,9 @@ export const startMonitorInput = z.object({
   // Unbound competitors to include just for this run (one-off, not permanent 巡视对象).
   extraCompetitorAccountIds: z.array(z.string().uuid()).max(50).optional(),
   // Video/image filter for XHS + Douyin competitors; YouTube unaffected.
-  contentFilter: z.enum(["all", "video", "image"]).default("all"),
+  contentFilter: z.enum(["all", "video", "image"]).optional(),
+  // Legacy alias for contentFilter; kept so older clients keep working.
+  xhsContentType: z.enum(["all", "video", "image"]).optional(),
 });
 
 export type StartMonitorInput = z.infer<typeof startMonitorInput>;

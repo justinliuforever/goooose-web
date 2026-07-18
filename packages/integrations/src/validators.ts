@@ -48,7 +48,8 @@ export function isValidXhsProfileUrl(input: string): boolean {
 }
 
 // sec_user_id always opens with the MS4wLjABAAAA prefix; live samples run 55 or 76 chars total.
-const DOUYIN_SEC_UID_RE = /^MS4wLjABAAAA[A-Za-z0-9_-]{43,64}$/;
+// Single source of truth — douyin.ts imports this rather than keeping its own copy.
+export const DOUYIN_SEC_UID_RE = /^MS4wLjABAAAA[A-Za-z0-9_-]{43,64}$/;
 // Mobile share pastes wrap a v.douyin.com short link in card text, so scan for an embedded URL.
 const DOUYIN_SHORT_LINK_RE = /https?:\/\/v\.douyin\.com\/[A-Za-z0-9_-]+/i;
 

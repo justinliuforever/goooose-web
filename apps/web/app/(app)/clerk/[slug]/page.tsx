@@ -25,6 +25,7 @@ import { getActiveAgentRun } from "@/lib/agent-run";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { cleanProfileName } from "@/lib/display-name";
+import { PLATFORM_CONTENT_UNIT, PLATFORM_METRIC_LABEL } from "@/lib/platform";
 import { ensureCurrentUser } from "@/lib/users";
 
 
@@ -51,9 +52,9 @@ export default async function ClerkChannelPage({ params }: Props) {
   }
 
   const isXhs = channel.platform === "xhs";
-  const itemUnit =
-    channel.platform === "douyin" ? "条作品" : isXhs ? "篇笔记" : "个视频";
-  const itemNoun = channel.platform === "douyin" ? "作品" : isXhs ? "笔记" : "视频";
+  const unit = PLATFORM_CONTENT_UNIT[channel.platform];
+  const itemUnit = `${unit.measure}${unit.noun}`;
+  const itemNoun = unit.noun;
 
   const [videos, sops, activeRun, seriesRows] = await Promise.all([
     db
@@ -162,7 +163,7 @@ export default async function ClerkChannelPage({ params }: Props) {
             <TableHead className="w-20">类型</TableHead>
             <TableHead className="w-24">{isXhs ? "文本来源" : "字幕来源"}</TableHead>
             <TableHead className="hidden w-28 md:table-cell">开场钩子</TableHead>
-            <TableHead className="w-20">{isXhs ? "互动分" : "播放量"}</TableHead>
+            <TableHead className="w-20">{PLATFORM_METRIC_LABEL[channel.platform]}</TableHead>
             <TableHead className="w-20">时长</TableHead>
             <TableHead className="hidden w-28 md:table-cell">分析时间</TableHead>
             <TableHead className="w-28 text-right">单条拆解</TableHead>

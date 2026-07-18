@@ -1386,7 +1386,7 @@ export const appRouter = router({
           )
           .limit(1);
         if (!video) throw new TRPCError({ code: "NOT_FOUND", message: "视频不存在" });
-        if (video.contentType === "xhs_image") {
+        if (video.contentType.endsWith("_image")) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "图文帖没有语音内容，不支持单条拆解" });
         }
         if (!video.transcript || !video.transcript.trim()) {
@@ -1697,6 +1697,8 @@ export const appRouter = router({
 
         await assertNoActiveRun(channel.id, "muse");
 
+        const contentFilter = input.contentFilter ?? input.xhsContentType ?? "all";
+
         return stageAndTriggerRun({
           userId: ctx.user.id,
           owner: { channelId: channel.id },
@@ -1709,7 +1711,7 @@ export const appRouter = router({
             language: input.language,
             ...(selectedIds ? { competitorAccountIds: selectedIds } : {}),
             ...(extraIds ? { extraCompetitorAccountIds: extraIds } : {}),
-            contentFilter: input.contentFilter,
+            contentFilter,
           },
           payload: {
             maxVideosPerCompetitor: input.maxVideosPerCompetitor,
@@ -1717,7 +1719,7 @@ export const appRouter = router({
             language: input.language,
             competitorAccountIds: selectedIds,
             extraCompetitorAccountIds: extraIds,
-            contentFilter: input.contentFilter,
+            contentFilter,
           },
         });
       }),

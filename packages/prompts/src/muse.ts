@@ -21,7 +21,7 @@ ${args.channelDescription}
 ## Competitor Video
 - **Title:** ${args.title}
 - **Channel:** ${args.channelName}
-- **Views:** ${args.views.toLocaleString("en-US")}
+- **Views:** ${args.views.toLocaleString("en-US")} (may be a weighted engagement score, not raw plays, for XHS/Douyin sources)
 - **Duration:** ${args.durationSec} seconds
 
 ## Transcript (excerpt)
@@ -69,7 +69,7 @@ ${args.channelDescription}
 ## Source Video
 - **Title:** ${args.title}
 - **Channel:** ${args.channelName}
-- **Views:** ${args.views.toLocaleString("en-US")}
+- **Views:** ${args.views.toLocaleString("en-US")} (may be a weighted engagement score, not raw plays, for XHS/Douyin sources)
 - **Duration:** ${args.durationSec} seconds
 
 ## Full Transcript
@@ -124,7 +124,7 @@ ${bibleBlock}
 ## Source Video That Went Viral
 - **Title:** ${args.title}
 - **Channel:** ${args.channelName}
-- **Views:** ${args.views.toLocaleString("en-US")}
+- **Views:** ${args.views.toLocaleString("en-US")} (may be a weighted engagement score, not raw plays, for XHS/Douyin sources)
 
 ## Viral Trigger Analysis
 ${args.viralTrigger}

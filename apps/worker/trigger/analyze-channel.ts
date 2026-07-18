@@ -54,6 +54,7 @@ import {
 } from "@goooose/integrations/clients/ytdlp";
 import { analyzeImageStack, analyzeThumbnail } from "@goooose/integrations/clients/vision";
 import {
+  buildDouyinAsrStreams,
   expandDouyinShortLink,
   extractDouyinAwemeId,
   extractDouyinSecUserId,
@@ -960,7 +961,8 @@ export const analyzeChannel = task({
         await Promise.all(xhsNotes.map((note, i) => concurrency(() => processOneNote(note, i))));
       } else if (channel.platform === "douyin") {
         const dySource = payload.source ?? "newest";
-        let dyVideos: DouyinVideo[] = [];
+        // urls-mode items keep their fresh `play` so processing doesn't refetch the detail.
+        let dyVideos: Array<DouyinVideo & { play?: DouyinPlaySource }> = [];
 
         if (dySource === "urls") {
           await metadata.set("progress", {
@@ -1001,7 +1003,9 @@ export const analyzeChannel = task({
           const secUid =
             extractDouyinSecUserId(channel.platformUrl) ??
             (await resolveDouyinUser(channel.platformUrl)).secUserId;
-          const fetchLimit = dySource === "popular" ? Math.min(60, limit * 4) : limit;
+          // Over-fetch for popular (re-sort) and for recency (filter shrinks the list).
+          const fetchLimit =
+            dySource === "popular" || payload.recencyMonths ? Math.min(60, limit * 4) : limit;
           let all = await getDouyinUserVideos(secUid, fetchLimit);
           if (payload.recencyMonths) {
             const cutoff = Date.now() / 1000 - payload.recencyMonths * 30 * 86400;
@@ -1009,6 +1013,9 @@ export const analyzeChannel = task({
           }
           if (dySource === "popular") {
             all.sort((a, b) => b.engagementScore - a.engagementScore);
+          } else {
+            // List order is pinned-first; "newest" must not let an old pinned video occupy a slot.
+            all.sort((a, b) => b.createTime - a.createTime);
           }
           dyVideos = all.slice(0, limit);
           logger.info(
@@ -1053,7 +1060,10 @@ export const analyzeChannel = task({
         const dyLoopStart = Date.now();
 
         let completedItems = 0;
-        const processOneDouyin = async (item: DouyinVideo, i: number) => {
+        const processOneDouyin = async (
+          item: DouyinVideo & { play?: DouyinPlaySource },
+          i: number,
+        ) => {
           const stepBase = { current: completedItems, total: dyVideos.length };
           updateTrack(item.awemeId, {
             title: item.title,
@@ -1067,15 +1077,22 @@ export const analyzeChannel = task({
           });
 
           try {
-            // Play URLs expire in 60-90 min — re-fetch per item so long runs never feed
-            // the ASR a dead link; also refreshes the signed cover/image URLs.
-            let detail: (DouyinVideo & { play: DouyinPlaySource }) | null = null;
-            try {
-              detail = await getDouyinVideoDetail(item.awemeId);
-            } catch (err) {
-              logger.warn(
-                `Douyin detail refresh failed for ${item.awemeId}: ${(err as Error).message?.slice(0, 120)}`,
-              );
+            // Play URLs expire in 60-90 min. urls-mode items carry a fresh `play` from
+            // selection — reuse it while comfortably inside the TTL; otherwise fetch the
+            // detail, which also refreshes the signed cover/image URLs.
+            const carried =
+              item.play && (item.play.cdnUrlExpiresAt ?? 0) * 1000 > Date.now() + 10 * 60_000
+                ? ({ ...item, play: item.play } as DouyinVideo & { play: DouyinPlaySource })
+                : null;
+            let detail: (DouyinVideo & { play: DouyinPlaySource }) | null = carried;
+            if (!detail) {
+              try {
+                detail = await getDouyinVideoDetail(item.awemeId);
+              } catch (err) {
+                logger.warn(
+                  `Douyin detail refresh failed for ${item.awemeId}: ${(err as Error).message?.slice(0, 120)}`,
+                );
+              }
             }
             const video = detail ?? item;
             const textBase = video.desc.trim() || video.title;
@@ -1085,16 +1102,7 @@ export const analyzeChannel = task({
             const contentType = video.contentType;
 
             if (contentType === "douyin_video" && detail) {
-              const play = detail.play;
-              const streams = [
-                ...(play.originalSoundUrl
-                  ? [{ url: play.originalSoundUrl, mimeType: "audio/mpeg", label: "original-sound" }]
-                  : []),
-                ...play.lowestBitratePlayUrls
-                  .slice(0, 2)
-                  .map((url) => ({ url, mimeType: "video/mp4", label: "lowest-bitrate" })),
-                ...play.playUrls.slice(0, 1).map((url) => ({ url, mimeType: "video/mp4", label: "play-addr" })),
-              ];
+              const streams = buildDouyinAsrStreams(detail.play);
               if (streams.length === 0) {
                 transcript = textBase || null;
                 transcriptSource = "douyin_text";
@@ -1162,6 +1170,24 @@ export const analyzeChannel = task({
               language,
             });
 
+            // Vision and LLM analysis are independent — race them (same as the YouTube path).
+            const visionUrls =
+              contentType === "douyin_image" && video.images.length > 0
+                ? video.images.slice(0, 9).map((img) => img.url)
+                : video.coverUrl
+                  ? [video.coverUrl]
+                  : [];
+            const visionPromise =
+              visionUrls.length > 0
+                ? (visionUrls.length > 1
+                    ? analyzeImageStack(visionUrls, language, logger)
+                    : analyzeThumbnail(visionUrls[0]!, language, logger)
+                  ).catch((err: Error) => {
+                    logger.warn(`Vision failed for ${video.awemeId}: ${err.message?.slice(0, 120)}`);
+                    return null;
+                  })
+                : null;
+
             let dbAnalysisRaw: Awaited<ReturnType<typeof parseAnalysis>> = null;
             let lastHead = "";
             for (let attempt = 0; attempt < 2 && !dbAnalysisRaw; attempt++) {
@@ -1196,13 +1222,7 @@ export const analyzeChannel = task({
             let dyCoverDiagnosis: string | null = null;
             let dyCoverTitleSuggestions: string[] | null = null;
 
-            const visionUrls =
-              contentType === "douyin_image" && video.images.length > 0
-                ? video.images.slice(0, 9).map((img) => img.url)
-                : video.coverUrl
-                  ? [video.coverUrl]
-                  : [];
-            if (visionUrls.length > 0) {
+            if (visionPromise) {
               await metadata.set("progress", {
                 ...stepBase,
                 phase: "analyzing thumbnail",
@@ -1211,10 +1231,7 @@ export const analyzeChannel = task({
                     ? `[${i + 1}/${dyVideos.length}] ${video.title} · 视觉识别 ${visionUrls.length} 张图`
                     : `[${i + 1}/${dyVideos.length}] ${video.title} · 视觉识别封面图`,
               });
-              const visual =
-                visionUrls.length > 1
-                  ? await analyzeImageStack(visionUrls, language, logger)
-                  : await analyzeThumbnail(visionUrls[0]!, language, logger);
+              const visual = await visionPromise;
               if (visual) {
                 if (visual.description) dbAnalysis.thumbnailDescription = visual.description;
                 if (visual.whyItWorks) dbAnalysis.thumbnailWhyItWorks = visual.whyItWorks;
@@ -1811,21 +1828,26 @@ export const analyzeChannel = task({
         // Failures are non-blocking — SOP still runs without comments.
         let hottestCommentsSummary: string | null = null;
         const topVid = channelVideos[0];
-        const canFetchComments =
-          (channel.platform === "youtube" && proxyPool !== null) || channel.platform === "douyin";
-        if (canFetchComments && topVid?.platformVideoId) {
+        // Per-platform fetcher, or null when the platform can't fetch comments (XHS has no
+        // comments wiring; YouTube needs the proxy pool) — capability and method stay in one place.
+        const fetchTopComments: (() => Promise<Array<{ text: string; likes: number }>>) | null =
+          channel.platform === "douyin"
+            ? async () =>
+                (await getDouyinTopComments(topVid!.platformVideoId!, 100)).map((c) => ({
+                  text: c.text,
+                  likes: c.diggCount,
+                }))
+            : channel.platform === "youtube" && proxyPool
+              ? async () => {
+                  const session = proxyPool.checkout();
+                  const out = await getTopCommentsYtdlp(topVid!.platformVideoId!, session.url, 100);
+                  proxyPool.reportOk(session, 30_000);
+                  return out;
+                }
+              : null;
+        if (fetchTopComments && topVid?.platformVideoId) {
           try {
-            let comments: Array<{ text: string; likes: number }>;
-            if (channel.platform === "douyin") {
-              comments = (await getDouyinTopComments(topVid.platformVideoId, 100)).map((c) => ({
-                text: c.text,
-                likes: c.diggCount,
-              }));
-            } else {
-              const session = proxyPool!.checkout();
-              comments = await getTopCommentsYtdlp(topVid.platformVideoId, session.url, 100);
-              proxyPool!.reportOk(session, 30_000);
-            }
+            const comments = await fetchTopComments();
             if (comments.length >= 5) {
               const summaryPrompt = buildCommentsSummaryPrompt({
                 videoTitle: topVid.title,

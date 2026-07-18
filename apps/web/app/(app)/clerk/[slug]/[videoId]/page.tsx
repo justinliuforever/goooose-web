@@ -202,7 +202,7 @@ export default async function ClerkVideoDetailPage({ params }: Props) {
         </div>
         <div className="grid grid-cols-2 gap-px border-t bg-border sm:grid-cols-4">
           <MetaTile
-            label={isXhs ? "互动" : "播放量"}
+            label={video.contentType === "video" ? "播放量" : "互动分"}
             value={<span>{formatViews(video.views)}</span>}
           />
           {!isImagePost ? (

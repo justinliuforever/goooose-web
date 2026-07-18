@@ -40,24 +40,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { CompetitorAvatar } from "@/components/competitor-avatar";
 import { RefreshCompetitorButton } from "@/components/refresh-competitor-button";
 import { formatFollowerCount } from "@/lib/format-count";
-import { PLATFORM_LABEL } from "@/lib/platform";
+import { inferPlatform, isValidPlatformUrl, PLATFORM_LABEL } from "@/lib/platform";
 import { trpc } from "@/lib/trpc";
-import {
-  isValidDouyinProfileUrl,
-  isValidXhsProfileUrl,
-  isValidYoutubeChannelUrl,
-} from "@/server/trpc/schemas/channels";
-
-function inferPlatform(url: string): "youtube" | "xhs" | "douyin" {
-  if (/douyin\.com|iesdouyin\.com/.test(url)) return "douyin";
-  if (/xiaohongshu|xhslink/.test(url)) return "xhs";
-  return "youtube";
-}
-function isValidFormat(platform: "youtube" | "xhs" | "douyin", url: string): boolean {
-  if (platform === "xhs") return isValidXhsProfileUrl(url);
-  if (platform === "douyin") return isValidDouyinProfileUrl(url);
-  return isValidYoutubeChannelUrl(url);
-}
 
 const STATUS_LABEL: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
   added: { label: "已添加", variant: "success" },
@@ -84,7 +68,7 @@ export function CompetitorsManager() {
       .filter((s) => s.length > 0)
       .map((url) => {
         const platform = inferPlatform(url);
-        return { url, platform, ok: isValidFormat(platform, url) };
+        return { url, platform, ok: isValidPlatformUrl(platform, url) };
       });
   }, [text]);
   const validCount = parsed.filter((p) => p.ok).length;

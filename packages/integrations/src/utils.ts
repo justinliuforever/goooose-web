@@ -2,6 +2,23 @@
 
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+// Follow a mobile-share short-link redirect (xhslink.com / v.douyin.com). Timeout so a
+// stalled hop can't hang the run; on any failure return the input unchanged.
+export async function expandShortLink(input: string, shortLink: string | null): Promise<string> {
+  if (!shortLink) return input;
+  try {
+    const res = await fetch(shortLink, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(10_000),
+      headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" },
+    });
+    void res.body?.cancel(); // only res.url is needed — release the socket
+    return res.url || input;
+  } catch {
+    return input;
+  }
+}
+
 // Strip NULL bytes — Postgres TEXT rejects them.
 export function safeText(v: string | null | undefined): string | null {
   if (v == null) return null;

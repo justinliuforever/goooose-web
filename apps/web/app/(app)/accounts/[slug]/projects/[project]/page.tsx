@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
+import { PLATFORM_CONTENT_UNIT } from "@/lib/platform";
 import { ensureCurrentUser } from "@/lib/users";
 
 import { BibleChip } from "@/components/bible-chip";
@@ -109,8 +110,8 @@ export default async function ProjectHubPage({ params }: Props) {
   const a = encodeURIComponent(channel.slug);
   const p = encodeURIComponent(project.slug);
   const activeBible = activeBibleRows[0] ?? null;
-  const itemDone =
-    project.platform === "douyin" ? "条已巡视" : project.platform === "xhs" ? "篇已巡视" : "个已巡视";
+  const unit = PLATFORM_CONTENT_UNIT[project.platform];
+  const itemDone = `${unit.measure}${unit.noun}已巡视`;
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-6 p-6 sm:p-8">

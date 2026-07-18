@@ -11,6 +11,7 @@ import { RefreshOwnAccountButton } from "@/components/refresh-own-account-button
 import { db } from "@/lib/db";
 import { formatDateTime } from "@/lib/datetime";
 import { followerNoun, formatFollowerCount } from "@/lib/format-count";
+import { PLATFORM_CONTENT_UNIT } from "@/lib/platform";
 import { stripMarkdown } from "@/lib/strip-markdown";
 import { ensureCurrentUser } from "@/lib/users";
 import {
@@ -54,8 +55,8 @@ export default async function AccountDetailPage({ params }: Props) {
   ]);
 
   const a = encodeURIComponent(channel.slug);
-  const itemNoun =
-    channel.platform === "douyin" ? "条作品" : channel.platform === "xhs" ? "篇笔记" : "个视频";
+  const unit = PLATFORM_CONTENT_UNIT[channel.platform];
+  const itemNoun = `${unit.measure}${unit.noun}`;
   const activeBible = activeBibleRows.find((b) => b.isActive) ?? null;
   const analyzed = (clerkVideoCount?.c ?? 0) > 0;
   // No real homepage URL → nothing to pull, so the refresh button is hidden.

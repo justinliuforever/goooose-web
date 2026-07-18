@@ -30,6 +30,7 @@ import {
   listChannelVideos,
 } from "@goooose/integrations/clients/ytdlp";
 import {
+  buildDouyinAsrStreams,
   extractDouyinSecUserId,
   getDouyinUserVideos,
   getDouyinVideoDetail,
@@ -363,18 +364,14 @@ export const monitorCompetitors = task({
             sourceChannelName = listItem.authorNickname || null;
             const textBase = listItem.desc.trim() || title;
 
-            if (
-              contentType === "douyin_video" &&
-              durationSec > 0 &&
-              durationSec <= ASR_MAX_DURATION_SEC
-            ) {
+            if (contentType === "douyin_video") {
               await metadata.set("progress", {
                 ...stepBase,
                 phase: "transcribing audio",
                 detail: `[${i + 1}/${fresh.length}] ${title} · 抖音音频转写中`,
               });
-              // List items carry no play URLs (they expire in 60-90 min anyway) —
-              // fetch the detail for fresh ones right before ASR.
+              // List items carry no play URLs (and may omit duration) — always fetch the
+              // detail; it has fresh URLs plus the authoritative duration. Mirrors Clerk.
               const detail = await getDouyinVideoDetail(listItem.awemeId).catch((err: Error) => {
                 logger.warn(
                   `Douyin detail failed for ${listItem.awemeId}: ${err.message?.slice(0, 120)}`,
@@ -382,19 +379,13 @@ export const monitorCompetitors = task({
                 return null;
               });
               if (detail) {
-                const streams = [
-                  ...(detail.play.originalSoundUrl
-                    ? [{ url: detail.play.originalSoundUrl, mimeType: "audio/mpeg", label: "original-sound" }]
-                    : []),
-                  ...detail.play.lowestBitratePlayUrls
-                    .slice(0, 2)
-                    .map((u) => ({ url: u, mimeType: "video/mp4", label: "lowest-bitrate" })),
-                ];
+                durationSec = detail.durationSec ?? durationSec;
+                const streams = buildDouyinAsrStreams(detail.play);
                 const asr =
-                  streams.length > 0
+                  streams.length > 0 && durationSec <= ASR_MAX_DURATION_SEC
                     ? await transcribeFromStreams(streams, {
                         logger,
-                        durationSec,
+                        durationSec: durationSec || undefined,
                         tag: `Douyin ${listItem.awemeId}`,
                         preserveOrder: true,
                       })
@@ -616,7 +607,11 @@ export const monitorCompetitors = task({
         // Use the same real-transcript gate as the main path (content type isn't
         // persisted, so apply the stricter video floor) — don't feed 50-199 char
         // garbage/partial ASR into idea generation.
-        if (!o.transcript || !isRealTranscript(o.transcript, "video")) continue;
+        // No contentType column on this table: an [Audio Transcript] marker proves ASR ran
+        // (video floor); otherwise the row may be an image post whose caption legitimately
+        // sits in the 50-199 char band — use the image floor so it isn't skipped forever.
+        const floorType = o.transcript?.includes("[Audio Transcript]") ? "video" : "xhs_image";
+        if (!o.transcript || !isRealTranscript(o.transcript, floorType)) continue;
         relevantRows.push({
           monitorVideoId: o.monitorVideoId,
           title: o.title,
