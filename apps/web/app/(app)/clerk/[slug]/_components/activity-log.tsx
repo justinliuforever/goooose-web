@@ -50,31 +50,29 @@ export function ActivityLog({ entries, defaultOpen = false }: Props) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center justify-between rounded-md border bg-card px-2.5 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted/50"
-      >
-        <span className="flex items-center gap-1.5">
+      {/* Toggle and copy are siblings — nesting a <Button> inside the toggle <button> is invalid HTML (hydration error). */}
+      <div className="flex items-center justify-between rounded-md border bg-card px-2.5 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted/50">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex flex-1 items-center gap-1.5 text-left"
+        >
           <span className={`transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
           <span>实时日志</span>
           <span className="font-mono text-[10px] text-foreground/60">({entries.length})</span>
-        </span>
+        </button>
         {open ? (
           <Button
             variant="ghost"
             size="sm"
             className="h-6 px-2 text-[10px]"
-            onClick={(e) => {
-              e.stopPropagation();
-              void copyAll();
-            }}
+            onClick={() => void copyAll()}
           >
             <Copy className="size-3" />
             <span className="ml-1">复制</span>
           </Button>
         ) : null}
-      </button>
+      </div>
       {open ? (
         <div
           ref={scrollerRef}
