@@ -10,6 +10,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { WhatsNewDialog } from "@/components/whats-new-dialog";
 import { getSidebarAccounts } from "@/lib/sidebar-data";
 import { ensureCurrentUser } from "@/lib/users";
 import { APP_VERSION_LABEL } from "@/lib/version";
@@ -45,6 +46,7 @@ export default async function AppLayout({
           </div>
         </header>
         <main className="flex min-w-0 flex-1 flex-col">{children}</main>
+        {user ? <WhatsNewDialog lastSeenVersion={user.lastSeenVersion} /> : null}
       </SidebarInset>
     </SidebarProvider>
   );

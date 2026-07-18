@@ -18,6 +18,8 @@ export const users = pgTable("users", {
   plan: text("plan").notNull().default("free"),
   bonusBalances: jsonb("bonus_balances").$type<BonusBalances>().notNull().default({}),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  // NULL = predates the what's-new feature; new users are stamped at creation.
+  lastSeenVersion: text("last_seen_version"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

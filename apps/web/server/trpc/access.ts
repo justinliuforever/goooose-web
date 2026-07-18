@@ -25,6 +25,7 @@ import {
 
 import { EMAIL_RE } from "@/lib/beta-survey";
 import { db } from "@/lib/db";
+import { APP_VERSION } from "@/lib/version";
 import { sendApprovalEmail } from "@/lib/email";
 import { rateLimitOk, redeemAccessCode, validateAccessCode } from "@/server/access-code";
 import { adminProcedure, authedProcedure, protectedProcedure, publicProcedure, router } from "./init";
@@ -52,6 +53,15 @@ async function emailIfApproved(transitioned: boolean, userId: string) {
 }
 
 export const accessRouter = router({
+  // Server stamps its own APP_VERSION — the dialog's "seen" always matches what was shown.
+  markVersionSeen: authedProcedure.mutation(async ({ ctx }) => {
+    await db
+      .update(users)
+      .set({ lastSeenVersion: APP_VERSION })
+      .where(eq(users.id, ctx.user.id));
+    return { ok: true };
+  }),
+
   status: authedProcedure.query(async ({ ctx }) => {
     const [latest] = await db
       .select({

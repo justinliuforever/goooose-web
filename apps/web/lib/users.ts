@@ -8,6 +8,7 @@ import { allowedEmails, users, type User } from "@goooose/db";
 
 import { db } from "./db";
 import { logtoConfig } from "./logto";
+import { APP_VERSION } from "./version";
 
 type LogtoIdentity = {
   sub: string;
@@ -24,9 +25,11 @@ async function upsertFromIdentity(identity: LogtoIdentity): Promise<User> {
   // requests collide on the logto_id unique.
   const [row] = await db
     .insert(users)
-    .values({ logtoId: identity.sub, email, displayName })
+    .values({ logtoId: identity.sub, email, displayName, lastSeenVersion: APP_VERSION })
     .onConflictDoUpdate({
       target: users.logtoId,
+      // lastSeenVersion deliberately absent: a brand-new user has nothing "new" to
+      // announce, but existing users keep their value until they dismiss the dialog.
       set: { email, displayName },
     })
     .returning();
