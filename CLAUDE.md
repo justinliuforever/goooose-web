@@ -27,20 +27,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Auth | Logto Cloud（Tokyo 区域）|
 | DB | Supabase Pro（Postgres ap-southeast-1 + Drizzle ORM，不用 Realtime/Auth/Storage SDK）|
 | LLM 主链 | DeepSeek V4 Pro + Flash |
-| LLM vision | Claude Sonnet 4.6（`@ai-sdk/anthropic`）|
+| LLM vision | Claude Sonnet 5（`@ai-sdk/anthropic`，`vision.ts` 硬编码 `claude-sonnet-5`）|
 | ASR | Deepgram Nova-3 主 + Qwen3-ASR-Flash 备（中文标题 qwenFirst、长音频 ffmpeg 分片拼接）|
 | 视频元数据 | YouTube Data API v3 |
-| 数据层 | TikHub（YouTube + XHS 全套）|
+| 数据层 | TikHub（XHS + 抖音全套；YouTube 生产链已改走 yt-dlp+代理池 / YouTube Data API v3 / Deepgram，TikHub 仅 web 侧账号校验兜底）|
 | Monorepo | pnpm + Turborepo |
 
 ## 任务分类决定代码放哪里
 
 任务时长 + 运行时决定写在哪个 workspace：
 
-- **Class A 短任务（< 800s）** → Next.js API 路由内 Vercel AI SDK：`streamText` / `useChat` / `streamObject` / `useObject`；多步 agent 用 `stopWhen: stepCountIs(N)`。Upload Critique（计划中）、Link Analysis、短脚本都走这条
-- **Class B 长任务（≥ 800s）** → `apps/worker/trigger/` 下 Trigger.dev v4 任务，前端 `useRealtimeRun` 推进度。Clerk 频道分析、Muse 竞品监控、Poet 长稿、Bible 生成都走这条
+- **Class A 短任务（< 800s）** → Next.js API 路由内 Vercel AI SDK（`streamText` / `useChat` 等）。**当前无任何落地**：`apps/web` 无 streamText/generateText 路由，所有 AI 生成（含短稿）统一走 Trigger.dev；此路径是未来选项，新增短任务型功能需从零搭 web 侧流式基建
+- **Class B 长任务** → `apps/worker/trigger/` 下 Trigger.dev v4 任务，前端 `useRealtimeRun` 推进度。Clerk 频道分析、Muse 竞品监控、Poet 写稿（长短稿都在此）、Bible 生成都走这条
 
-数据抓取目前全走 TypeScript 调 TikHub REST（`packages/integrations/src/clients/tikhub.ts` + `xhs.ts`），无 Python sidecar。
+数据抓取全走 TypeScript 调 TikHub REST（`tikhub.ts` YT 兜底 + `xhs.ts` + `douyin.ts`）+ YouTube 生产链（`ytdlp.ts` 代理池 / `youtube-data.ts` Data API），无 Python sidecar。
 
 ## 约定
 

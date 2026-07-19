@@ -100,6 +100,25 @@ type RunOwner = {
   competitorAccountId: string | null;
 };
 
+type ClerkContentType = "video" | "xhs_image" | "xhs_video" | "douyin_image" | "douyin_video";
+
+// One clerk item after platform-specific fetching/transcription — the uniform input to
+// the shared analyze→vision→upsert core (XHS and Douyin resolve their own shape into this).
+type ResolvedClerkItem = {
+  platformVideoId: string;
+  title: string;
+  views: number | null;
+  durationSec: number | null;
+  url: string;
+  thumbnailUrl: string | null;
+  contentType: ClerkContentType;
+  sourceChannelName: string | null;
+  sourceChannelId: string | null;
+  transcript: string | null;
+  transcriptSource: string;
+  visionUrls: string[];
+};
+
 function extractYoutubeVideoIdLocal(input: string): string | null {
   const s = input.trim();
   if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
@@ -596,6 +615,136 @@ export const analyzeChannel = task({
       let failed = 0;
       let selectedCount = 0;
 
+      // Shared analyze → vision → upsert for one already-resolved item (XHS + Douyin
+      // resolve their own fetch/transcription into ResolvedClerkItem, then call this).
+      // Vision and LLM analysis are independent — raced. Throws on unparseable analysis
+      // so the caller's per-item catch records the failure.
+      const analyzeVisionUpsert = async (
+        item: ResolvedClerkItem,
+        ctx: { stepBase: { current: number; total: number }; index: number; total: number },
+      ) => {
+        const { stepBase, index, total } = ctx;
+        const label = `[${index + 1}/${total}] ${item.title}`;
+        updateTrack(item.platformVideoId, { phase: "AI 分析" });
+        await metadata.set("progress", {
+          ...stepBase,
+          phase: item.transcript ? "running analyzer" : "running analyzer (no text)",
+          detail: item.transcript ? `${label} · AI 分析中` : `${label} · 仅基于标题分析`,
+        });
+
+        const prompt = buildVideoAnalysisPrompt({
+          title: item.title,
+          views: item.views,
+          durationSec: item.durationSec,
+          thumbnailUrl: item.thumbnailUrl,
+          transcript: item.transcript,
+          contentType: item.contentType,
+          language,
+        });
+
+        // For image posts pass the whole gallery so Claude synthesizes the sequence.
+        const visionPromise =
+          item.visionUrls.length > 0
+            ? (item.visionUrls.length > 1
+                ? analyzeImageStack(item.visionUrls, language, logger)
+                : analyzeThumbnail(item.visionUrls[0]!, language, logger)
+              ).catch((err: Error) => {
+                logger.warn(`Vision failed for ${item.platformVideoId}: ${err.message?.slice(0, 120)}`);
+                return null;
+              })
+            : null;
+
+        // Flash, not Pro: 4-7× faster and equally reliable (A/B verified). Retry once on
+        // parse/near-empty failure; 16384 leaves headroom so a valid response never truncates.
+        let dbAnalysisRaw: Awaited<ReturnType<typeof parseAnalysis>> = null;
+        let lastHead = "";
+        for (let attempt = 0; attempt < 2 && !dbAnalysisRaw; attempt++) {
+          const result = await generateText({
+            model: llm("flash"),
+            prompt,
+            maxOutputTokens: 16384,
+            temperature: 0.3,
+            maxRetries: 2,
+          });
+          dbAnalysisRaw = await parseAnalysis(result.text);
+          if (dbAnalysisRaw) {
+            const nonEmpty = Object.values(dbAnalysisRaw).filter(
+              (v) => typeof v === "string" && v.trim().length > 0,
+            ).length;
+            if (nonEmpty < 3) {
+              logger.warn(`${item.platformVideoId}: analysis parsed but near-empty (${nonEmpty} fields), retrying`);
+              dbAnalysisRaw = null;
+            }
+          }
+          if (!dbAnalysisRaw) {
+            lastHead = result.text.slice(0, 200);
+            logger.warn(`${item.platformVideoId}: analysis parse failed (attempt ${attempt + 1})`);
+          }
+        }
+        if (!dbAnalysisRaw) {
+          throw new Error(`Could not parse analysis JSON. Raw response head: ${lastHead}`);
+        }
+        const dbAnalysis = dbAnalysisRaw;
+        let coverDiagnosis: string | null = null;
+        let coverTitleSuggestions: string[] | null = null;
+
+        if (visionPromise) {
+          await metadata.set("progress", {
+            ...stepBase,
+            phase: "analyzing thumbnail",
+            detail:
+              item.visionUrls.length > 1
+                ? `${label} · 视觉识别 ${item.visionUrls.length} 张图`
+                : `${label} · 视觉识别封面图`,
+          });
+          const visual = await visionPromise;
+          if (visual) {
+            if (visual.description) dbAnalysis.thumbnailDescription = visual.description;
+            if (visual.whyItWorks) dbAnalysis.thumbnailWhyItWorks = visual.whyItWorks;
+            coverDiagnosis = visual.diagnosis;
+            coverTitleSuggestions = visual.titleSuggestions.length > 0 ? visual.titleSuggestions : null;
+          } else {
+            // Without this the cover silently falls back to the text model's guess and
+            // never reaches the SOP — invisible on the platform the complaint came from.
+            logger.warn(`Vision returned no read for ${item.platformVideoId} — cover excluded from SOP`);
+          }
+        }
+
+        const upsert = {
+          ...owner,
+          platformVideoId: item.platformVideoId,
+          title: item.title,
+          url: item.url,
+          views: item.views,
+          durationSec: item.durationSec,
+          thumbnailUrl: item.thumbnailUrl,
+          sourceChannelName: item.sourceChannelName,
+          sourceChannelId: item.sourceChannelId,
+          transcript: safeText(item.transcript),
+          transcriptSource: item.transcriptSource,
+          contentType: item.contentType,
+          coverDiagnosis,
+          coverTitleSuggestions,
+          ...dbAnalysis,
+          analyzedAt: new Date(),
+          runId: payload.runId,
+        };
+
+        await metadata.set("progress", {
+          ...stepBase,
+          phase: "writing analysis",
+          detail: `[${index + 1}/${total}] 写入数据库`,
+        });
+        await db
+          .insert(clerkVideos)
+          .values(upsert)
+          .onConflictDoUpdate({
+            ...videoConflict,
+            // Re-analysis invalidates the cached SOP map summary, same as the YouTube path.
+            set: { ...upsert, sopMapSummary: null },
+          });
+      };
+
       if (channel.platform === "xhs") {
         const xhsSource = payload.source ?? "newest";
         let xhsNotes: XhsNote[] = [];
@@ -778,135 +927,29 @@ export const analyzeChannel = task({
 
             if (transcriptSource === "xhs_asr") appendLog(`音频转写完成：${note.title.slice(0, 50)}`);
             else if (transcriptSource === "xhs_text") appendLog(`文本提取：${note.title.slice(0, 50)}`);
-            updateTrack(note.noteId, { phase: "AI 分析" });
-            await metadata.set("progress", {
-              ...stepBase,
-              phase: transcript ? "running analyzer" : "running analyzer (no text)",
-              detail: transcript
-                ? `[${i + 1}/${xhsNotes.length}] ${note.title} · AI 分析中`
-                : `[${i + 1}/${xhsNotes.length}] ${note.title} · 仅基于标题分析`,
-            });
 
-            const prompt = buildVideoAnalysisPrompt({
-              title: note.title,
-              views: note.engagementScore,
-              durationSec: note.durationSec,
-              thumbnailUrl: note.thumbnailUrl,
-              transcript,
-              contentType,
-              language,
-            });
-
-            // Flash, not Pro: 4-7× faster and equally reliable on this prompt
-            // (A/B verified). Retry once on parse failure so one bad response
-            // doesn't drop the note. 16384 leaves generous headroom — never truncate.
-            let dbAnalysisRaw: Awaited<ReturnType<typeof parseAnalysis>> = null;
-            let lastHead = "";
-            for (let attempt = 0; attempt < 2 && !dbAnalysisRaw; attempt++) {
-              const result = await generateText({
-                model: llm("flash"),
-                prompt,
-                maxOutputTokens: 16384,
-                temperature: 0.3,
-                maxRetries: 2,
-              });
-              dbAnalysisRaw = await parseAnalysis(result.text);
-              // Reject parsed-but-near-empty analysis (e.g. {} recovered) so an empty
-              // row isn't written; treat it as a parse failure and retry.
-              if (dbAnalysisRaw) {
-                const nonEmpty = Object.values(dbAnalysisRaw).filter(
-                  (v) => typeof v === "string" && v.trim().length > 0,
-                ).length;
-                if (nonEmpty < 3) {
-                  logger.warn(`XHS note ${note.noteId}: analysis parsed but near-empty (${nonEmpty} fields), retrying`);
-                  dbAnalysisRaw = null;
-                }
-              }
-              if (!dbAnalysisRaw) {
-                lastHead = result.text.slice(0, 200);
-                logger.warn(`XHS note ${note.noteId}: analysis parse failed (attempt ${attempt + 1})`);
-              }
-            }
-            if (!dbAnalysisRaw) {
-              throw new Error(`Could not parse analysis JSON. Raw response head: ${lastHead}`);
-            }
-            const dbAnalysis = dbAnalysisRaw;
-            let xhsCoverDiagnosis: string | null = null;
-            let xhsCoverTitleSuggestions: string[] | null = null;
-
-            // For image posts pass the whole gallery (up to 9) so Claude can
-            // synthesize the sequence; for video notes the thumbnail is fine.
-            const visionUrls =
-              note.type === "image" && note.images.length > 0
-                ? note.images.map((img) => img.originalUrl || img.url).filter(Boolean)
-                : note.thumbnailUrl
-                  ? [note.thumbnailUrl]
-                  : [];
-            if (visionUrls.length > 0) {
-              await metadata.set("progress", {
-                ...stepBase,
-                phase: "analyzing thumbnail",
-                detail:
-                  visionUrls.length > 1
-                    ? `[${i + 1}/${xhsNotes.length}] ${note.title} · 视觉识别 ${visionUrls.length} 张图`
-                    : `[${i + 1}/${xhsNotes.length}] ${note.title} · 视觉识别封面图`,
-              });
-              const visual =
-                visionUrls.length > 1
-                  ? await analyzeImageStack(visionUrls, language, logger)
-                  : await analyzeThumbnail(visionUrls[0]!, language, logger);
-              if (visual) {
-                if (visual.description) dbAnalysis.thumbnailDescription = visual.description;
-                if (visual.whyItWorks) dbAnalysis.thumbnailWhyItWorks = visual.whyItWorks;
-                xhsCoverDiagnosis = visual.diagnosis;
-                xhsCoverTitleSuggestions =
-                  visual.titleSuggestions.length > 0 ? visual.titleSuggestions : null;
-                logger.info(
-                  `Vision-based ${visionUrls.length > 1 ? `stack(${visionUrls.length})` : "thumbnail"} analysis applied for ${note.noteId}`,
-                );
-              } else {
-                // Without this the cover silently falls back to the text model's guess and never
-                // reaches the SOP — invisible on the platform the cover complaint came from.
-                logger.warn(
-                  `Vision returned no read for ${note.noteId} (${visionUrls.length} img) — cover excluded from SOP`,
-                );
-              }
-            }
-
-            const upsert = {
-              ...owner,
-              platformVideoId: note.noteId,
-              title: note.title,
-              url: note.noteUrl,
-              views: note.engagementScore,
-              durationSec: note.durationSec,
-              thumbnailUrl: note.thumbnailUrl,
-              sourceChannelName: note.channelName,
-              sourceChannelId: note.channelId,
-              transcript: safeText(transcript),
-              transcriptSource,
-              contentType,
-              coverDiagnosis: xhsCoverDiagnosis,
-              coverTitleSuggestions: xhsCoverTitleSuggestions,
-              ...dbAnalysis,
-              analyzedAt: new Date(),
-              runId: payload.runId,
-            };
-
-            await metadata.set("progress", {
-              ...stepBase,
-              phase: "writing analysis",
-              detail: `[${i + 1}/${xhsNotes.length}] 写入数据库`,
-            });
-
-            await db
-              .insert(clerkVideos)
-              .values(upsert)
-              .onConflictDoUpdate({
-                ...videoConflict,
-                // Re-analysis invalidates the cached SOP map summary, same as the YouTube path.
-                set: { ...upsert, sopMapSummary: null },
-              });
+            await analyzeVisionUpsert(
+              {
+                platformVideoId: note.noteId,
+                title: note.title,
+                views: note.engagementScore,
+                durationSec: note.durationSec,
+                url: note.noteUrl,
+                thumbnailUrl: note.thumbnailUrl,
+                contentType,
+                sourceChannelName: note.channelName,
+                sourceChannelId: note.channelId,
+                transcript,
+                transcriptSource,
+                visionUrls:
+                  note.type === "image" && note.images.length > 0
+                    ? note.images.map((img) => img.originalUrl || img.url).filter(Boolean)
+                    : note.thumbnailUrl
+                      ? [note.thumbnailUrl]
+                      : [],
+              },
+              { stepBase, index: i, total: xhsNotes.length },
+            );
 
             analyzed++;
             updateTrack(note.noteId, { phase: "done" });
@@ -1151,136 +1194,29 @@ export const analyzeChannel = task({
 
             if (transcriptSource === "douyin_asr") appendLog(`音频转写完成：${video.title.slice(0, 50)}`);
             else appendLog(`文本提取：${video.title.slice(0, 50)}`);
-            updateTrack(item.awemeId, { phase: "AI 分析" });
-            await metadata.set("progress", {
-              ...stepBase,
-              phase: transcript ? "running analyzer" : "running analyzer (no text)",
-              detail: transcript
-                ? `[${i + 1}/${dyVideos.length}] ${video.title} · AI 分析中`
-                : `[${i + 1}/${dyVideos.length}] ${video.title} · 仅基于标题分析`,
-            });
 
-            const prompt = buildVideoAnalysisPrompt({
-              title: video.title,
-              views: video.engagementScore,
-              durationSec: video.durationSec,
-              thumbnailUrl: video.coverUrl,
-              transcript,
-              contentType,
-              language,
-            });
-
-            // Vision and LLM analysis are independent — race them (same as the YouTube path).
-            const visionUrls =
-              contentType === "douyin_image" && video.images.length > 0
-                ? video.images.slice(0, 9).map((img) => img.url)
-                : video.coverUrl
-                  ? [video.coverUrl]
-                  : [];
-            const visionPromise =
-              visionUrls.length > 0
-                ? (visionUrls.length > 1
-                    ? analyzeImageStack(visionUrls, language, logger)
-                    : analyzeThumbnail(visionUrls[0]!, language, logger)
-                  ).catch((err: Error) => {
-                    logger.warn(`Vision failed for ${video.awemeId}: ${err.message?.slice(0, 120)}`);
-                    return null;
-                  })
-                : null;
-
-            let dbAnalysisRaw: Awaited<ReturnType<typeof parseAnalysis>> = null;
-            let lastHead = "";
-            for (let attempt = 0; attempt < 2 && !dbAnalysisRaw; attempt++) {
-              const result = await generateText({
-                model: llm("flash"),
-                prompt,
-                maxOutputTokens: 16384,
-                temperature: 0.3,
-                maxRetries: 2,
-              });
-              dbAnalysisRaw = await parseAnalysis(result.text);
-              if (dbAnalysisRaw) {
-                const nonEmpty = Object.values(dbAnalysisRaw).filter(
-                  (v) => typeof v === "string" && v.trim().length > 0,
-                ).length;
-                if (nonEmpty < 3) {
-                  logger.warn(
-                    `Douyin ${video.awemeId}: analysis parsed but near-empty (${nonEmpty} fields), retrying`,
-                  );
-                  dbAnalysisRaw = null;
-                }
-              }
-              if (!dbAnalysisRaw) {
-                lastHead = result.text.slice(0, 200);
-                logger.warn(`Douyin ${video.awemeId}: analysis parse failed (attempt ${attempt + 1})`);
-              }
-            }
-            if (!dbAnalysisRaw) {
-              throw new Error(`Could not parse analysis JSON. Raw response head: ${lastHead}`);
-            }
-            const dbAnalysis = dbAnalysisRaw;
-            let dyCoverDiagnosis: string | null = null;
-            let dyCoverTitleSuggestions: string[] | null = null;
-
-            if (visionPromise) {
-              await metadata.set("progress", {
-                ...stepBase,
-                phase: "analyzing thumbnail",
-                detail:
-                  visionUrls.length > 1
-                    ? `[${i + 1}/${dyVideos.length}] ${video.title} · 视觉识别 ${visionUrls.length} 张图`
-                    : `[${i + 1}/${dyVideos.length}] ${video.title} · 视觉识别封面图`,
-              });
-              const visual = await visionPromise;
-              if (visual) {
-                if (visual.description) dbAnalysis.thumbnailDescription = visual.description;
-                if (visual.whyItWorks) dbAnalysis.thumbnailWhyItWorks = visual.whyItWorks;
-                dyCoverDiagnosis = visual.diagnosis;
-                dyCoverTitleSuggestions =
-                  visual.titleSuggestions.length > 0 ? visual.titleSuggestions : null;
-                logger.info(
-                  `Vision-based ${visionUrls.length > 1 ? `stack(${visionUrls.length})` : "thumbnail"} analysis applied for ${video.awemeId}`,
-                );
-              } else {
-                logger.warn(
-                  `Vision returned no read for ${video.awemeId} (${visionUrls.length} img) — cover excluded from SOP`,
-                );
-              }
-            }
-
-            const upsert = {
-              ...owner,
-              platformVideoId: video.awemeId,
-              title: video.title,
-              url: video.videoUrl,
-              views: video.engagementScore,
-              durationSec: video.durationSec,
-              thumbnailUrl: video.coverUrl,
-              sourceChannelName: video.authorNickname ?? channel.name,
-              sourceChannelId: video.authorSecUserId,
-              transcript: safeText(transcript),
-              transcriptSource,
-              contentType,
-              coverDiagnosis: dyCoverDiagnosis,
-              coverTitleSuggestions: dyCoverTitleSuggestions,
-              ...dbAnalysis,
-              analyzedAt: new Date(),
-              runId: payload.runId,
-            };
-
-            await metadata.set("progress", {
-              ...stepBase,
-              phase: "writing analysis",
-              detail: `[${i + 1}/${dyVideos.length}] 写入数据库`,
-            });
-
-            await db
-              .insert(clerkVideos)
-              .values(upsert)
-              .onConflictDoUpdate({
-                ...videoConflict,
-                set: { ...upsert, sopMapSummary: null },
-              });
+            await analyzeVisionUpsert(
+              {
+                platformVideoId: video.awemeId,
+                title: video.title,
+                views: video.engagementScore,
+                durationSec: video.durationSec,
+                url: video.videoUrl,
+                thumbnailUrl: video.coverUrl,
+                contentType,
+                sourceChannelName: video.authorNickname ?? channel.name,
+                sourceChannelId: video.authorSecUserId,
+                transcript,
+                transcriptSource,
+                visionUrls:
+                  contentType === "douyin_image" && video.images.length > 0
+                    ? video.images.slice(0, 9).map((img) => img.url)
+                    : video.coverUrl
+                      ? [video.coverUrl]
+                      : [],
+              },
+              { stepBase, index: i, total: dyVideos.length },
+            );
 
             analyzed++;
             updateTrack(item.awemeId, { phase: "done" });
