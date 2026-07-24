@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 
-import { channels, poetBible, poetCustomTopics, clerkSops, projects, resolvePrimarySop } from "@goooose/db";
+import { poetBible, poetCustomTopics, clerkSops, resolvePrimarySop } from "@goooose/db";
 import type { CustomTopicReference } from "@goooose/db";
 
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,7 @@ import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { xhsGoHref } from "@/lib/xhs-go";
 import { sopTypeLabel } from "@/lib/sop-labels";
-import { ensureCurrentUser } from "@/lib/users";
+import { resolveOwnedProject } from "@/lib/account-access";
 
 import { CustomTopicActions } from "../../_components/custom-topic-actions";
 
@@ -66,23 +66,7 @@ export default async function PoetTopicDetailPage({ params }: Props) {
   const slug = decodeURIComponent(rawSlug);
   const projectSlug = decodeURIComponent(rawProject);
 
-  const user = await ensureCurrentUser();
-  if (!user) return null;
-
-  const [channel] = await db
-    .select()
-    .from(channels)
-    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
-    .limit(1);
-
-  if (!channel || channel.userId !== user.id) notFound();
-
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.ownAccountId, channel.id), eq(projects.slug, projectSlug)))
-    .limit(1);
-  if (!project) notFound();
+  const { channel, project } = await resolveOwnedProject(slug, projectSlug);
 
   const [topic] = await db
     .select()

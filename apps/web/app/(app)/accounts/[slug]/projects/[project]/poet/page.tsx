@@ -1,15 +1,12 @@
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 
 import {
-  channels,
   museIdeas,
   museMonitorVideos,
   poetBible,
   poetCustomTopics,
   poetScripts,
-  projects,
   resolvePrimarySop,
   type CustomTopicReference,
 } from "@goooose/db";
@@ -23,7 +20,7 @@ import { PoetFactList } from "@/components/poet-fact-list";
 import { getActiveAgentRun } from "@/lib/agent-run";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
-import { ensureCurrentUser } from "@/lib/users";
+import { resolveOwnedProject } from "@/lib/account-access";
 
 import { DeleteScriptButton } from "./_components/delete-script-button";
 import { CustomTopicActions } from "./_components/custom-topic-actions";
@@ -39,22 +36,7 @@ export default async function PoetChannelPage({ params }: Props) {
   const slug = decodeURIComponent(rawSlug);
   const projectSlug = decodeURIComponent(rawProject);
 
-  const user = await ensureCurrentUser();
-  if (!user) return null;
-
-  const [channel] = await db
-    .select()
-    .from(channels)
-    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
-    .limit(1);
-  if (!channel || channel.userId !== user.id) notFound();
-
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.ownAccountId, channel.id), eq(projects.slug, projectSlug)))
-    .limit(1);
-  if (!project) notFound();
+  const { user, channel, project } = await resolveOwnedProject(slug, projectSlug);
 
   const [activeBibleRow, approvedIdeas, customTopics, scripts, activeRun, primarySop] =
     await Promise.all([

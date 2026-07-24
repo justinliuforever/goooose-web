@@ -1,7 +1,6 @@
-import { and, desc, eq } from "drizzle-orm";
-import { notFound } from "next/navigation";
+import { desc, eq } from "drizzle-orm";
 
-import { channels, poetBible } from "@goooose/db";
+import { poetBible } from "@goooose/db";
 
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/back-link";
@@ -9,7 +8,7 @@ import { Markdown } from "@/components/markdown";
 import { getActiveAgentRun } from "@/lib/agent-run";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
-import { ensureCurrentUser } from "@/lib/users";
+import { resolveOwnedChannel } from "@/lib/account-access";
 
 import { BibleGenerateSheet } from "../projects/[project]/poet/_components/bible-generate-sheet";
 import { BibleHistory } from "../projects/[project]/poet/_components/bible-history";
@@ -22,15 +21,7 @@ export default async function AccountBiblePage({ params }: Props) {
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);
 
-  const user = await ensureCurrentUser();
-  if (!user) return null;
-
-  const [channel] = await db
-    .select()
-    .from(channels)
-    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
-    .limit(1);
-  if (!channel || channel.userId !== user.id) notFound();
+  const { user, channel } = await resolveOwnedChannel(slug);
 
   // Bible rows stay channel_id-authoritative during expand (project.id == channel.id).
   const [bibles, poetRun] = await Promise.all([

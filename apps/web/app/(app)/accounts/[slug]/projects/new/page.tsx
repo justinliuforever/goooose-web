@@ -1,14 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { and, eq } from "drizzle-orm";
-
-import { channels } from "@goooose/db";
 
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { db } from "@/lib/db";
-import { ensureCurrentUser } from "@/lib/users";
+import { resolveOwnedChannel } from "@/lib/account-access";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -17,15 +12,7 @@ export default async function NewProjectPage({ params }: Props) {
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);
 
-  const user = await ensureCurrentUser();
-  if (!user) return null;
-
-  const [channel] = await db
-    .select()
-    .from(channels)
-    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
-    .limit(1);
-  if (!channel || channel.userId !== user.id) notFound();
+  const { channel } = await resolveOwnedChannel(slug);
 
   const a = encodeURIComponent(channel.slug);
 

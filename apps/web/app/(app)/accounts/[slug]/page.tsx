@@ -1,8 +1,7 @@
-import { and, count, desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 
-import { channels, clerkSops, clerkVideos, poetBible, projects } from "@goooose/db";
+import { clerkSops, clerkVideos, poetBible, projects } from "@goooose/db";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,7 @@ import { formatDateTime } from "@/lib/datetime";
 import { followerNoun, formatFollowerCount } from "@/lib/format-count";
 import { PLATFORM_CONTENT_UNIT } from "@/lib/platform";
 import { stripMarkdown } from "@/lib/strip-markdown";
-import { ensureCurrentUser } from "@/lib/users";
+import { resolveOwnedChannel } from "@/lib/account-access";
 import {
   isValidDouyinProfileUrl,
   isValidXhsProfileUrl,
@@ -31,17 +30,7 @@ export default async function AccountDetailPage({ params }: Props) {
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);
 
-  const user = await ensureCurrentUser();
-  if (!user) return null;
-
-  const [channel] = await db
-    .select()
-    .from(channels)
-    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
-    .limit(1);
-  if (!channel || channel.userId !== user.id) {
-    notFound();
-  }
+  const { channel } = await resolveOwnedChannel(slug);
 
   const [[clerkVideoCount], [clerkSopCount], activeBibleRows, projectList] = await Promise.all([
     db.select({ c: count() }).from(clerkVideos).where(eq(clerkVideos.channelId, channel.id)),

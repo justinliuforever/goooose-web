@@ -1,6 +1,5 @@
 import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ArrowRight, ChevronDown } from "lucide-react";
 
 import {
@@ -12,7 +11,6 @@ import {
   poetBible,
   poetCustomTopics,
   poetScripts,
-  projects,
   projectSops,
 } from "@goooose/db";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +18,7 @@ import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
 import { PLATFORM_CONTENT_UNIT } from "@/lib/platform";
-import { ensureCurrentUser } from "@/lib/users";
+import { resolveOwnedProject } from "@/lib/account-access";
 
 import { BibleChip } from "@/components/bible-chip";
 import { ProjectCompetitorsCard } from "../../../_components/project-competitors-card";
@@ -35,22 +33,7 @@ export default async function ProjectHubPage({ params }: Props) {
   const slug = decodeURIComponent(rawSlug);
   const projectSlug = decodeURIComponent(rawProject);
 
-  const user = await ensureCurrentUser();
-  if (!user) return null;
-
-  const [channel] = await db
-    .select()
-    .from(channels)
-    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
-    .limit(1);
-  if (!channel || channel.userId !== user.id) notFound();
-
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.ownAccountId, channel.id), eq(projects.slug, projectSlug)))
-    .limit(1);
-  if (!project) notFound();
+  const { channel, project } = await resolveOwnedProject(slug, projectSlug);
 
   const [
     [museVideoCount],

@@ -1,8 +1,7 @@
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 
-import { channels, channelSeries, clerkSops, clerkVideos } from "@goooose/db";
+import { channelSeries, clerkSops, clerkVideos } from "@goooose/db";
 
 import { Badge } from "@/components/ui/badge";
 import { formatDuration, formatViews } from "@/lib/format-count";
@@ -26,7 +25,7 @@ import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { cleanProfileName } from "@/lib/display-name";
 import { PLATFORM_CONTENT_UNIT, PLATFORM_METRIC_LABEL } from "@/lib/platform";
-import { ensureCurrentUser } from "@/lib/users";
+import { resolveOwnedChannel } from "@/lib/account-access";
 
 
 import { ClerkRunButton } from "./_components/clerk-run-button";
@@ -38,18 +37,7 @@ export default async function ClerkChannelPage({ params }: Props) {
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);
 
-  const user = await ensureCurrentUser();
-  if (!user) return null;
-
-  const [channel] = await db
-    .select()
-    .from(channels)
-    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
-    .limit(1);
-
-  if (!channel || channel.userId !== user.id) {
-    notFound();
-  }
+  const { user, channel } = await resolveOwnedChannel(slug);
 
   const isXhs = channel.platform === "xhs";
   const unit = PLATFORM_CONTENT_UNIT[channel.platform];

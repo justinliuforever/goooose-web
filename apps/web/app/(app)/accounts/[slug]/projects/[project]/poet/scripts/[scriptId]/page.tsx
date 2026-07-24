@@ -2,14 +2,12 @@ import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import {
-  channels,
   clerkSops,
   museIdeas,
   museMonitorVideos,
   poetBible,
   poetCustomTopics,
   poetScripts,
-  projects,
 } from "@goooose/db";
 
 import { formatDurationLabel } from "@goooose/domain/schemas/poet";
@@ -18,7 +16,7 @@ import { BackLink } from "@/components/back-link";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { sopTypeLabel } from "@/lib/sop-labels";
-import { ensureCurrentUser } from "@/lib/users";
+import { resolveOwnedProject } from "@/lib/account-access";
 
 import { ScriptDetailActions } from "./_components/script-detail-actions";
 
@@ -30,22 +28,7 @@ export default async function ScriptDetailPage({ params }: Props) {
   const projectSlug = decodeURIComponent(rawProject);
   const scriptId = decodeURIComponent(rawScriptId);
 
-  const user = await ensureCurrentUser();
-  if (!user) return null;
-
-  const [channel] = await db
-    .select()
-    .from(channels)
-    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
-    .limit(1);
-  if (!channel || channel.userId !== user.id) notFound();
-
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.ownAccountId, channel.id), eq(projects.slug, projectSlug)))
-    .limit(1);
-  if (!project) notFound();
+  const { project } = await resolveOwnedProject(slug, projectSlug);
 
   const [script] = await db
     .select()

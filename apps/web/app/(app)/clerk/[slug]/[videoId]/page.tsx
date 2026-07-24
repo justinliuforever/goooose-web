@@ -13,7 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
-import { channels, clerkVideos } from "@goooose/db";
+import { clerkVideos } from "@goooose/db";
 
 import { Badge } from "@/components/ui/badge";
 import { formatDuration, formatViews } from "@/lib/format-count";
@@ -29,7 +29,7 @@ import { Separator } from "@/components/ui/separator";
 import { formatDateTime } from "@/lib/datetime";
 import { xhsGoHref } from "@/lib/xhs-go";
 import { db } from "@/lib/db";
-import { ensureCurrentUser } from "@/lib/users";
+import { resolveOwnedChannel } from "@/lib/account-access";
 
 import { ContentTypeBadge } from "../../_components/content-type-badge";
 import { TranscriptSourceBadge } from "../../_components/transcript-source-badge";
@@ -125,16 +125,7 @@ export default async function ClerkVideoDetailPage({ params }: Props) {
   const slug = decodeURIComponent(rawSlug);
   const videoId = decodeURIComponent(rawVideoId);
 
-  const user = await ensureCurrentUser();
-  if (!user) return null;
-
-  const [channel] = await db
-    .select()
-    .from(channels)
-    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
-    .limit(1);
-
-  if (!channel || channel.userId !== user.id) notFound();
+  const { channel } = await resolveOwnedChannel(slug);
 
   const [video] = await db
     .select()

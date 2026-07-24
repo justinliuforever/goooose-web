@@ -1,15 +1,12 @@
 import { and, count, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 
 import {
-  channels,
   competitorAccounts,
   museIdeas,
   museMonitorVideos,
   projectCompetitors,
-  projects,
 } from "@goooose/db";
 
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +27,7 @@ import {
 import { getActiveAgentRun } from "@/lib/agent-run";
 import { xhsGoHref } from "@/lib/xhs-go";
 import { db } from "@/lib/db";
-import { ensureCurrentUser } from "@/lib/users";
+import { resolveOwnedProject } from "@/lib/account-access";
 
 import { IdeaActions } from "./_components/idea-actions";
 import { MuseRunButton } from "./_components/muse-run-button";
@@ -54,23 +51,7 @@ export default async function MuseChannelPage({ params }: Props) {
   const slug = decodeURIComponent(rawSlug);
   const projectSlug = decodeURIComponent(rawProject);
 
-  const user = await ensureCurrentUser();
-  if (!user) return null;
-
-  const [channel] = await db
-    .select()
-    .from(channels)
-    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
-    .limit(1);
-
-  if (!channel || channel.userId !== user.id) notFound();
-
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.ownAccountId, channel.id), eq(projects.slug, projectSlug)))
-    .limit(1);
-  if (!project) notFound();
+  const { user, channel, project } = await resolveOwnedProject(slug, projectSlug);
 
   const [monitored, ideas, activeRun, boundCompetitors] = await Promise.all([
     db
