@@ -33,6 +33,8 @@ export const museMonitorVideos = pgTable(
       table.platformVideoId,
     ),
     channelIdx: index("muse_monitor_videos_channel_id_idx").on(table.channelId),
+    // Per-run settlement (sum durations WHERE run_id) runs on every monitor completion.
+    runIdx: index("muse_monitor_videos_run_id_idx").on(table.runId),
   })
 );
 

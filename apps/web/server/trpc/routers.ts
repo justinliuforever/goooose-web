@@ -415,13 +415,19 @@ async function upsertCompetitor(
   return { status: "duplicate", id: raced?.id ?? null };
 }
 
-async function assertProjectOwner(userId: string, projectId: string) {
+// Verifies the project belongs to the user; when expectedOwnAccountId is passed, also
+// asserts the project sits under that account (guards crafted calls mixing one's own
+// account A's channel with account B's project).
+async function assertProjectOwner(userId: string, projectId: string, expectedOwnAccountId?: string) {
   const [p] = await db
-    .select({ id: projects.id })
+    .select({ id: projects.id, ownAccountId: projects.ownAccountId })
     .from(projects)
     .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
     .limit(1);
   if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+  if (expectedOwnAccountId && p.ownAccountId !== expectedOwnAccountId) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "项目与账号不匹配" });
+  }
   return p;
 }
 
@@ -1636,7 +1642,7 @@ export const appRouter = router({
           .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
-        await assertProjectOwner(ctx.user.id, input.projectId);
+        await assertProjectOwner(ctx.user.id, input.projectId, channel.id);
         // Same source as the monitor job: live project_competitors.
         const bound = await db
           .select({ id: competitorAccounts.id })
@@ -2082,7 +2088,8 @@ export const appRouter = router({
         // The Bible is account-level; only an explicit project context sets the per-project pin.
         // Pinless projects resolve to this account-active Bible via resolveActiveBible's fallback.
         if (input.projectId) {
-          await assertProjectOwner(ctx.user.id, input.projectId);
+          // Pin only within the bible's own account — never pin account A's bible to B's project.
+          await assertProjectOwner(ctx.user.id, input.projectId, target.poet_bible.channelId);
           await db
             .update(projects)
             .set({ activeBibleId: input.bibleId, updatedAt: new Date() })
@@ -2100,7 +2107,7 @@ export const appRouter = router({
           .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
-        await assertProjectOwner(ctx.user.id, input.projectId);
+        await assertProjectOwner(ctx.user.id, input.projectId, channel.id);
 
         const [activeBible] = await db
           .select({ id: poetBible.id })
@@ -2229,7 +2236,7 @@ export const appRouter = router({
           .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
-        await assertProjectOwner(ctx.user.id, input.projectId);
+        await assertProjectOwner(ctx.user.id, input.projectId, channel.id);
         const [created] = await db
           .insert(poetCustomTopics)
           .values({
@@ -2315,7 +2322,7 @@ export const appRouter = router({
           .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
-        await assertProjectOwner(ctx.user.id, input.projectId);
+        await assertProjectOwner(ctx.user.id, input.projectId, channel.id);
 
         const [activeBible] = await db
           .select({ id: poetBible.id })
@@ -2416,7 +2423,7 @@ export const appRouter = router({
           .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
-        await assertProjectOwner(ctx.user.id, input.projectId);
+        await assertProjectOwner(ctx.user.id, input.projectId, channel.id);
 
         const [activeBible] = await db
           .select({ id: poetBible.id })

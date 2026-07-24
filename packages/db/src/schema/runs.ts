@@ -39,6 +39,8 @@ export const pipelineRuns = pgTable(
     competitorStatusIdx: index("pipeline_runs_competitor_status_idx")
       .on(table.competitorAccountId, table.status)
       .where(sql`${table.competitorAccountId} is not null`),
+    // Admin ops monitor filters by status + orders by started_at across all users.
+    statusStartedIdx: index("pipeline_runs_status_started_idx").on(table.status, table.startedAt),
   })
 );
 

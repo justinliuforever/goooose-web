@@ -82,6 +82,8 @@ export const clerkVideos = pgTable(
       .on(table.competitorAccountId)
       .where(sql`${table.competitorAccountId} is not null`),
     channelIdx: index("clerk_videos_channel_id_idx").on(table.channelId),
+    // Per-run settlement (sum durations WHERE run_id) runs on every analysis completion.
+    runIdx: index("clerk_videos_run_id_idx").on(table.runId),
   })
 );
 

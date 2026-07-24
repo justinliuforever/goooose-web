@@ -82,7 +82,7 @@ async function get<T>(endpoint: string, params: Record<string, string>, attempts
       });
       if (res.status >= 500 || res.status === 429 || res.status === 400) {
         const body = await res.text();
-        lastErr = new Error(`TikHub ${endpoint} HTTP ${res.status}: ${body.slice(0, 120)}`);
+        lastErr = new Error(`TikHub ${endpoint} HTTP ${res.status}: ${body.slice(0, 300)}`);
         if (i < attempts) {
           const retryAfter = Number(res.headers.get("retry-after"));
           const waitMs = res.status === 429 && retryAfter > 0 ? retryAfter * 1000 : 1500 * i;
