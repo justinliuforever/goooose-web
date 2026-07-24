@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { channels } from "@goooose/db";
 
@@ -23,7 +23,7 @@ export default async function NewProjectPage({ params }: Props) {
   const [channel] = await db
     .select()
     .from(channels)
-    .where(eq(channels.slug, slug))
+    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
     .limit(1);
   if (!channel || channel.userId !== user.id) notFound();
 

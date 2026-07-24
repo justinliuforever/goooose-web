@@ -1,4 +1,4 @@
-import { count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -34,7 +34,11 @@ export default async function AccountDetailPage({ params }: Props) {
   const user = await ensureCurrentUser();
   if (!user) return null;
 
-  const [channel] = await db.select().from(channels).where(eq(channels.slug, slug)).limit(1);
+  const [channel] = await db
+    .select()
+    .from(channels)
+    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
+    .limit(1);
   if (!channel || channel.userId !== user.id) {
     notFound();
   }

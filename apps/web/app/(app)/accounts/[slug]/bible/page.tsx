@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import { channels, poetBible } from "@goooose/db";
@@ -28,7 +28,7 @@ export default async function AccountBiblePage({ params }: Props) {
   const [channel] = await db
     .select()
     .from(channels)
-    .where(eq(channels.slug, slug))
+    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
     .limit(1);
   if (!channel || channel.userId !== user.id) notFound();
 

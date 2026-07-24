@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -44,7 +44,7 @@ export default async function ClerkChannelPage({ params }: Props) {
   const [channel] = await db
     .select()
     .from(channels)
-    .where(eq(channels.slug, slug))
+    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
     .limit(1);
 
   if (!channel || channel.userId !== user.id) {

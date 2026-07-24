@@ -36,7 +36,7 @@ export default async function ScriptDetailPage({ params }: Props) {
   const [channel] = await db
     .select()
     .from(channels)
-    .where(eq(channels.slug, slug))
+    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
     .limit(1);
   if (!channel || channel.userId !== user.id) notFound();
 

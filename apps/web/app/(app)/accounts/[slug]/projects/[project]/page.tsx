@@ -38,7 +38,11 @@ export default async function ProjectHubPage({ params }: Props) {
   const user = await ensureCurrentUser();
   if (!user) return null;
 
-  const [channel] = await db.select().from(channels).where(eq(channels.slug, slug)).limit(1);
+  const [channel] = await db
+    .select()
+    .from(channels)
+    .where(and(eq(channels.userId, user.id), eq(channels.slug, slug)))
+    .limit(1);
   if (!channel || channel.userId !== user.id) notFound();
 
   const [project] = await db
