@@ -92,6 +92,8 @@ export type GenerateIdeasArgs = {
   language?: "en" | "zh";
   biblePositioning?: string;
   transcript?: string | null;
+  direction?: string;
+  sopReference?: string;
 };
 
 export type GenerateIdeasResult = {
@@ -112,6 +114,8 @@ export async function generateIdeas(args: GenerateIdeasArgs): Promise<GenerateId
     language: args.language,
     biblePositioning: args.biblePositioning,
     transcript: args.transcript,
+    direction: args.direction,
+    sopReference: args.sopReference,
   });
 
   // Pro-first with Flash fallback on empty; 8192 budget keeps 6 fields × N ideas
